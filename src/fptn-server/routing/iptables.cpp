@@ -145,11 +145,10 @@ bool RouteManager::Apply() {  // NOLINT(bugprone-exception-escape)
 #else
 #error "Unsupported system!"
 #endif
-  SPDLOG_INFO("=== Setting up routing ===");
   try {
     for (const auto& cmd : commands) {
       if (!RunCommand(cmd)) {
-        SPDLOG_ERROR("COMMAND ERROR: {}", cmd);
+        SPDLOG_WARN("COMMAND ERROR: {}", cmd);
       }
     }
   } catch (const std::exception& e) {
@@ -159,7 +158,6 @@ bool RouteManager::Apply() {  // NOLINT(bugprone-exception-escape)
     SPDLOG_ERROR("Unknown exception occurred while applying routing.");
     return false;
   }
-  SPDLOG_INFO("=== Routing setup completed successfully ===");
   return true;
 }
 

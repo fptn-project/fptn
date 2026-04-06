@@ -810,6 +810,9 @@ bool TrayApp::startVpn(QString& err_msg) {
     return false;
   }
 
+  SPDLOG_INFO("DNS configuration loaded: IPv4='{}', IPv6='{}'",
+      dns_server_ipv4.ToString(), dns_server_ipv6.ToString());
+
   const auto blacklist_domains = settings_->BlacklistDomains();
   const auto exclude_networks = settings_->ExcludeTunnelNetworks();
   const auto include_networks = settings_->IncludeTunnelNetworks();
@@ -819,9 +822,16 @@ bool TrayApp::startVpn(QString& err_msg) {
 
   // route manager
   route_manager_ = std::make_unique<fptn::routing::RouteManager>(
-      network_interface, tun_interface_name, server_ip, dns_server_ipv4,
-      dns_server_ipv6, gateway_ip, gateway_ipv6, tun_interface_address_ipv4,
-      tun_interface_address_ipv6
+      /* tun */
+      network_interface, tun_interface_name,
+      /* server  */
+      server_ip,
+      /* dns */
+      dns_server_ipv4, dns_server_ipv6,
+      /* gateway */
+      gateway_ip, gateway_ipv6,
+      /* tun address */
+      tun_interface_address_ipv4, tun_interface_address_ipv6
 #if _WIN32
       ,
       settings_->EnableAdvancedDnsManagement()
@@ -898,7 +908,6 @@ bool TrayApp::startVpn(QString& err_msg) {
     }
     route_manager_->AddIncludeNetworks(include_networks_std);
   }
-
   return true;
 }
 
