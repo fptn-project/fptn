@@ -32,19 +32,6 @@ def run_command(command, cwd=None):
     return result.stdout.strip()
 
 
-def save_tunnelblick_tun_driver(target_dir: pathlib.Path) -> bool:
-    repo_url = "https://github.com/Tunnelblick/Tunnelblick.git"
-    with tempfile.TemporaryDirectory() as temp_git_dir:
-        print("Cloning repository...")
-        run_command(f"git clone --depth 1 -b master {repo_url}", cwd=temp_git_dir)
-        source_folder = pathlib.Path(temp_git_dir) / "Tunnelblick" / "third_party" / "tun-notarized.kext"
-        if source_folder.exists():
-            print(f"Copying folder '{source_folder}' to target directory...")
-            shutil.copytree(source_folder, target_dir, dirs_exist_ok=True)
-        else:
-            raise FileNotFoundError(f"Source folder '{source_folder}' does not exist.")
-    return True
-
 
 def create_app(
     app_path: pathlib.Path,
@@ -63,9 +50,6 @@ def create_app(
         os.makedirs(resources_path, exist_ok=True)
         os.makedirs(frameworks_path, exist_ok=True)
         os.makedirs(frameworks_qt_plugins_path, exist_ok=True)
-        # save driver
-        tun_driver_path = resources_path / "tun.kext"
-        save_tunnelblick_tun_driver(tun_driver_path)
 
         # Сopy SNI files from deploy/sni to Resources/SNI
         sni_source = REPOSITORY_FOLDER / "deploy" / "sni"
@@ -143,21 +127,10 @@ def create_app(
         with open(app_contents_path / "Info.plist", "wb") as plist_file:
             plistlib.dump(plist, plist_file)
 
-        plist_content = {
-            "Label": "net.tunnelblick.tun",
-            "ProgramArguments": ["/sbin/kextload", "/Library/Extensions/tun.kext"],
-            "KeepAlive": False,
-            "RunAtLoad": True,
-            "UserName": "root",
-        }
-
-        with open(resources_path / "net.tunnelblick.tun.plist", "wb") as plist_file:
-            plistlib.dump(plist_content, plist_file)
-            return True
     except Exception as e:
         print(f"Error creating .app: {e}")
         raise e
-    return False
+    return True
 
 
 def create_pkg(app_path: pathlib.Path, version: str) -> bool:

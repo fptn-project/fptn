@@ -476,13 +476,13 @@ void TrayApp::onDisconnectFromServer() {
   const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
   connection_state_ = ConnectionState::None;
-  if (vpn_client_) {
-    vpn_client_->Stop();
-    vpn_client_.reset();
-  }
   if (route_manager_) {
     route_manager_->Clean();
     route_manager_.reset();
+  }
+  if (vpn_client_) {
+    vpn_client_->Stop();
+    vpn_client_.reset();
   }
   UpdateTrayMenu();
 }
@@ -499,13 +499,13 @@ void TrayApp::handleDefaultState() {
     const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
     connection_state_ = ConnectionState::None;
-    if (vpn_client_) {
-      vpn_client_->Stop();
-      vpn_client_.reset();
-    }
     if (route_manager_) {
       route_manager_->Clean();
       route_manager_.reset();
+    }
+    if (vpn_client_) {
+      vpn_client_->Stop();
+      vpn_client_.reset();
     }
   }
   UpdateTrayMenu();
@@ -660,13 +660,13 @@ void TrayApp::RetranslateUi() {
 
 void TrayApp::stop() {
   SPDLOG_INFO("Stopping TrayApp");
-  if (vpn_client_) {
-    vpn_client_->Stop();
-    vpn_client_.reset();
-  }
   if (route_manager_) {
     route_manager_->Clean();
     route_manager_.reset();
+  }
+  if (vpn_client_) {
+    vpn_client_->Stop();
+    vpn_client_.reset();
   }
 }
 
@@ -920,6 +920,10 @@ bool TrayApp::startVpn(QString& err_msg) {
 
   // Wait for the WebSocket tunnel to establish
   vpn_client_->Start();
+
+  // Update tun name to actual device name (may differ on macOS)
+  route_manager_->UpdateTunInterfaceName(vpn_client_->GetInterfaceName());
+
   constexpr auto kTimeout = std::chrono::seconds(10);
   const auto start = std::chrono::steady_clock::now();
   while (!vpn_client_->IsStarted()) {
@@ -953,13 +957,13 @@ bool TrayApp::startVpn(QString& err_msg) {
 
 bool TrayApp::stopVpn() {
   SPDLOG_INFO("Stopping vpn");
-  if (vpn_client_) {
-    vpn_client_->Stop();
-    vpn_client_.reset();
-  }
   if (route_manager_) {
     route_manager_->Clean();
     route_manager_.reset();
+  }
+  if (vpn_client_) {
+    vpn_client_->Stop();
+    vpn_client_.reset();
   }
   return true;
 }

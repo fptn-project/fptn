@@ -65,8 +65,6 @@ Key Technical Features:
 
 ### Demonstration
 
-*🍏🍎MacOS users are recommended to review the [macOS installation guide](docs/macos/README.md), as macOS includes additional security measures that may require specific actions.*
-
 Download the FPTN client from the [website](http://batchar2.github.io/fptn/) or [GitHub](https://github.com/batchar2/fptn/releases). After downloading, install and launch the client.
 
 The client is a compact application whose icon resides in the system tray.

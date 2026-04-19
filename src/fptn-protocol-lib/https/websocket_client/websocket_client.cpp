@@ -505,19 +505,18 @@ boost::asio::awaitable<void> WebsocketClient::RunSender() {
       auto [ec, packet] = co_await write_channel_.async_receive(
           boost::asio::bind_cancellation_slot(cancel_signal_.slot(),
               boost::asio::as_tuple(boost::asio::use_awaitable)));
+
       if (packet != nullptr && running_ && ws_.is_open() && !ec) {
         auto msg =
             fptn::protocol::protobuf::CreateProtoPayload(std::move(packet));
         if (msg.has_value()) {
           co_await ws_.async_write(boost::asio::buffer(msg.value()),
               boost::asio::redirect_error(boost::asio::use_awaitable, ec));
-          if (ec) {
-            SPDLOG_ERROR("WebSocket write error: {}", ec.message());
-            break;
-          }
         }
       }
+
       if (ec) {
+        SPDLOG_ERROR("WebSocket error: {}", ec.message());
         break;
       }
     }
@@ -569,7 +568,8 @@ boost::asio::awaitable<bool> WebsocketClient::PerformFakeHandshake() {
       SPDLOG_ERROR("Failed to read fake handshake response: {}", ec.message());
       co_return false;
     }
-    drain_resp_size += co_await common::network::DrainSocketAsync(tcp_socket);
+    drain_resp_size += co_await common::network::DrainSocketAsync(
+        tcp_socket, std::chrono::milliseconds(1200));
     if (drain_resp_size == 0) {
       SPDLOG_ERROR("No data received during fake handshake");
       co_return false;

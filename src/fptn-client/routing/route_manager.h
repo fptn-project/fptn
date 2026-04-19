@@ -62,6 +62,10 @@ class RouteManager final {
   );  // NOLINT
   ~RouteManager();
 
+  void UpdateTunInterfaceName(const std::string& name) {
+    tun_interface_name_ = name;
+  }
+
   bool Apply();
   bool Clean();
 
@@ -81,7 +85,7 @@ class RouteManager final {
   std::atomic<bool> running_;
 
   const std::string out_interface_name_;
-  const std::string tun_interface_name_;
+  std::string tun_interface_name_;
   const fptn::common::network::IPv4Address vpn_server_ip_;
   const fptn::common::network::IPv4Address dns_server_ipv4_;
   const fptn::common::network::IPv6Address dns_server_ipv6_;

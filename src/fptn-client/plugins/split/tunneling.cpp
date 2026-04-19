@@ -46,12 +46,11 @@ Tunneling::Tunneling(const std::vector<std::string>& rules,
 std::pair<fptn::common::network::IPPacketPtr, bool> Tunneling::HandlePacket(
     fptn::common::network::IPPacketPtr packet) {
   bool triggered = false;
-
   if (packet->IsDns()) {
     const auto domain_opt = packet->GetDnsDomain();
     if (domain_opt.has_value()) {
       const std::string& domain = domain_opt.value();
-      bool domain_matched = std::ranges::any_of(rules_,
+      const bool domain_matched = std::ranges::any_of(rules_,
           [&domain](const auto& re) { return RE2::PartialMatch(domain, *re); });
 
       const auto ipv4_addresses = packet->GetDnsIPv4Addresses();

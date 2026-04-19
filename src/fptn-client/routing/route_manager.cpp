@@ -442,34 +442,40 @@ bool RouteManager::Apply() {
 #elif __APPLE__
   const std::vector<std::string> commands = {
       fmt::format(
-          R"(bash -c "networksetup -listallnetworkservices | grep -v '^An asterisk' | xargs -I {{}} networksetup -setdnsservers '{{}}' empty")",
+          R"(bash -c "networksetup -listallnetworkservices | grep -v '^An asterisk' | grep -v '^\* ' | xargs -I {{}} networksetup -setdnsservers '{{}}' empty")",
           dns_server_ipv4_.ToString()),  // clean DNS
       fmt::format("sysctl -w net.inet.ip.forwarding=1"),
+      fmt::format("sysctl -w net.inet6.ip6.forwarding=1"),
       fmt::format(
-          R"(sh -c "echo 'nat on {findOutInterfaceName} from {tunInterfaceName}:network to any -> ({findOutInterfaceName})
-                pass out on {findOutInterfaceName} proto tcp from any to {vpnServerIP}
-                pass in on {findOutInterfaceName} proto tcp from {vpnServerIP} to any
-                pass in on {tunInterfaceName} proto tcp from any to any
-                pass out on {tunInterfaceName} proto tcp from any to any' > /tmp/pf.conf"
-            )",
+          R"(bash -c "printf 'nat on {findOutInterfaceName} from {tunInterfaceName}:network to any -> ({findOutInterfaceName})\npass out on {findOutInterfaceName} proto tcp from any to {vpnServerIP}\npass in on {findOutInterfaceName} proto tcp from {vpnServerIP} to any\npass in on {tunInterfaceName} proto tcp from any to any\npass out on {tunInterfaceName} proto tcp from any to any\npass in on {tunInterfaceName} proto udp from any to any\npass out on {tunInterfaceName} proto udp from any to any\n' > /tmp/pf.conf")",
           fmt::arg("findOutInterfaceName", detected_out_interface_name_),
           fmt::arg("tunInterfaceName", tun_interface_name_),
           fmt::arg("vpnServerIP", vpn_server_ip_.ToString())),
       fmt::format("pfctl -ef /tmp/pf.conf"),
-      // default & DNS route
+      // IPv4 default & DNS route
       fmt::format(
           "route add -net 0.0.0.0/1 -interface {}", tun_interface_name_),
       fmt::format(
           "route add -net 128.0.0.0/1 -interface {}", tun_interface_name_),
       fmt::format("route add -host {} -interface {}",
           dns_server_ipv4_.ToString(), tun_interface_name_),  // via TUN
+      // IPv6 routes
+      fmt::format(
+          "route add -inet6 -net ::0/1 -interface {}", tun_interface_name_),
+      fmt::format(
+          "route add -inet6 -net 8000::/1 -interface {}", tun_interface_name_),
+      fmt::format("route add -inet6 default -interface {} 2>/dev/null || true",
+          tun_interface_name_),
+      // DNS IPv6 route
+      fmt::format("route add -inet6 -host {} -interface {}",
+          dns_server_ipv6_.ToString(), tun_interface_name_),
       // exclude vpn server & networks
       fmt::format("route add -host {} {}", vpn_server_ip_.ToString(),
           detected_gateway_ipv4_.ToString()),
       // DNS
       fmt::format("dscacheutil -flushcache"),
       fmt::format(
-          R"(bash -c "networksetup -listallnetworkservices | grep -v '^\* ' | xargs -I {{}} networksetup -setdnsservers '{{}}' {}")",
+          R"(bash -c "networksetup -listallnetworkservices | grep -v '^An asterisk' | grep -v '^\* ' | xargs -I {{}} networksetup -setdnsservers '{{}}' {}")",
           dns_server_ipv4_.ToString())};
 
 #elif _WIN32
@@ -721,7 +727,7 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
 #elif __APPLE__
   const std::vector<std::string> commands = {
       fmt::format(
-          R"(bash -c "networksetup -listallnetworkservices | grep -v '^An asterisk' | xargs -I {{}} networksetup -setdnsservers '{{}}' empty")"),  // clean DNS
+          R"(bash -c "networksetup -listallnetworkservices | grep -v '^An asterisk' | grep -v '^\* ' | xargs -I {{}} networksetup -setdnsservers '{{}}' empty")"),  // clean DNS
       fmt::format("pfctl -F all -f /etc/pf.conf"),
       // del routes
       fmt::format("route delete -host {} -interface {}",
@@ -731,11 +737,16 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
           "route delete -net 0.0.0.0/1 -interface {}", tun_interface_name_),
       fmt::format(
           "route delete -net 128.0.0.0/1 -interface {}", tun_interface_name_),
+      // del IPv6 routes
+      fmt::format(
+          "route delete -inet6 -net ::0/1 -interface {}", tun_interface_name_),
+      fmt::format("route delete -inet6 -net 8000::/1 -interface {}",
+          tun_interface_name_),
       fmt::format("route delete -host {} {}", vpn_server_ip_.ToString(),
           detected_gateway_ipv4_.ToString()),
       // DNS
       fmt::format(
-          R"(bash -c "networksetup -listallnetworkservices | grep -v '^An asterisk' | xargs -I {{}} networksetup -setdnsservers '{{}}' empty")")  // clean DNS
+          R"(bash -c "networksetup -listallnetworkservices | grep -v '^An asterisk' | grep -v '^\* ' | xargs -I {{}} networksetup -setdnsservers '{{}}' empty")")  // clean DNS
   };
 #elif _WIN32
   std::string current_interface_name = detected_out_interface_name_;
@@ -1177,7 +1188,7 @@ fptn::routing::GetDefaultGatewayIPv6Address() {
         "ip -6 route | grep default | head -1 | awk '{print $3}'";
 #elif __APPLE__
     const std::string command =
-        "route -6 get default | grep gateway | awk '{print $2}'";
+        "route get -inet6 default | grep gateway | awk '{print $2}'";
 #elif _WIN32
     const std::string command =
         R"(netsh interface ipv6 show routes | find "::/0" | head -1 | awk "{print $3}")";

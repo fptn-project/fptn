@@ -38,7 +38,7 @@ jobs:
           python3 cpplint.py --recursive --filter=-build/c++17,-whitespace/newline,-readability/braces --counting=total ./src/ ./tests/
       - name: Run cppcheck
         run: |
-          cppcheck --error-exitcode=1 --enable=all --check-level=exhaustive --language=c++ --suppress=unusedFunction --inline-suppr --suppress=missingIncludeSystem --suppress=unknownMacro -I ./src/fptn-client/ -I ./src/fptn-server/ -I ./src/fptn-passwd/ -I ./src/fptn-client-protocol-lib -I ./src/  ./src/ ./tests/
+          cppcheck --error-exitcode=1 --enable=all --check-level=exhaustive --language=c++ --suppress=unusedFunction --inline-suppr --suppress=missingIncludeSystem --suppress=unknownMacro --suppress=unmatchedSuppression -I ./src/fptn-client/ -I ./src/fptn-server/ -I ./src/fptn-passwd/ -I ./src/fptn-client-protocol-lib -I ./src/  ./src/ ./tests/
       - name: Run cmake-format
         run: |
           cmake-format -i CMakeLists.txt src/fptn-client/CMakeLists.txt src/fptn-passwd/CMakeLists.txt src/fptn-server/CMakeLists.txt src/fptn-protocol-lib/CMakeLists.txt depends/cmake/FetchBase64.cmake depends/cmake/FetchLibTunTap.cmake depends/cmake/FetchWintun.cmake
@@ -110,7 +110,7 @@ jobs:
           python3 cpplint.py --recursive --filter=-build/c++17,-whitespace/newline,-readability/braces --counting=total ./src/ ./tests/
       - name: Run cppcheck
         run: |
-          cppcheck --error-exitcode=1 --enable=all --check-level=exhaustive --language=c++ --suppress=unusedFunction --inline-suppr --suppress=missingIncludeSystem -I ./src/fptn-client/ -I ./src/fptn-server/ -I ./src/fptn-passwd/ -I ./src/fptn-client-protocol-lib -I ./src/ ./src/ ./tests/
+          cppcheck --error-exitcode=1 --enable=all --check-level=exhaustive --language=c++ --suppress=unusedFunction --inline-suppr --suppress=missingIncludeSystem --suppress=unmatchedSuppression -I ./src/fptn-client/ -I ./src/fptn-server/ -I ./src/fptn-passwd/ -I ./src/fptn-client-protocol-lib -I ./src/ ./src/ ./tests/
       - name: Run cmake-format
         run: |
           cmake-format -i CMakeLists.txt src/fptn-client/CMakeLists.txt src/fptn-passwd/CMakeLists.txt src/fptn-server/CMakeLists.txt src/fptn-protocol-lib/CMakeLists.txt depends/cmake/FetchBase64.cmake depends/cmake/FetchLibTunTap.cmake depends/cmake/FetchWintun.cmake
@@ -246,7 +246,7 @@ jobs:
       - name: Run cppcheck
         shell: powershell
         run: |
-          cppcheck --error-exitcode=1 --enable=all --check-level=exhaustive --language=c++ --suppress=unusedFunction --inline-suppr --suppress=missingIncludeSystem --suppress=unknownMacro -I ./src/fptn-client/ -I ./src/fptn-server/ -I ./src/fptn-passwd/ -I ./src/fptn-client-protocol-lib -I ./src/  ./src/ ./tests/
+          cppcheck --error-exitcode=1 --enable=all --check-level=exhaustive --language=c++ --suppress=unusedFunction --inline-suppr --suppress=missingIncludeSystem --suppress=unknownMacro --suppress=unmatchedSuppression -I ./src/fptn-client/ -I ./src/fptn-server/ -I ./src/fptn-passwd/ -I ./src/fptn-client-protocol-lib -I ./src/  ./src/ ./tests/
       - name: Run cmake-format
         shell: powershell
         run: |

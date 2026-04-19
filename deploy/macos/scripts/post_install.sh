@@ -46,30 +46,3 @@ if ln -s "$APP_EXECUTABLE" "$SYMLINK_PATH"; then
 else
     show_error "Failed to create symlink at $SYMLINK_PATH\n\nPlease check if you have sufficient permissions."
 fi
-
-# Driver (kext) installation
-KEXT_SRC="/Applications/FptnClient.app/Contents/Resources/tun.kext"
-KEXT_DST="/Library/Extensions/tun.kext"
-
-if [ -d "$KEXT_DST" ]; then
-    echo "Network driver already installed at $KEXT_DST"
-else
-    echo "Installing network driver..."
-
-    # Copy the driver
-    if cp -r "$KEXT_SRC" "$KEXT_DST"; then
-        echo "Driver successfully copied to $KEXT_DST"
-    else
-        show_error "Failed to install network driver.\n\nPossible causes:\n1. Missing administrator privileges\n2. System Integrity Protection is active\n3. Insufficient disk space"
-    fi
-
-    # Update kext cache
-    echo "Updating driver cache..."
-    if kextcache -i /; then
-        show_info "Driver installation complete!\n\nNote: You may need to:\n1. Approve the driver in:\n   System Preferences → Security & Privacy → General\n2. Restart your computer"
-    else
-        show_error "Driver installation completed but cache update failed.\n\nThe driver might not work until you restart your computer."
-    fi
-fi
-
-kextcache -i /

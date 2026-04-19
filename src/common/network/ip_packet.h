@@ -40,6 +40,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <pcapplusplus/EthLayer.h>     // NOLINT(build/include_order)
 #include <pcapplusplus/IPv4Layer.h>    // NOLINT(build/include_order)
 #include <pcapplusplus/IPv6Layer.h>    // NOLINT(build/include_order)
+#include <pcapplusplus/IcmpLayer.h>    // NOLINT(build/include_order)
 #include <pcapplusplus/IcmpV6Layer.h>  // NOLINT(build/include_order)
 #include <pcapplusplus/MacAddress.h>   // NOLINT(build/include_order)
 #include <pcapplusplus/Packet.h>       // NOLINT(build/include_order)
@@ -213,6 +214,16 @@ class IPPacket {
     if (ipv6_layer_) {
       ipv6_layer_->setSrcIPv6Address(src);
     }
+  }
+
+  bool IsICMPv4() const {
+    const auto* icmp_v4 = parsed_packet_.getLayerOfType<pcpp::IcmpLayer>();
+    return icmp_v4 != nullptr;
+  }
+
+  bool IsICMPv6() const {
+    const auto* icmp_v6 = parsed_packet_.getLayerOfType<pcpp::IcmpV6Layer>();
+    return icmp_v6 != nullptr;
   }
 
   bool IsDns() const {

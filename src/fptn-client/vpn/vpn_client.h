@@ -10,6 +10,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <memory>
 #include <mutex>
 #include <queue>
+#include <string>
 #include <vector>
 
 #include <openssl/base.h>  // NOLINT(build/include_order)
@@ -35,6 +36,7 @@ class VpnClient final {
   std::size_t GetSendRate();
   std::size_t GetReceiveRate();
   bool IsStarted();
+  [[nodiscard]] std::string GetInterfaceName() const;
 
  protected:
   void HandlePacketFromVirtualNetworkInterface(

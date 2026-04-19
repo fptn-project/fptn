@@ -430,6 +430,9 @@ int main(int argc, char* argv[]) {
         std::move(client_plugins));
     vpn_client.Start();
 
+    // Update tun name to actual device name (may differ on macOS)
+    route_manager->UpdateTunInterfaceName(vpn_client.GetInterfaceName());
+
     // Wait for the WebSocket tunnel to establish
     constexpr std::chrono::seconds kTimeout(10);
     const auto start = std::chrono::steady_clock::now();

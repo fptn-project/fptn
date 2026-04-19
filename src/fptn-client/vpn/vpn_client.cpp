@@ -147,6 +147,13 @@ std::size_t VpnClient::GetReceiveRate() {
   return 0;
 }
 
+std::string VpnClient::GetInterfaceName() const {
+  if (virtual_net_interface_) {
+    return virtual_net_interface_->Name();
+  }
+  return {};
+}
+
 void VpnClient::HandlePacketFromVirtualNetworkInterface(
     fptn::common::network::IPPacketPtr packet) {
   if (!running_) {
@@ -217,6 +224,7 @@ void VpnClient::ProcessWebSocketPackets() {
 
     if (running_ && packet) {
       const std::unique_lock<std::mutex> lock(mutex_);  // mutex
+      // cppcheck-suppress knownConditionTrueFalse
       if (running_ && virtual_net_interface_) {
         virtual_net_interface_->Send(std::move(packet));
       }
