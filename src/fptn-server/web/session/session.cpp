@@ -564,7 +564,7 @@ boost::asio::awaitable<bool> Session::HandleRealityMode(
     // Drain data
     const std::size_t drain_resp_size =
         co_await common::network::DrainSocketAsync(
-            tcp_socket, std::chrono::milliseconds(300));
+            tcp_socket, std::chrono::milliseconds(500));
     SPDLOG_INFO(
         "Reality mode completed, ready for real handshake (client_id={}) "
         "request_size = {} response_size: {}, drain_resp_size: {}",

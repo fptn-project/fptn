@@ -459,11 +459,16 @@ bool RouteManager::Apply() {
           "route add -net 128.0.0.0/1 -interface {}", tun_interface_name_),
       fmt::format("route add -host {} -interface {}",
           dns_server_ipv4_.ToString(), tun_interface_name_),  // via TUN
-      // IPv6 default route (split into two halves to avoid overriding default)
+      // IPv6 routes
       fmt::format(
           "route add -inet6 -net ::0/1 -interface {}", tun_interface_name_),
       fmt::format(
           "route add -inet6 -net 8000::/1 -interface {}", tun_interface_name_),
+      fmt::format("route add -inet6 default -interface {} 2>/dev/null || true",
+          tun_interface_name_),
+      // DNS IPv6 route
+      fmt::format("route add -inet6 -host {} -interface {}",
+          dns_server_ipv6_.ToString(), tun_interface_name_),
       // exclude vpn server & networks
       fmt::format("route add -host {} {}", vpn_server_ip_.ToString(),
           detected_gateway_ipv4_.ToString()),

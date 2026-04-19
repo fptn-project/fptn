@@ -9,7 +9,6 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <atomic>
 #include <memory>
 #include <string>
-
 #include <tuntap++.hh>  // NOLINT(build/include_order)
 
 namespace fptn::common::network {

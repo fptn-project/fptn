@@ -6,16 +6,15 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #pragma once
 
+#include <arpa/inet.h>  // NOLINT(build/include_order)
 #include <atomic>
 #include <cstdint>
 #include <cstring>
+#include <fcntl.h>  // NOLINT(build/include_order)
 #include <memory>
+#include <net/if.h>       // NOLINT(build/include_order)
+#include <net/if_utun.h>  // NOLINT(build/include_order)
 #include <string>
-
-#include <arpa/inet.h>         // NOLINT(build/include_order)
-#include <fcntl.h>             // NOLINT(build/include_order)
-#include <net/if.h>            // NOLINT(build/include_order)
-#include <net/if_utun.h>       // NOLINT(build/include_order)
 #include <sys/ioctl.h>         // NOLINT(build/include_order)
 #include <sys/kern_control.h>  // NOLINT(build/include_order)
 #include <sys/socket.h>        // NOLINT(build/include_order)
@@ -38,16 +37,16 @@ class DarwinTunDevice {
   bool Open(const std::string& /*requested_name*/) {
     fd_ = socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL);
     if (fd_ < 0) {
-      SPDLOG_ERROR("DarwinTunDevice: socket(PF_SYSTEM) failed: {}",
-          strerror(errno));
+      SPDLOG_ERROR(
+          "DarwinTunDevice: socket(PF_SYSTEM) failed: {}", strerror(errno));
       return false;
     }
 
     struct ctl_info info = {};
     strncpy(info.ctl_name, UTUN_CONTROL_NAME, sizeof(info.ctl_name) - 1);
     if (ioctl(fd_, CTLIOCGINFO, &info) < 0) {
-      SPDLOG_ERROR("DarwinTunDevice: ioctl(CTLIOCGINFO) failed: {}",
-          strerror(errno));
+      SPDLOG_ERROR(
+          "DarwinTunDevice: ioctl(CTLIOCGINFO) failed: {}", strerror(errno));
       close(fd_);
       fd_ = -1;
       return false;
@@ -81,8 +80,8 @@ class DarwinTunDevice {
     // Get the assigned interface name
     char ifname[IFNAMSIZ] = {};
     socklen_t ifname_len = sizeof(ifname);
-    if (getsockopt(fd_, SYSPROTO_CONTROL, UTUN_OPT_IFNAME, ifname,
-            &ifname_len) < 0) {
+    if (getsockopt(
+            fd_, SYSPROTO_CONTROL, UTUN_OPT_IFNAME, ifname, &ifname_len) < 0) {
       SPDLOG_ERROR("DarwinTunDevice: getsockopt(UTUN_OPT_IFNAME) failed: {}",
           strerror(errno));
       close(fd_);
@@ -113,9 +112,8 @@ class DarwinTunDevice {
 
   bool ConfigureIPv4(const std::string& addr, int mask) {
     // Use ifconfig to set IPv4 address
-    const std::string cmd =
-        "ifconfig " + name_ + " inet " + addr + "/" + std::to_string(mask) +
-        " " + addr;
+    const std::string cmd = "ifconfig " + name_ + " inet " + addr + "/" +
+                            std::to_string(mask) + " " + addr;
     SPDLOG_DEBUG("DarwinTunDevice: {}", cmd);
     return system(cmd.c_str()) == 0;  // NOLINT(cert-env33-c)
   }
@@ -141,8 +139,7 @@ class DarwinTunDevice {
   }
 
   void SetMTU(int mtu) {
-    const std::string cmd =
-        "ifconfig " + name_ + " mtu " + std::to_string(mtu);
+    const std::string cmd = "ifconfig " + name_ + " mtu " + std::to_string(mtu);
     system(cmd.c_str());  // NOLINT(cert-env33-c)
   }
 

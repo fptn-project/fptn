@@ -2,7 +2,6 @@ project(fptn-protocol-lib LANGUAGES CXX)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
-# include(${CMAKE_SOURCE_DIR}/depends/cmake/NtpClient.cmake)
 include(../../depends/cmake/NtpClient.cmake)
 include(../../depends/cmake/CamouflageTLS.cmake)
 if (IOS)

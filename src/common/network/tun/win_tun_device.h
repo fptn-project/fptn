@@ -115,10 +115,9 @@ class WinTunDevice {
         DWORD packet_size = 0;
         BYTE* packet = WintunReceivePacket(session_, &packet_size);
         if (packet && running_ && *running_) {
-          const int copy_size =
-              (static_cast<int>(packet_size) < size)
-                  ? static_cast<int>(packet_size)
-                  : size;
+          const int copy_size = (static_cast<int>(packet_size) < size)
+                                    ? static_cast<int>(packet_size)
+                                    : size;
           std::memcpy(buffer, packet, copy_size);
           WintunReleaseReceivePacket(session_, packet);
           return copy_size;
@@ -199,9 +198,9 @@ class WinTunDevice {
       SPDLOG_ERROR("WINTUN NOT FOUND!");
       return nullptr;
     }
-#define X(Name)                                    \
-  ((*(reinterpret_cast<FARPROC*>(&Name)) =         \
-        GetProcAddress(wintun_lib, #Name)) == nullptr)
+#define X(Name)                            \
+  ((*(reinterpret_cast<FARPROC*>(&Name)) = \
+           GetProcAddress(wintun_lib, #Name)) == nullptr)
     if (X(WintunCreateAdapter) || X(WintunCloseAdapter) ||
         X(WintunOpenAdapter) || X(WintunGetAdapterLUID) ||
         X(WintunGetRunningDriverVersion) || X(WintunDeleteDriver) ||

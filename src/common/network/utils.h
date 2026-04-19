@@ -27,7 +27,7 @@ inline std::vector<std::string> GetServerIpAddresses() {
 
 inline std::size_t DrainSocket(boost::asio::ip::tcp::socket& socket,
     const std::chrono::milliseconds drain_timeout = std::chrono::milliseconds(
-        300)) {
+        1000)) {
   std::size_t total_drained = 0;
   const auto start_time = std::chrono::steady_clock::now();
   try {
@@ -61,7 +61,7 @@ inline std::size_t DrainSocket(boost::asio::ip::tcp::socket& socket,
 inline boost::asio::awaitable<std::size_t> DrainSocketAsync(
     boost::asio::ip::tcp::socket& socket,
     const std::chrono::milliseconds drain_timeout = std::chrono::milliseconds(
-        300)) {
+        1000)) {
   std::size_t total_drained = 0;
   try {
     boost::system::error_code ec;
