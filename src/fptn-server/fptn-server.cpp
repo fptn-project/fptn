@@ -103,8 +103,11 @@ int main(int argc, char* argv[]) {
     /* Init webserver */
     auto web_server = std::make_unique<fptn::web::Server>(config.ServerPort(),
         nat_table, user_manager, token_manager, prometheus,
-        config.PrometheusAccessKey(), config.TunInterfaceIPv4(),
-        config.TunInterfaceIPv6(),
+        config.PrometheusAccessKey(),
+        /* DNS IPv4 */
+        config.ClientDnsServerIPv4(),
+        /* DNS IPv6 */
+        config.ClientDnsServerIPv6(),
         /* probing */
         config.EnableDetectProbing(), config.DefaultProxyDomain(),
         config.AllowedSniList(),

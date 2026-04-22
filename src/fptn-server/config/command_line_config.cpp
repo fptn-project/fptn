@@ -127,6 +127,18 @@ CommandLineConfig::CommandLineConfig(int argc, char* argv[])
           "   - Client SNI in list -> proxy to client's SNI\n"
           "   - Client SNI not in list -> proxy to --default-proxy-domain")
       .default_value("");
+  // DNS settings for client
+  args_.add_argument("--client-dns-server-ipv4")
+      .help(
+          "Sets the IPv4 DNS server address used by the client. "
+          "If not provided, the TUN interface IPv4 address will be used.")
+      .default_value("");
+
+  args_.add_argument("--client-dns-server-ipv6")
+      .help(
+          "Sets the IPv6 DNS server address used by the client. "
+          "If not provided, the TUN interface IPv6 address will be used.")
+      .default_value("");
   // Prevent self-proxy
   args_.add_argument("--server-external-ips")
       .help(
@@ -249,6 +261,24 @@ std::size_t CommandLineConfig::MaxActiveSessionsPerUser() const {
 [[nodiscard]]
 std::string CommandLineConfig::ServerExternalIPs() const {
   return args_.get<std::string>("--server-external-ips");
+}
+
+[[nodiscard]]
+IPv4Address CommandLineConfig::ClientDnsServerIPv4() const {
+  const auto param = args_.get<std::string>("--client-dns-server-ipv4");
+  if (!param.empty()) {
+    return IPv4Address(param);
+  }
+  return TunInterfaceIPv4();
+}
+
+[[nodiscard]]
+IPv6Address CommandLineConfig::ClientDnsServerIPv6() const {
+  const auto param = args_.get<std::string>("--client-dns-server-ipv6");
+  if (!param.empty()) {
+    return IPv6Address(param);
+  }
+  return TunInterfaceIPv6();
 }
 
 }  // namespace fptn::config

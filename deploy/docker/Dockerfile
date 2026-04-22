@@ -10,7 +10,7 @@ ENV TZ=Etc/UTC
 
 RUN apt-get update && \
     apt-get upgrade -y && \
-    apt-get install -y unbound iproute2 iptables supervisor wget dnsmasq && \
+    apt-get install -y unbound dnsmasq iproute2 iptables supervisor wget iputils-ping && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 

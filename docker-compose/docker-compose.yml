@@ -16,12 +16,9 @@ services:
       net.ipv4.conf.all.rp_filter: "0"
       net.ipv4.conf.default.rp_filter: "0"
       # Network optimizations
+      net.ipv4.tcp_congestion_control: bbr
       net.ipv4.ip_local_port_range: "1024 65535"
-      #net.ipv4.tcp_tw_reuse: "1"
-      #net.ipv4.tcp_fin_timeout: "15"
       net.core.somaxconn: "65535"
-      #net.ipv4.tcp_max_syn_backlog: "16384"
-      #net.ipv4.tcp_slow_start_after_idle: "0"
     ulimits:
       nproc:
         soft: 524288
@@ -37,7 +34,7 @@ services:
     ports:
       - "${FPTN_PORT}:443/tcp"
     volumes:
-      - ./fptn-server-data:/etc/fptn
+      - ${FPTN_CONFIGS_FOLDER}:/etc/fptn
     environment:
       - ENABLE_DETECT_PROBING=${ENABLE_DETECT_PROBING}
       - DEFAULT_PROXY_DOMAIN=${DEFAULT_PROXY_DOMAIN}
@@ -49,6 +46,8 @@ services:
       - REMOTE_SERVER_AUTH_PORT=${REMOTE_SERVER_AUTH_PORT}
       - MAX_ACTIVE_SESSIONS_PER_USER=${MAX_ACTIVE_SESSIONS_PER_USER}
       - SERVER_EXTERNAL_IPS=${SERVER_EXTERNAL_IPS}
+      - CLIENT_DNS_SERVER_IPV4=${CLIENT_DNS_SERVER_IPV4:-}
+      - CLIENT_DNS_SERVER_IPV6=${CLIENT_DNS_SERVER_IPV6:-}
       - USING_DNS_SERVER=${USING_DNS_SERVER:-dnsmasq}
       - DNS_IPV4_PRIMARY=${DNS_IPV4_PRIMARY:-8.8.8.8}
       - DNS_IPV4_SECONDARY=${DNS_IPV4_SECONDARY:-8.8.4.4}

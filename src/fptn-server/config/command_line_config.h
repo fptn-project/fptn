@@ -57,6 +57,9 @@ class CommandLineConfig {
 
   [[nodiscard]] std::string ServerExternalIPs() const;
 
+  [[nodiscard]] IPv4Address ClientDnsServerIPv4() const;
+  [[nodiscard]] IPv6Address ClientDnsServerIPv6() const;
+
  private:
   int argc_;
   char** argv_;
