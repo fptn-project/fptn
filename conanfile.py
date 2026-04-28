@@ -240,6 +240,7 @@ class FPTN(ConanFile):
             self.cpp_info.libs = [
                 "fptn-protocol-lib_static",
                 "ntp_client",
+                "camouflage-tls",
             ]
             self.cpp_info.includedirs = ["include"]
             self.cpp_info.libdirs = ["lib"]
@@ -270,7 +271,7 @@ class FPTN(ConanFile):
     def config_options(self):
         if self.settings.os == "Windows":
             self.options.rm_safe("fPIC")
-        if self.settings.os in ["iOS", "Android"] or self.options.build_only_fptn_lib:
+        if self.settings.os in ["iOS", "tvOS", "Android"] or self.options.build_only_fptn_lib:
             self.options["boost"].without_process = True
 
     def export(self):

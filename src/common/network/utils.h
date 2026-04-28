@@ -21,7 +21,12 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <openssl/ssl.h>    // NOLINT(build/include_order)
 #include <spdlog/spdlog.h>  // NOLINT(build/include_order)
 
-#ifndef __ANDROID__
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
+
+#if !defined(__ANDROID__) && \
+    !(defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE)
 #include "common/system/command.h"
 #endif
 
@@ -29,7 +34,8 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 namespace fptn::common::network {
 
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && \
+    !(defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE)
 inline std::vector<std::string> GetServerIpAddresses() {
   std::vector<std::string> cmd_stdout;
   fptn::common::system::command::run(
