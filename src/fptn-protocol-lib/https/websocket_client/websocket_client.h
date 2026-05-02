@@ -75,7 +75,7 @@ class WebsocketClient : public std::enable_shared_from_this<WebsocketClient> {
 
  private:
   const std::string kUrlWebSocket_ = "/fptn";
-  const std::size_t kMaxSizeOutQueue_ = 128;
+  const std::size_t kMaxSizeOutQueue_ = 1024;
 
   mutable std::mutex mutex_;
   std::atomic<bool> running_{false};

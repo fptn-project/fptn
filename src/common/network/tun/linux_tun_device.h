@@ -22,7 +22,12 @@ class LinuxTunDevice {
     return true;
   }
 
-  void Close() { tun_.reset(); }
+  void Close() {
+    if (tun_) {
+      tun_->nonblocking(true);
+      tun_.reset();
+    }
+  }
 
   [[nodiscard]] const std::string& GetName() const { return name_; }
 

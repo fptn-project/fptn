@@ -103,7 +103,7 @@ ProtoPayloadOpt CreateProtoPayload(fptn::common::network::IPPacketPtr packet) {
     const std::size_t max_padding = std::min(kMaxPaddingBytes, available_space);
 
     if (max_padding > 0) {
-      static thread_local std::mt19937 gen{std::random_device {}()};
+      static thread_local std::mt19937 gen{std::random_device{}()};
       std::uniform_int_distribution<std::size_t> dist(0, max_padding);
 
       const std::size_t padding_size = dist(gen);

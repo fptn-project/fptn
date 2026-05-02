@@ -205,7 +205,7 @@ class GenericTunInterface final
         device_.Close();
         return false;
       }
-      device_.SetNonBlocking(true);
+      device_.SetNonBlocking(false);
       device_.SetMTU(mtu_);
       device_.BringUp();
 
@@ -231,10 +231,11 @@ class GenericTunInterface final
       return false;
     }
 
+    device_.Close();
+
     if (thread_.joinable()) {
       running_ = false;
       thread_.join();
-      device_.Close();
     }
     return true;
   }
@@ -245,8 +246,6 @@ class GenericTunInterface final
     }
 
     try {
-      const std::scoped_lock lock(mutex_);
-
       if (running_) {
         const auto* raw_packet = packet->GetRawPacket();
         if (!raw_packet) {
@@ -255,11 +254,13 @@ class GenericTunInterface final
         const auto* data = raw_packet->getRawData();
         const auto len = raw_packet->getRawDataLen();
 
-        const int bytes_written = device_.Write(data, static_cast<int>(len));
+        if (running_) {
+          const std::scoped_lock lock(mutex_);  // mutex
 
-        send_rate_calculator_.Update(bytes_written);
-
-        return bytes_written == len;
+          const int bytes_written = device_.Write(data, static_cast<int>(len));
+          send_rate_calculator_.Update(bytes_written);
+          return bytes_written == len;
+        }
       }
     } catch (const std::exception& ex) {
       SPDLOG_ERROR("SendImpl error: {}", ex.what());
@@ -275,7 +276,6 @@ class GenericTunInterface final
     return receive_rate_calculator_.GetRateForSecond();
   }
 
- private:
   void Run() {
     const auto callback = this->GetRecvIPPacketCallback();
     while (running_) {
@@ -288,12 +288,11 @@ class GenericTunInterface final
           receive_rate_calculator_.Update(packet->Size());  // calculate rate
           callback(std::move(packet));
         }
-      } else {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
       }
     }
   }
 
+ private:
   mutable std::mutex mutex_;
 
   const std::uint16_t mtu_;

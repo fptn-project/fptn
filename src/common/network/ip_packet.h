@@ -140,6 +140,12 @@ class IPPacket {
     return nullptr;
   }
 
+  static std::unique_ptr<IPPacket> Parse(
+      const std::uint8_t* buffer, const std::size_t size) {
+    std::vector<std::uint8_t> packet(buffer, buffer + size);
+    return Parse(std::move(packet));
+  }
+
  public:
   IPPacket(IPPacketData data,
       fptn::ClientID client_id,

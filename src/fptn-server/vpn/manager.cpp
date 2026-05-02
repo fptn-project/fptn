@@ -73,7 +73,7 @@ bool Manager::Start() {
 }
 
 void Manager::RunToClient() const noexcept {
-  constexpr std::chrono::milliseconds kTimeout{100};
+  constexpr std::chrono::milliseconds kTimeout{10};
 
   while (running_) {
     auto packet = network_interface_->WaitForPacket(kTimeout);
@@ -108,7 +108,7 @@ void Manager::RunToClient() const noexcept {
 }
 
 void Manager::RunFromClient() const noexcept {
-  constexpr std::chrono::milliseconds kTimeout{100};
+  constexpr std::chrono::milliseconds kTimeout{10};
 
   while (running_) {
     auto packet = web_server_->WaitForPacket(kTimeout);
