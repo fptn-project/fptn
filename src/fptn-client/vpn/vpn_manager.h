@@ -10,8 +10,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <memory>
 #include <mutex>
 #include <string>
-
-#include <openssl/base.h>  // NOLINT(build/include_order)
+#include <vector>
 
 #include <queue>
 
@@ -64,6 +63,8 @@ class VpnManager final {
   std::thread thread_;
   std::condition_variable ws_queue_cv_;
   std::queue<fptn::common::network::IPPacketPtr> ws_packet_queue_;
+
+  std::vector<std::future<void>> pending_tasks_;
 };
 
 using VpnClientPtr = std::unique_ptr<fptn::vpn::VpnManager>;

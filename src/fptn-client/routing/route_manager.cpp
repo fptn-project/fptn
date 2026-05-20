@@ -854,6 +854,7 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
 bool RouteManager::AddDnsRoutesIPv4(
     const std::vector<fptn::common::network::IPv4Address>& ips,
     const RoutingPolicy policy) {
+
   std::string interface_name;
   std::string gateway_ip;
 
@@ -934,6 +935,7 @@ bool RouteManager::AddDnsRoutesIPv4(
 bool RouteManager::AddDnsRoutesIPv6(
     const std::vector<fptn::common::network::IPv6Address>& ips,
     const RoutingPolicy policy) {
+
   std::string interface_name;
   std::string gateway_ip;
 

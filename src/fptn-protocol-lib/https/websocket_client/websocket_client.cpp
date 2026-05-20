@@ -110,14 +110,6 @@ void WebsocketClient::Run() {
         }
       },
       boost::asio::detached);
-  // try {
-  //   ioc_.restart();
-  //   while (running_) {
-  //     ioc_.run_one();
-  //   }
-  // } catch (...) {
-  //   SPDLOG_WARN("Exception while running");
-  // }
   try {
     while (running_ || !was_stopped_) {
       const std::size_t processed = ioc_.poll_one();
@@ -305,6 +297,11 @@ boost::asio::awaitable<bool> WebsocketClient::RunInternal() {
         strand_, [self]() { return self->RunSender(); }, boost::asio::detached);
 
     SPDLOG_INFO("WebSocket connection established successfully");
+
+    if (config_.on_ip_assigned_callback) {
+      config_.on_ip_assigned_callback(
+          tun_interface_address_ipv4_, tun_interface_address_ipv6_);
+    }
     if (config_.on_connected_callback) {
       config_.on_connected_callback();
     }
@@ -502,18 +499,12 @@ boost::asio::awaitable<bool> WebsocketClient::ReceiveIPAssignment() {
       co_return false;
     }
 
+    ip_assigned_ = true;
     tun_interface_address_ipv4_ = common::network::IPv4Address(ipv4_str);
     tun_interface_address_ipv6_ = common::network::IPv6Address(ipv6_str);
 
     SPDLOG_INFO("Received IP assignment from server: IPv4={}, IPv6={}",
         ipv4_str, ipv6_str);
-
-    ip_assigned_ = true;
-
-    if (config_.on_ip_assigned_callback) {
-      config_.on_ip_assigned_callback(
-          tun_interface_address_ipv4_, tun_interface_address_ipv6_);
-    }
 
     co_return true;
   } catch (const std::exception& e) {

@@ -141,8 +141,8 @@ bool RouteManager::Apply() {  // NOLINT(bugprone-exception-escape)
           out_net_interface_name_),
       // Optimization
       fmt::format(
-          "ip link set dev {} txqueuelen 10000", tun_net_interface_name_),
-      fmt::format("ip link set dev {} txqlen 10000", tun_net_interface_name_),
+          "ip link set dev {} txqueuelen 20000", tun_net_interface_name_),
+      fmt::format("ip link set dev {} txqlen 20000", tun_net_interface_name_),
       fmt::format("iptables -t mangle -A FORWARD -o {} -p tcp --tcp-flags "
                   "SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu",
           tun_net_interface_name_),

@@ -6,11 +6,9 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #pragma once
 
-#include <atomic>
 #include <algorithm>
 #include <chrono>
 #include <condition_variable>
-#include <queue>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -18,23 +16,28 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include <spdlog/spdlog.h>  // NOLINT(build/include_order)
 
+#include <queue>
+
 #include "common/network/ip_packet.h"
 
 namespace fptn::common::data {
 
 class Channel {
  public:
-  explicit Channel(std::string name, std::size_t max_capacity = 1024)
-      : name_(std::move(name)), max_capacity_(max_capacity) {}
+  explicit Channel(std::string name, std::size_t max_capacity = 2048)
+      : name_(std::move(name)), max_capacity_(max_capacity) {
+  }
 
   bool Push(network::IPPacketPtr pkt) noexcept {
     {
-      std::lock_guard<std::mutex> lock(mutex_);  // mutex
-      if (queue_.size() >= max_capacity_) {
+      const std::lock_guard<std::mutex> lock(mutex_);  // mutex
+
+      if (queue_.size() <= max_capacity_) {
+        queue_.push(std::move(pkt));
+      } else {
         SPDLOG_WARN("Channel '{}' is full", name_);
         return false;
       }
-      queue_.push(std::move(pkt));
     }
     cv_.notify_one();
     return true;
@@ -42,12 +45,13 @@ class Channel {
 
   bool PushBatch(network::BatchIPPacketPtr packets) {
     {
-      std::lock_guard<std::mutex> lock(mutex_);  // mutex
+      const std::lock_guard<std::mutex> lock(mutex_);  // mutex
+
+      if (queue_.size() <= max_capacity_) {
+        SPDLOG_WARN("Channel '{}' batch push failed", name_);
+        return false;
+      }
       for (auto& packet : packets) {
-        if (queue_.size() >= max_capacity_) {
-          SPDLOG_WARN("Channel '{}' batch push failed", name_);
-          return false;
-        }
         queue_.push(std::move(packet));
       }
     }
@@ -74,7 +78,7 @@ class Channel {
 
   network::BatchIPPacketPtr WaitForPackets(
       const std::chrono::milliseconds& duration,
-      const std::size_t max_batch_size = 32) noexcept {
+      const std::size_t max_batch_size = 64) noexcept {
     network::BatchIPPacketPtr batch;
 
     std::unique_lock<std::mutex> lock(mutex_);  // mutex

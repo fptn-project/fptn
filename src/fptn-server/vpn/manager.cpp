@@ -91,7 +91,8 @@ void Manager::RunToClient() const {
         nat_session =
             nat_->GetSessionByFakeIPv4(fptn::common::network::IPv4Address(
                 packet->IPv4Layer()->getDstIPv4Address()));
-      } else if (packet->IsIPv6()) {
+      }
+      else if (packet->IsIPv6()) {
         nat_session =
             nat_->GetSessionByFakeIPv6(fptn::common::network::IPv6Address(
                 packet->IPv6Layer()->getDstIPv6Address()));

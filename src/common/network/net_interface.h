@@ -252,6 +252,30 @@ class GenericTunInterface final
     return receive_rate_calculator_.GetRateForSecond();
   }
 
+  // void RunReader() {
+  //   const int mtu_size = this->MtuSize();
+  //   const auto callback = this->GetRecvIPPacketCallback();
+  //   const bool rate_calc = this->UsingRateCalculator();
+  //
+  //   IPPacketData buffer(mtu_size);
+  //   while (running_) {
+  //     const int size = device_.Read(buffer.data(), mtu_size);
+  //     if (size > 0) {
+  //       auto packet = IPPacket::Parse(buffer.data(), size);
+  //       if (packet != nullptr && running_) {
+  //         if (callback) {
+  //           callback(std::move(packet));
+  //         }
+  //         if (rate_calc) {
+  //           receive_rate_calculator_.Update(size);  // calculate rate
+  //         }
+  //       }
+  //     } else {
+  //       std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  //     }
+  //   }
+  // }
+
   void RunReader() {
     const int mtu_size = this->MtuSize();
     const auto callback = this->GetRecvIPPacketCallback();
@@ -273,8 +297,24 @@ class GenericTunInterface final
       } else {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
       }
+
+      // test
+      // if (size > 1300) {
+      //  while (running_) {
+      //    auto packet = IPPacket::Parse(buffer.data(), size);
+      //    if (packet != nullptr && running_) {
+      //      if (callback) {
+      //        callback(std::move(packet));
+      //      }
+      //      if (rate_calc) {
+      //        receive_rate_calculator_.Update(size);  // calculate rate
+      //      }
+      //    }
+      //  }
+      // }
     }
   }
+
 
   void RunSender() {
     try {
