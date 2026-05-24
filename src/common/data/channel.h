@@ -47,7 +47,7 @@ class Channel {
     {
       const std::lock_guard<std::mutex> lock(mutex_);  // mutex
 
-      if (queue_.size() <= max_capacity_) {
+      if (queue_.size() >= max_capacity_) {
         SPDLOG_WARN("Channel '{}' batch push failed", name_);
         return false;
       }
