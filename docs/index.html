@@ -289,6 +289,25 @@
             justify-content: center;
         }
 
+        .copy-address {
+            cursor: pointer;
+            font-style: italic;
+            border-bottom: 1px dashed #333;
+        }
+
+        .copy-feedback {
+            display: none;
+            color: green;
+            font-size: 14px;
+            position: absolute;
+            margin-left: 8px;
+            min-width: 110px;
+        }
+
+        .copy-wrapper {
+            position: relative;
+        }
+
         @media (max-width: 768px) {
             .wrapper {
                 flex-direction: column;
@@ -393,6 +412,14 @@
                     </p>
 
                     <p>
+                        The project relies entirely on donations — support us on <a target="_blank" href="https://boosty.to/fptn">Boosty</a> or via TON wallet
+                        <span class="copy-wrapper">
+                            <span class="copy-address" onclick="copyAddress(this, 'UQD3FG2nEj-IkcZ-_9b-Sj8v0fEGpczAUlCmZ6EQU5_SEHsE')" title="Click to copy">UQD3FG2nEj-IkcZ-_9b-Sj8v0fEGpczAUlCmZ6EQU5_SEHsE</span>
+                            <span class="copy-feedback">✓ Copied!</span>
+                        </span>.
+                    </p>
+
+                    <p>
                         The VPN-client is a mobile application or a compact desktop application with an interface located in the system tray.
                         No registration process is required! We will send the access token via the <a target="_blank" href="https://t.me/fptn_bot">bot</a> on Telegram.
                     </p>
@@ -425,6 +452,14 @@
                     <p>
                         FPTN — это полностью разработанная с нуля технология VPN, включая собственный протокол, сервер и кроссплатформенные клиенты.
                         Это некоммерческий проект с открытым исходным кодом, развиваемый волонтерами и предназначенный для обхода цензуры.
+                    </p>
+
+                    <p>
+                        Проект существует исключительно на донаты пользователей — поддержать нас можно на <a target="_blank" href="https://boosty.to/fptn">Boosty</a> или переводом на TON-кошелек 
+                        <span class="copy-wrapper">
+                            <span class="copy-address" onclick="copyAddress(this, 'UQD3FG2nEj-IkcZ-_9b-Sj8v0fEGpczAUlCmZ6EQU5_SEHsE')" title="Нажмите, чтобы скопировать">UQD3FG2nEj-IkcZ-_9b-Sj8v0fEGpczAUlCmZ6EQU5_SEHsE</span>
+                            <span class="copy-feedback">✓ Скопировано!</span>
+                        </span>
                     </p>
 
                     <p>
@@ -1038,6 +1073,14 @@
             default:
         }
         window.open(url, '_blank').focus();
+    }
+
+    function copyAddress(el, address) {
+        navigator.clipboard.writeText(address).then(function() {
+            const copied = el.nextElementSibling;
+            copied.style.display = 'inline';
+            setTimeout(function() { copied.style.display = 'none'; }, 2000);
+        });
     }
 
     let language = window.navigator.language;
