@@ -354,7 +354,6 @@ boost::asio::awaitable<bool> WebsocketClient::Connect() {
     socket.set_option(boost::asio::ip::tcp::no_delay(true));
     socket.set_option(boost::asio::socket_base::reuse_address(true));
 
-    /*
     socket.set_option(boost::asio::socket_base::keep_alive(true));
 
 #ifdef __APPLE__
@@ -365,12 +364,14 @@ boost::asio::awaitable<bool> WebsocketClient::Connect() {
         int keepidle = 15;   // idle seconds before first probe
         int keepintvl = 5;   // seconds between probes
         int keepcnt  = 3;    // probe count before declaring dead
-        setsockopt(fd, IPPROTO_TCP, TCP_KEEPALIVE, &keepidle, sizeof(keepidle));
-        setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &keepintvl, sizeof(keepintvl));
-        setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT,  &keepcnt,  sizeof(keepcnt));
+        setsockopt(fd, IPPROTO_TCP, TCP_KEEPALIVE, &keepidle,
+                   sizeof(keepidle));
+        setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &keepintvl,
+                   sizeof(keepintvl));
+        setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &keepcnt,
+                   sizeof(keepcnt));
     }
 #endif
-    */
 
     // Optimize socket buffers
     try {
