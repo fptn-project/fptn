@@ -25,6 +25,7 @@ namespace fptn::protocol::https {
 
 WebsocketClient::WebsocketClient(Config config, int thread_number)
     : ioc_(thread_number),
+      work_guard_(boost::asio::make_work_guard(ioc_)),
       ctx_(https::utils::CreateNewSslCtx()),
       resolver_(boost::asio::make_strand(ioc_)),
       strand_(boost::asio::make_strand(ioc_)),
@@ -111,12 +112,11 @@ void WebsocketClient::Run() {
       },
       boost::asio::detached);
   try {
-    while (running_ || !was_stopped_) {
-      const std::size_t processed = ioc_.poll_one();
-      if (processed == 0) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-      }
-    }
+    // Block until Stop() releases the work guard AND every pending handler has
+    // drained (RunReader/RunSender resumptions, socket-close completions, the
+    // watchdog). Draining is what releases their shared_from_this() captures and
+    // breaks the ioc_<->client reference cycle, so the object can be destroyed.
+    ioc_.run();
   } catch (...) {
     SPDLOG_WARN("Exception while running");
   }
@@ -236,6 +236,12 @@ bool WebsocketClient::Stop() {
   if (auto* ssl = ws_.next_layer().native_handle()) {
     https::utils::AttachCertificateVerificationCallbackDelete(ssl);
   }
+
+  // Release the work guard so Run()'s ioc_.run() returns once the cancellations
+  // above have drained. The drain releases the RunReader/RunSender coroutines'
+  // shared_from_this(), breaking the ioc_<->client cycle that previously leaked
+  // the entire client (and its multi-MB buffers) on every reconnect.
+  work_guard_.reset();
 
   was_stopped_ = true;
   SPDLOG_INFO("WebSocket client stopped successfully");
