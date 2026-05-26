@@ -39,8 +39,8 @@ using OnIPRecvPacketCallback = std::function<void(IPPacketPtr packet)>;
 
 using OnConnectedCallback = std::function<void()>;
 
-using OnIPAssignedCallback = std::function<void(
-  const IPv4Address& ipv4, const IPv6Address& ipv6)>;
+using OnIPAssignedCallback =
+    std::function<void(const IPv4Address& ipv4, const IPv6Address& ipv6)>;
 
 class WebsocketClient : public std::enable_shared_from_this<WebsocketClient> {
  public:
@@ -97,6 +97,9 @@ class WebsocketClient : public std::enable_shared_from_this<WebsocketClient> {
   boost::asio::ssl::context ctx_;
   boost::asio::ip::tcp::resolver resolver_;
 
+  boost::asio::strand<boost::asio::io_context::executor_type> strand_;
+  boost::asio::steady_timer watchdog_timer_;
+
   // TCP -> obfuscator -> SSL -> WebSocket
   using tcp_stream_type = boost::beast::tcp_stream;
   using obfuscator_socket_type = obfuscator::TcpStream<tcp_stream_type>;
@@ -104,10 +107,6 @@ class WebsocketClient : public std::enable_shared_from_this<WebsocketClient> {
   using websocket_type = boost::beast::websocket::stream<ssl_stream_type>;
 
   websocket_type ws_;
-
-  boost::asio::strand<boost::asio::io_context::executor_type> strand_;
-
-  boost::asio::steady_timer watchdog_timer_;
 
   boost::asio::experimental::concurrent_channel<void(
       boost::system::error_code, fptn::common::network::IPPacketPtr)>
