@@ -27,11 +27,11 @@ WebsocketClient::WebsocketClient(Config config, int thread_number)
     : ioc_(thread_number),
       ctx_(https::utils::CreateNewSslCtx()),
       resolver_(boost::asio::make_strand(ioc_)),
+      strand_(boost::asio::make_strand(ioc_)),
+      watchdog_timer_(strand_),
       ws_(ssl_stream_type(
           obfuscator_socket_type(boost::asio::make_strand(ioc_), nullptr),
           ctx_)),
-      strand_(boost::asio::make_strand(ioc_)),
-      watchdog_timer_(strand_),
       write_channel_(strand_, kMaxSizeOutQueue_),
       config_(std::move(config)) {
   auto* ssl = ws_.next_layer().native_handle();
@@ -117,9 +117,6 @@ void WebsocketClient::Run() {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
       }
     }
-    if (!ioc_.stopped()) {
-      ioc_.stop();
-    }
   } catch (...) {
     SPDLOG_WARN("Exception while running");
   }
@@ -191,8 +188,7 @@ bool WebsocketClient::Stop() {
       SPDLOG_INFO("Shutting down TCP socket...");
 
       auto& tcp = boost::beast::get_lowest_layer(ws_);
-
-      boost::asio::socket_base::linger linger(true, 0);
+      const boost::asio::socket_base::linger linger(true, 0);
       tcp.socket().set_option(linger);
 
       if (tcp.socket().is_open()) {
@@ -675,24 +671,27 @@ boost::asio::awaitable<bool> WebsocketClient::PerformFakeHandshake2() {
 }
 
 void WebsocketClient::StartWatchdog() {
-  if (!running_) {
-    return;
-  }
+  if (!running_) return;
 
   constexpr std::chrono::milliseconds kTimeout(300);
+
+  auto weak_self = weak_from_this();
   watchdog_timer_.expires_after(kTimeout);
-  watchdog_timer_.async_wait([self = weak_from_this()](
-                                 const boost::system::error_code& ec) {
-    if (auto shared_self = self.lock()) {
-      if (!ec && shared_self->running_) {
-        // cppcheck-suppress knownConditionTrueFalse
-        if (!shared_self->was_connected_.load() && shared_self->running_) {
-          SPDLOG_INFO("Watchdog detected disconnected state, calling Stop()");
-          shared_self->Stop();
-        } else {
-          shared_self->StartWatchdog();
-        }
-      }
+  watchdog_timer_.async_wait([weak_self](const boost::system::error_code& ec) {
+    auto shared_self = weak_self.lock();
+    if (!shared_self) {
+      return;
+    }
+
+    if (ec == boost::asio::error::operation_aborted) {
+      return;
+    }
+
+    if (shared_self->running_ && !shared_self->was_connected_) {
+      SPDLOG_INFO("Watchdog detected disconnected state");
+      shared_self->Stop();
+    } else if (shared_self->running_) {
+      shared_self->StartWatchdog();
     }
   });
 }
