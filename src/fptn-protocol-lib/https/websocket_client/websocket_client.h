@@ -39,8 +39,8 @@ using OnIPRecvPacketCallback = std::function<void(IPPacketPtr packet)>;
 
 using OnConnectedCallback = std::function<void()>;
 
-using OnIPAssignedCallback =
-    std::function<void(const IPv4Address& ipv4, const IPv6Address& ipv6)>;
+using OnIPAssignedCallback = std::function<void(const IPv4Address& ipv4,
+  const IPv6Address& ipv6)>;
 
 class WebsocketClient : public std::enable_shared_from_this<WebsocketClient> {
  public:
