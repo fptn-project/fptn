@@ -26,7 +26,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 namespace {
 
-#if TARGET_OS_IPHONE || TARGET_IPHONE_SIMULATOR
+#if TARGET_OS_IPHONE || TARGET_IPHONE_SIMULATOR || __ANDROID__
 constexpr std::size_t kArenaMaxCount = 128;
 #else
 constexpr std::size_t kArenaMaxCount = 1024;
