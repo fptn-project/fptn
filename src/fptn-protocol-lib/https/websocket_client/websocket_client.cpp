@@ -171,40 +171,40 @@ bool WebsocketClient::Stop() {
     SPDLOG_ERROR("Unknown exception during closing write channel");
   }
 
+  // Ungated by was_inited_: cancels an in-flight Connect()-phase async_resolve,
+  // which is otherwise bounded only by the OS DNS timeout, stalling the drain.
   try {
     SPDLOG_INFO("Closing resolver");
-    if (was_inited_) {
-      resolver_.cancel();
-    }
+    resolver_.cancel();
   } catch (const std::exception&) {
     SPDLOG_DEBUG("Exception cancelling resolver");
   } catch (...) {
     SPDLOG_ERROR("Unknown exception during closing resolver");
   }
 
-  // Close TCP connection
+  // Close TCP connection. Ungated by was_inited_ so a Stop() racing the connect
+  // phase actively aborts the in-flight connect/handshake (closing the socket
+  // errors out the pending op) instead of waiting for the beast timeout.
   try {
-    if (was_inited_) {
-      SPDLOG_INFO("Shutting down TCP socket...");
+    SPDLOG_INFO("Shutting down TCP socket...");
 
-      auto& tcp = boost::beast::get_lowest_layer(ws_);
+    auto& tcp = boost::beast::get_lowest_layer(ws_);
+    if (tcp.socket().is_open()) {
       const boost::asio::socket_base::linger linger(true, 0);
       tcp.socket().set_option(linger);
 
-      if (tcp.socket().is_open()) {
-        tcp.socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
-        if (ec && ec != boost::asio::error::not_connected) {
-          SPDLOG_WARN("TCP socket shutdown error: {}", ec.message());
-        } else {
-          SPDLOG_INFO("TCP socket shutdown successfully");
-        }
+      tcp.socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
+      if (ec && ec != boost::asio::error::not_connected) {
+        SPDLOG_WARN("TCP socket shutdown error: {}", ec.message());
+      } else {
+        SPDLOG_INFO("TCP socket shutdown successfully");
+      }
 
-        tcp.socket().close(ec);
-        if (ec) {
-          SPDLOG_WARN("TCP socket close error: {}", ec.message());
-        } else {
-          SPDLOG_INFO("TCP socket closed successfully");
-        }
+      tcp.socket().close(ec);
+      if (ec) {
+        SPDLOG_WARN("TCP socket close error: {}", ec.message());
+      } else {
+        SPDLOG_INFO("TCP socket closed successfully");
       }
     }
   } catch (const boost::system::system_error& err) {
