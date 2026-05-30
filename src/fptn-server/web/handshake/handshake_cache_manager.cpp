@@ -20,6 +20,8 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "common/network/resolv.h"
 #include "common/network/utils.h"
 
+#include "fptn-protocol-lib/https/utils/tls/tls.h"
+
 namespace {
 
 boost::asio::awaitable<fptn::web::HandshakeResponse> FetchRealHandshake(
@@ -100,7 +102,7 @@ boost::asio::awaitable<HandshakeResponse> HandshakeCacheManager::GetHandshake(
       buffer_ptr, buffer_ptr + size);
 
   const auto cached_response = CheckCache(sni);
-  if (cached_response) {
+  if (cached_response && !cached_response->empty()) {
     SPDLOG_INFO("Cache hit for SNI: {} (TLS fingerprint size: {})", sni,
         cached_response->size());
     co_return cached_response;
@@ -116,16 +118,22 @@ boost::asio::awaitable<HandshakeResponse> HandshakeCacheManager::GetHandshake(
 
     // RET
     const auto default_cached_response = CheckCache(default_domain_);
-    if (default_cached_response) {
+    if (default_cached_response && !default_cached_response->empty()) {
       SPDLOG_INFO("Returning cached handshake for SNI: {} (using cache)",
           default_domain_);
       co_return default_cached_response;
     }
 
     // Get new
-    response = co_await FetchRealHandshake(
-        default_domain_, client_handshake_data, timeout);
-    if (response) {
+    // Generate fresh ClientHello with correct SNI for fallback domain.
+    // Do NOT forward client_handshake_data here — it contains the fake SNI
+    // which causes the fallback server to send only a partial ServerHello.
+    const auto fallback_hello =
+        fptn::protocol::https::utils::GenerateDecoyTlsHandshake(
+            default_domain_);
+    response =
+        co_await FetchRealHandshake(default_domain_, fallback_hello, timeout);
+    if (response && !response->empty()) {
       const std::unique_lock<std::mutex> lock(mutex_);  // mutex
       cache_[default_domain_] = CacheEntry{
           .data = response, .timestamp = std::chrono::steady_clock::now()};
@@ -134,7 +142,7 @@ boost::asio::awaitable<HandshakeResponse> HandshakeCacheManager::GetHandshake(
     }
   }
 
-  if (response) {
+  if (response && !response->empty()) {
     const std::unique_lock<std::mutex> lock(mutex_);  // mutex
     cache_[sni] = CacheEntry{
         .data = response, .timestamp = std::chrono::steady_clock::now()};

@@ -603,10 +603,9 @@ Response ApiClient::GetImpl(const std::string& handle, int timeout) const {
       if (IsRealityModeWithFakeHandshake(censorship_strategy_)) {
         const bool perform_status = PerformFakeHandshake2(socket);
         if (!perform_status) {
-          SPDLOG_WARN(
-              "GET [{}] - Fake handshake failed, continuing with real "
-              "handshake",
-              handle);
+          SPDLOG_ERROR(
+              "GET [{}] - Fake handshake failed for server {}", handle, host_);
+          throw std::runtime_error("Fake handshake failed");
         }
         // For Reality Mode we use TLS obfuscator after fake handshake
         // This provides additional encryption layer for the real connection
@@ -772,10 +771,9 @@ Response ApiClient::PostImpl(const std::string& handle,
       if (IsRealityModeWithFakeHandshake(censorship_strategy_)) {
         const bool perform_status = PerformFakeHandshake2(socket);
         if (!perform_status) {
-          SPDLOG_WARN(
-              "GET [{}] - Fake handshake failed, continuing with real "
-              "handshake",
-              handle);
+          SPDLOG_ERROR(
+              "POST [{}] - Fake handshake failed for server {}", handle, host_);
+          throw std::runtime_error("Fake handshake failed");
         }
         // For Reality Mode we use TLS obfuscator after fake handshake
         // This provides additional encryption layer for the real connection

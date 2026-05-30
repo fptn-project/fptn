@@ -397,10 +397,6 @@ boost::asio::awaitable<bool> WebsocketClient::Connect() {
       co_return false;
     }
 
-    // CLEAN WEBSOCKET
-    common::network::CleanSocket(socket);
-    common::network::CleanSsl(ws_.next_layer().native_handle());
-
     // Reset obfuscator after TLS-handshake
     ws_.next_layer().next_layer().set_obfuscator(nullptr);
 
