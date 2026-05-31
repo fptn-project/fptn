@@ -518,7 +518,8 @@ boost::asio::awaitable<bool> WebsocketClient::ReceiveIPAssignment() {
 boost::asio::awaitable<void> WebsocketClient::RunReader() {
   boost::beast::flat_buffer buffer;
   buffer.reserve(4 * 1024 * 1024);
-  std::size_t inbound_batches = 0;  // [diag]
+  // cppcheck-suppress variableScope
+  std::size_t inbound_batches = 0;  // [diag] persists across the read loop
   try {
     boost::system::error_code ec;
     while (running_ && was_connected_ && ws_.is_open()) {
