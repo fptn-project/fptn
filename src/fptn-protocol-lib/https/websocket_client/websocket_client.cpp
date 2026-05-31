@@ -397,6 +397,20 @@ boost::asio::awaitable<bool> WebsocketClient::Connect() {
       co_return false;
     }
 
+    // [diag] before detaching, check for leftover obfuscated bytes. If the peer
+    // sent post-handshake records (e.g. a TLS 1.3 NewSessionTicket) while its
+    // obfuscator was still attached, they get read raw after we detach here and
+    // desync the WebSocket -- a likely cause of the intermittent reality drop.
+    {
+      boost::system::error_code diag_ec;
+      const std::size_t raw_available =
+          boost::beast::get_lowest_layer(ws_).socket().available(diag_ec);
+      const auto diag_obf = ws_.next_layer().next_layer().get_obfuscator();
+      SPDLOG_INFO(
+          "Detaching obfuscator after TLS handshake: raw_bytes_available={}, "
+          "obfuscator_pending={}",
+          raw_available, (diag_obf && diag_obf->HasPendingData()));
+    }
     // Reset obfuscator after TLS-handshake
     ws_.next_layer().next_layer().set_obfuscator(nullptr);
 
@@ -504,21 +518,27 @@ boost::asio::awaitable<bool> WebsocketClient::ReceiveIPAssignment() {
 boost::asio::awaitable<void> WebsocketClient::RunReader() {
   boost::beast::flat_buffer buffer;
   buffer.reserve(4 * 1024 * 1024);
+  std::size_t inbound_batches = 0;  // [diag]
   try {
     boost::system::error_code ec;
     while (running_ && was_connected_ && ws_.is_open()) {
       co_await ws_.async_read(
           buffer, boost::asio::redirect_error(boost::asio::use_awaitable, ec));
       if (ec) {
-        if (ec != boost::beast::websocket::error::closed) {
-          SPDLOG_DEBUG("WebSocket read error: {}", ec.message());
-        }
+        // [diag] always surface why the reader stopped (was DEBUG, and silent
+        // on a clean close) so the disconnect reason is not hidden behind the
+        // watchdog. closed=true means the peer (likely the server) closed it.
+        SPDLOG_WARN(
+            "RunReader stopped after {} inbound batches: {} [closed={}]",
+            inbound_batches, ec.message(),
+            ec == boost::beast::websocket::error::closed);
         break;
       }
 
       if (buffer.size() == 0) {
         continue;
       }
+      ++inbound_batches;  // [diag]
 
       auto batch_packets =
           fptn::protocol::protobuf::DeserializeBatchIPPacket(buffer);
