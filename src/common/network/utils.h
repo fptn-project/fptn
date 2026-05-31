@@ -220,7 +220,6 @@ inline bool IsServerHelloComplete(const std::vector<std::uint8_t>& data) {
   std::size_t pos = 0;
   bool found_server_hello = false;
   bool is_tls13 = false;
-  bool found_ccs = false;
   bool handshake_done = false;
 
   while (pos + 5 <= data.size()) {
@@ -268,20 +267,16 @@ inline bool IsServerHelloComplete(const std::vector<std::uint8_t>& data) {
       }
     }
 
-    // TLS 1.3: ChangeCipherSpec (type 20) is a backward-compat shim (RFC 8446
-    // §D.4). It is sent BEFORE the encrypted handshake records and is NOT a
-    // completion signal on its own — encrypted AppData must follow.
-    if (found_server_hello && is_tls13 && content_type == 20) {
-      found_ccs = true;
-    }
-
     // TLS 1.3: ApplicationData (type 23) carries the encrypted server flight:
     // EncryptedExtensions, Certificate, CertificateVerify, Finished.
-    // We declare "potentially done" only when:
-    //   • we already saw ServerHello + CCS (normal TLS 1.3 order), AND
-    //   • this AppData record is the last complete record in the buffer.
-    // The caller's quiet-period loop will catch any further AppData records.
-    if (found_server_hello && is_tls13 && found_ccs && content_type == 23) {
+    // We declare "potentially done" when this AppData record is the last
+    // complete record currently in the buffer. We deliberately do NOT require a
+    // preceding ChangeCipherSpec: the TLS 1.3 compatibility CCS (RFC 8446 §D.4)
+    // is OPTIONAL, and servers that omit it previously left handshake_done false
+    // forever -> the decoy read timed out and Reality failed only for those
+    // specific SNIs (looking like flaky/intermittent behaviour). The caller's
+    // quiet-period loop still captures any further AppData records.
+    if (found_server_hello && is_tls13 && content_type == 23) {
       if (pos + 5 + record_len >= data.size()) {
         handshake_done = true;
         SPDLOG_INFO(
