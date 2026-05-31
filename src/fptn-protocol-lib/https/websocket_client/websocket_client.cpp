@@ -384,7 +384,7 @@ boost::asio::awaitable<bool> WebsocketClient::Connect() {
     }
 
     // SSL handshake
-    boost::beast::get_lowest_layer(ws_).expires_after(std::chrono::seconds(10));
+    boost::beast::get_lowest_layer(ws_).expires_after(std::chrono::seconds(5));
 
     // timeout
     co_await boost::asio::steady_timer{
