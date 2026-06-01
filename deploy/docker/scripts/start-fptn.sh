@@ -7,7 +7,7 @@ exec /usr/local/bin/fptn-server \
     --server-key=/etc/fptn/server.key \
     --server-crt=/etc/fptn/server.crt \
     --out-network-interface="${OUT_NETWORK_INTERFACE}" \
-    --server-port=443 \
+    --server-port=4430 \
     --enable-detect-probing="${ENABLE_DETECT_PROBING}" \
     --default-proxy-domain="${DEFAULT_PROXY_DOMAIN}" \
     --allowed-sni-list="${ALLOWED_SNI_LIST}" \

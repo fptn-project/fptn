@@ -112,6 +112,8 @@ Session::Session(std::uint16_t port,
   try {
     client_id_ = ++client_id_counter;
 
+    SPDLOG_INFO("Start new session client_id={}", client_id_);
+
     boost::beast::get_lowest_layer(ws_).socket().set_option(
         boost::asio::ip::tcp::no_delay(true));
 

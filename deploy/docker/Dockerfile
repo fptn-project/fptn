@@ -10,7 +10,7 @@ ENV TZ=Etc/UTC
 
 RUN apt-get update && \
     apt-get upgrade -y && \
-    apt-get install -y unbound iproute2 iptables supervisor wget dnsmasq iputils-ping && \
+    apt-get install -y unbound iproute2 iptables supervisor wget dnsmasq iputils-ping haproxy && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -25,6 +25,7 @@ RUN chmod +x /usr/local/bin/fptn-server && \
 # Copy configuration files
 COPY deploy/docker/config/supervisord.conf /etc/supervisor/supervisord.conf
 COPY deploy/docker/config/supervisor/*.conf /etc/supervisor/conf.d/
+COPY deploy/docker/config/haproxy.cfg /etc/haproxy/haproxy.cfg
 
 # Copy scripts
 COPY deploy/docker/scripts/start-fptn.sh /usr/local/bin/start-fptn.sh
