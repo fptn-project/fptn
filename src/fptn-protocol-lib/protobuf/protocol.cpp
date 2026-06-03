@@ -25,12 +25,18 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "common/utils/utils.h"
 
 namespace {
+
+#if TARGET_OS_IPHONE || TARGET_IPHONE_SIMULATOR || __ANDROID__
+constexpr std::size_t kArenaMaxCount = 128;
+#else
+constexpr std::size_t kArenaMaxCount = 1024;
+#endif
+
 class ArenaManager {
  public:
-  explicit ArenaManager(std::size_t max_count = 1024)
+  explicit ArenaManager(std::size_t max_count = kArenaMaxCount)
       : max_count_(max_count),
-        arena_(std::make_unique<google::protobuf::Arena>())
-  {}
+        arena_(std::make_unique<google::protobuf::Arena>()) {}
 
   google::protobuf::Arena* Get() {
     if (++count_ >= max_count_) {
