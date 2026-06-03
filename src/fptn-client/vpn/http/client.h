@@ -36,7 +36,7 @@ class Client final {
   ~Client();
   bool Login(const std::string& username,
       const std::string& password,
-      int timeout_sec = 15);
+      int timeout_sec = 5);
   std::pair<IPv4Address, IPv6Address> GetDns();
   bool Start();
   bool Stop();
@@ -51,7 +51,7 @@ class Client final {
   void Run();
 
  private:
-  const int kMaxReconnectionAttempts_ = 15;
+  const int kMaxReconnectionAttempts_ = 35;
 
   std::thread th_;
   mutable std::mutex mutex_;
@@ -63,6 +63,10 @@ class Client final {
   fptn::protocol::https::WebsocketClientSPtr ws_;
 
   fptn::protocol::https::WebsocketClient::Config config_;
+
+
+  IPv4Address dns_ipv4_;
+  IPv6Address dns_ipv6_;
 };
 
 using ClientPtr = std::unique_ptr<Client>;

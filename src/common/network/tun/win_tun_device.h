@@ -35,15 +35,22 @@ class WinTunDevice {
         session_(nullptr),
         running_(nullptr) {
     wintun_ = InitializeWintun();
-    UuidCreate(&guid_);
   }
 
-  ~WinTunDevice() { Close(); }
+  ~WinTunDevice() {
+    Close();
+    if (wintun_) {
+      WintunDeleteDriver();
+      wintun_ = nullptr;
+    }
+  }
 
   WinTunDevice(const WinTunDevice&) = delete;
   WinTunDevice& operator=(const WinTunDevice&) = delete;
 
   bool Open(const std::string& name) {
+    UuidCreate(&guid_);
+
     if (!wintun_) {
       return false;
     }
@@ -69,10 +76,6 @@ class WinTunDevice {
     if (adapter_) {
       WintunCloseAdapter(adapter_);
       adapter_ = nullptr;
-    }
-    if (wintun_) {
-      WintunDeleteDriver();
-      wintun_ = nullptr;
     }
   }
 
