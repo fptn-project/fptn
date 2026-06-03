@@ -310,6 +310,9 @@ std::vector<std::uint8_t> GenerateDecoyTlsHandshake(const std::string& sni) {
 
     SetHandshakeSni(ssl, sni);
     SetDecoyHandshakeSessionID(ssl);
+    // X25519MLKEM768 (ctx default) triggers HelloRetryRequest on servers
+    // that don't support post-quantum key exchange, deadlocking the decoy read.
+    ::SSL_set1_groups_list(ssl, "X25519:secp256r1:secp384r1");
 
     ::SSL_set_connect_state(ssl);
 
