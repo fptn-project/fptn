@@ -58,6 +58,48 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 namespace {
 
+bool IsPortOpen(const std::string& host, const int port) {
+  try {
+    boost::asio::io_context ioc;
+    boost::asio::ip::tcp::socket socket(ioc);
+    socket.open(boost::asio::ip::tcp::v4());
+
+    const auto native = socket.native_handle();
+#ifdef _WIN32
+    DWORD timeout_ms = 700;
+    ::setsockopt(native, SOL_SOCKET, SO_SNDTIMEO,
+        reinterpret_cast<const char*>(&timeout_ms), sizeof(timeout_ms));
+#else
+    timeval tv{};
+    tv.tv_sec = 0;
+    tv.tv_usec = 700000;
+    ::setsockopt(native, SOL_SOCKET, SO_SNDTIMEO,
+        reinterpret_cast<const char*>(&tv), sizeof(tv));
+#endif
+
+    boost::asio::ip::tcp::endpoint endpoint;
+    boost::system::error_code addr_ec;
+    const auto addr = boost::asio::ip::make_address(host, addr_ec);
+    if (!addr_ec) {
+      endpoint = boost::asio::ip::tcp::endpoint(
+          addr, static_cast<boost::asio::ip::port_type>(port));
+    } else {
+      boost::asio::ip::tcp::resolver resolver(ioc);
+      const auto results = resolver.resolve(host, std::to_string(port));
+      endpoint = *results.begin();
+    }
+
+    boost::system::error_code ec;
+    socket.connect(endpoint, ec);
+    if (socket.is_open()) {
+      socket.close();
+    }
+    return !ec;
+  } catch (...) {
+    return false;
+  }
+}
+
 std::string DecompressGzip(const std::string& compressed) {
   constexpr std::size_t kChunkSize = 4096;
 
@@ -279,9 +321,13 @@ Response ApiClient::Get(const std::string& handle, int timeout) const {
   // NOLINTNEXTLINE(bugprone-exception-escape)
   return ExecuteWithTimeout<Response>(
       // NOLINTNEXTLINE(bugprone-exception-escape)
-      [this, handle, timeout]() {
-        const ApiClient cloned_client = Clone();
-        return cloned_client.GetImpl(handle, timeout);
+      [self = *this, handle, timeout]() {
+        if (!IsPortOpen(self.host_, self.port_)) {
+          SPDLOG_ERROR("GET [{}] - port {}:{} is not reachable", handle,
+              self.host_, self.port_);
+          return Response{"", 609, "Port not reachable"};
+        }
+        return self.GetImpl(handle, timeout);
       },
       timeout, "GET", handle, host_, Response{"", 608, "Operation timeout"});
 }
@@ -293,9 +339,13 @@ Response ApiClient::Post(const std::string& handle,
   // NOLINTNEXTLINE(bugprone-exception-escape)
   return ExecuteWithTimeout<Response>(
       // NOLINTNEXTLINE(bugprone-exception-escape)
-      [this, handle, request, content_type, timeout]() {
-        const ApiClient cloned_client = Clone();
-        return cloned_client.PostImpl(handle, request, content_type, timeout);
+      [self = *this, handle, request, content_type, timeout]() {
+        if (!IsPortOpen(self.host_, self.port_)) {
+          SPDLOG_ERROR("POST [{}] - port {}:{} is not reachable", handle,
+              self.host_, self.port_);
+          return Response{"", 609, "Port not reachable"};
+        }
+        return self.PostImpl(handle, request, content_type, timeout);
       },
       timeout, "POST", handle, host_, Response{"", 608, "Operation timeout"});
 }
@@ -304,9 +354,13 @@ bool ApiClient::TestHandshake(int timeout) const {
   // NOLINTNEXTLINE(bugprone-exception-escape)
   return ExecuteWithTimeout<bool>(
       // NOLINTNEXTLINE(bugprone-exception-escape)
-      [this, timeout]() {
-        const ApiClient cloned_client = Clone();
-        return cloned_client.TestHandshakeImpl(timeout);
+      [self = *this, timeout]() {
+        if (!IsPortOpen(self.host_, self.port_)) {
+          SPDLOG_ERROR("TestHandshake - port {}:{} is not reachable",
+              self.host_, self.port_);
+          return false;
+        }
+        return self.TestHandshakeImpl(timeout);
       },
       timeout, "TestHandshake", "", host_, false);
 }

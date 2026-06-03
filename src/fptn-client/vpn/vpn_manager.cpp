@@ -28,8 +28,8 @@ bool VpnManager::IsStarted() {
 
   // const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
-  return running_ && config_.http_client &&
-         config_.http_client->IsStarted() && tun_alive_;
+  return running_ && config_.http_client && config_.http_client->IsStarted() &&
+         tun_alive_;
 }
 
 bool VpnManager::Start() {
@@ -251,7 +251,7 @@ void VpnManager::HandleOnIPAssignedCallback(
         bool tun_opened = false;
         if (config_.virtual_net_interface) {
           constexpr int kMaxTunOpenAttempts = 5;
-          constexpr auto kTunOpenRetryDelay = std::chrono::milliseconds(500);
+          constexpr auto kTunOpenRetryDelay = std::chrono::milliseconds(100);
           for (int attempt = 1;
               running_ && !tun_opened && attempt <= kMaxTunOpenAttempts;
               ++attempt) {
@@ -268,6 +268,15 @@ void VpnManager::HandleOnIPAssignedCallback(
               std::this_thread::sleep_for(kTunOpenRetryDelay);
             }
           }
+        }
+
+        if (!tun_opened && config_.virtual_net_interface) {
+          config_.virtual_net_interface->Stop();
+          tun_opened = config_.virtual_net_interface->Start(
+              fptn::common::network::TunInterface::Config{.ipv4_addr = ip_v4,
+                  .ipv4_netmask = 32,
+                  .ipv6_addr = ip_v6,
+                  .ipv6_netmask = 126});
         }
 
         if (!tun_opened) {
