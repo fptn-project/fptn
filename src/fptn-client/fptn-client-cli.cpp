@@ -252,41 +252,41 @@ int main(int argc, char* argv[]) {
           fptn::protocol::https::CensorshipStrategy::kTlsObfuscator;
     }
     /* Chrome */
-    else if (bypass_method == "sni-reality-chrome147") {
+    else if (bypass_method == "sni-spoofing-chrome147") {
       SPDLOG_INFO("Using Chrome 147 handshake for censorship bypass");
       censorship_strategy =
           fptn::protocol::https::CensorshipStrategy::kSniRealityModeChrome147;
-    } else if (bypass_method == "sni-reality-chrome146") {
+    } else if (bypass_method == "sni-spoofing-chrome146") {
       SPDLOG_INFO("Using Chrome 146 handshake for censorship bypass");
       censorship_strategy =
           fptn::protocol::https::CensorshipStrategy::kSniRealityModeChrome146;
-    } else if (bypass_method == "sni-reality-chrome145") {
+    } else if (bypass_method == "sni-spoofing-chrome145") {
       SPDLOG_INFO("Using Chrome 144 handshake for censorship bypass");
       censorship_strategy =
           fptn::protocol::https::CensorshipStrategy::kSniRealityModeChrome145;
     }
     /* Firefox */
-    else if (bypass_method == "sni-reality-firefox149") {
+    else if (bypass_method == "sni-spoofing-firefox149") {
       SPDLOG_INFO("Using Firefox 149 handshake for censorship bypass");
       censorship_strategy =
           fptn::protocol::https::CensorshipStrategy::kSniRealityModeFirefox149;
     }
     /* Yandex */
-    else if (bypass_method == "sni-reality-yandex26") {
+    else if (bypass_method == "sni-spoofing-yandex26") {
       SPDLOG_INFO("Using Yandex 26 handshake for censorship bypass");
       censorship_strategy =
           fptn::protocol::https::CensorshipStrategy::kSniRealityModeYandex26;
-    } else if (bypass_method == "sni-reality-yandex25") {
+    } else if (bypass_method == "sni-spoofing-yandex25") {
       SPDLOG_INFO("Using Yandex 25 handshake for censorship bypass");
       censorship_strategy =
           fptn::protocol::https::CensorshipStrategy::kSniRealityModeYandex25;
-    } else if (bypass_method == "sni-reality-yandex24") {
+    } else if (bypass_method == "sni-spoofing-yandex24") {
       SPDLOG_INFO("Using Yandex 25 handshake for censorship bypass");
       censorship_strategy =
           fptn::protocol::https::CensorshipStrategy::kSniRealityModeYandex25;
     }
     /* Safari */
-    else if (bypass_method == "sni-reality-safari26") {
+    else if (bypass_method == "sni-spoofing-safari26") {
       SPDLOG_INFO("Using Safari 26 handshake for censorship bypass");
       censorship_strategy =
           fptn::protocol::https::CensorshipStrategy::kSniRealityModeSafari26;
