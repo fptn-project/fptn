@@ -294,10 +294,6 @@ boost::asio::awaitable<bool> WebsocketClient::RunInternal() {
 
     SPDLOG_INFO("WebSocket connection established successfully");
 
-    if (config_.on_ip_assigned_callback) {
-      config_.on_ip_assigned_callback(
-          tun_interface_address_ipv4_, tun_interface_address_ipv6_);
-    }
     if (config_.on_connected_callback) {
       config_.on_connected_callback();
     }
@@ -496,8 +492,8 @@ boost::asio::awaitable<bool> WebsocketClient::ReceiveIPAssignment() {
     }
 
     ip_assigned_ = true;
-    tun_interface_address_ipv4_ = common::network::IPv4Address(ipv4_str);
-    tun_interface_address_ipv6_ = common::network::IPv6Address(ipv6_str);
+    assigned_ipv4_ = common::network::IPv4Address(ipv4_str);
+    assigned_ipv6_ = common::network::IPv6Address(ipv6_str);
 
     SPDLOG_INFO("Received IP assignment from server: IPv4={}, IPv6={}",
         ipv4_str, ipv6_str);
@@ -535,6 +531,16 @@ boost::asio::awaitable<void> WebsocketClient::RunReader() {
           auto packet =
               fptn::common::network::IPPacket::Parse(std::move(raw_ip_opt));
           if (running_ && packet && config_.new_ip_pkt_callback) {
+            // change IP addresses
+            if (packet->IsIPv4()) {
+              packet->SetDstIPv4Address(config_.tun_interface_address_ipv4);
+              packet->ComputeCalculateFields();
+            } else if (packet->IsIPv6()) {
+              packet->SetDstIPv6Address(config_.tun_interface_address_ipv6);
+              packet->ComputeCalculateFields();
+            } else {
+              continue;
+            }
             config_.new_ip_pkt_callback(std::move(packet));
           }
         }
@@ -559,12 +565,33 @@ boost::asio::awaitable<void> WebsocketClient::RunSender() {
       fptn::common::network::BatchIPPacketPtr packets;
       auto [ec, packet] = co_await write_channel_.async_receive(token);
       if (!ec && packet) {
+        // change addresses
+        if (packet->IsIPv4()) {
+          packet->SetSrcIPv4Address(assigned_ipv4_);
+          packet->ComputeCalculateFields();
+        } else if (packet->IsIPv6()) {
+          packet->SetSrcIPv6Address(assigned_ipv6_);
+          packet->ComputeCalculateFields();
+        } else {
+          continue;
+        }
+
         packets.push_back(std::move(packet));
         while (packets.size() < kMaxBatchSize) {
           const bool has_packet = write_channel_.try_receive(
-              [&packets](const boost::system::error_code& ec2,
+              [&packets, this](const boost::system::error_code& ec2,
                   fptn::common::network::IPPacketPtr p) {
                 if (!ec2 && p) {
+                  // change IP addresses
+                  if (p->IsIPv4()) {
+                    p->SetSrcIPv4Address(config_.tun_interface_address_ipv4);
+                    p->ComputeCalculateFields();
+                  } else if (p->IsIPv6()) {
+                    p->SetSrcIPv6Address(config_.tun_interface_address_ipv6);
+                    p->ComputeCalculateFields();
+                  } else {
+                    return;
+                  }
                   packets.push_back(std::move(p));
                 }
               });

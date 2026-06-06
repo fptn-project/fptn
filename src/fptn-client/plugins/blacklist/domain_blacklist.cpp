@@ -79,19 +79,16 @@ DomainBlacklist::HandlePacket(fptn::common::network::IPPacketPtr packet) {
       }
     }
   } else if (packet->IsIPv4()) {
-    const std::uint32_t src_ipv4 =
-        packet->IPv4Layer()->getSrcIPAddress().getIPv4().toInt();
-
+    const std::uint32_t src_ipv4 = packet->GetSrcIPv4Address().ToInt();
     const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
     if (ipv4_addresses_.contains(src_ipv4)) {
       SPDLOG_INFO("Blocked IPv4 packet from {}",
-          packet->IPv4Layer()->getSrcIPAddress().getIPv4().toString());
+          packet->GetSrcIPv4Address().ToString());
       return {nullptr, true};
     }
   } else if (packet->IsIPv6()) {
-    const std::string src_ipv6 =
-        packet->IPv6Layer()->getSrcIPAddress().getIPv6().toString();
+    const std::string src_ipv6 = packet->GetSrcIPv6Address().ToString();
 
     const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 

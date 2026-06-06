@@ -50,7 +50,7 @@ Session::TrafficShaperFromClient() noexcept {
 }
 
 fptn::common::network::IPPacketPtr Session::ChangeIPAddressToClientIP(
-    fptn::common::network::IPPacketPtr packet) noexcept {
+    fptn::common::network::IPPacketPtr packet) const noexcept {
   packet->SetClientId(config_.client_id);
 
   if (disable_checksum_calculation_) {
@@ -65,9 +65,9 @@ fptn::common::network::IPPacketPtr Session::ChangeIPAddressToClientIP(
   }
 #else
   if (packet->IsIPv4()) {
-    packet->SetDstIPv4Address(config_.client_ipv4.Get());
+    packet->SetDstIPv4Address(config_.client_ipv4);
   } else if (packet->IsIPv6()) {
-    packet->SetDstIPv6Address(config_.client_ipv6.Get());
+    packet->SetDstIPv6Address(config_.client_ipv6);
   }
 #endif
   packet->ComputeCalculateFields();
@@ -75,7 +75,7 @@ fptn::common::network::IPPacketPtr Session::ChangeIPAddressToClientIP(
 }
 
 fptn::common::network::IPPacketPtr Session::ChangeIPAddressToFakeIP(
-    fptn::common::network::IPPacketPtr packet) noexcept {
+    fptn::common::network::IPPacketPtr packet) const noexcept {
   packet->SetClientId(config_.client_id);
 
   if (disable_checksum_calculation_) {
@@ -90,9 +90,9 @@ fptn::common::network::IPPacketPtr Session::ChangeIPAddressToFakeIP(
   }
 #else
   if (packet->IsIPv4()) {
-    packet->SetSrcIPv4Address(config_.fake_client_ipv4.Get());
+    packet->SetSrcIPv4Address(config_.fake_client_ipv4);
   } else if (packet->IsIPv6()) {
-    packet->SetSrcIPv6Address(config_.fake_client_ipv6.Get());
+    packet->SetSrcIPv6Address(config_.fake_client_ipv6);
   }
 #endif
   packet->ComputeCalculateFields();

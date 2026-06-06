@@ -23,7 +23,6 @@ find_package(OpenSSL REQUIRED)
 find_package(argparse REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(fmt REQUIRED)
-find_package(PcapPlusPlus REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(jwt-cpp REQUIRED)
 find_package(prometheus-cpp REQUIRED)
@@ -84,7 +83,6 @@ target_link_libraries(
           jwt-cpp::jwt-cpp
           spdlog::spdlog
           fmt::fmt
-          PcapPlusPlus::PcapPlusPlus
           tuntap++
           fptn-protocol-lib_static
           prometheus-cpp::prometheus-cpp)

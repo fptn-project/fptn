@@ -33,9 +33,6 @@ endif()
 # Global project definitions
 
 if (FPTN_BUILD_ONLY_FPTN_LIB)
-  # build fptnlib without pcappp
-  set(FPTN_IP_ADDRESS_WITHOUT_PCAP ON)
-  add_compile_definitions(FPTN_IP_ADDRESS_WITHOUT_PCAP)
 else()
   add_definitions(-DUSING_MIMALLOC)
   set(FPTN_WITH_LIBIDN2 ON)

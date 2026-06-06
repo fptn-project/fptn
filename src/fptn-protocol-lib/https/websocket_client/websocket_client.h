@@ -39,20 +39,23 @@ using OnIPRecvPacketCallback = std::function<void(IPPacketPtr packet)>;
 
 using OnConnectedCallback = std::function<void()>;
 
-using OnIPAssignedCallback = std::function<void(const IPv4Address& ipv4,
-  const IPv6Address& ipv6)>;
+using OnIPAssignedCallback =
+std::function<void(const IPv4Address& ipv4, const IPv6Address& ipv6)>;
 
 class WebsocketClient : public std::enable_shared_from_this<WebsocketClient> {
  public:
   struct Config {
     IPv4Address server_ip;
     int server_port;
+
+    IPv4Address tun_interface_address_ipv4;
+    IPv6Address tun_interface_address_ipv6;
+
     std::string sni;
     std::string access_token;
     std::string expected_md5_fingerprint;
     CensorshipStrategy censorship_strategy;
     OnConnectedCallback on_connected_callback;
-    OnIPAssignedCallback on_ip_assigned_callback;
     OnIPRecvPacketCallback new_ip_pkt_callback;
   };
 
@@ -116,8 +119,9 @@ class WebsocketClient : public std::enable_shared_from_this<WebsocketClient> {
   obfuscator::IObfuscatorSPtr obfuscator_;
 
   const Config config_;
-  fptn::common::network::IPv4Address tun_interface_address_ipv4_;
-  fptn::common::network::IPv6Address tun_interface_address_ipv6_;
+
+  IPv4Address assigned_ipv4_;
+  IPv6Address assigned_ipv6_;
 };
 
 using WebsocketClientSPtr = std::shared_ptr<WebsocketClient>;

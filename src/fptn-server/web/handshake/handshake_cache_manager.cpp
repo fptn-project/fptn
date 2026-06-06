@@ -15,8 +15,6 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <boost/asio.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/beast.hpp>
-#include <pcapplusplus/SSLHandshake.h>  // NOLINT(build/include_order)
-#include <pcapplusplus/SSLLayer.h>      // NOLINT(build/include_order)
 #include <spdlog/spdlog.h>              // NOLINT(build/include_order)
 
 #include "common/network/resolv.h"

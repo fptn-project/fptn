@@ -29,8 +29,7 @@ class ArenaManager {
  public:
   explicit ArenaManager(std::size_t max_count = 1024)
       : max_count_(max_count),
-        arena_(std::make_unique<google::protobuf::Arena>())
-  {}
+        arena_(std::make_unique<google::protobuf::Arena>()) {}
 
   google::protobuf::Arena* Get() {
     if (++count_ >= max_count_) {
@@ -124,29 +123,21 @@ ProtoPayloadOpt SerializeIPPacket(fptn::common::network::IPPacketPtr packet) {
   message->set_protocol_version(FPTN_PROTOBUF_PROTOCOL_VERSION);
   message->set_msg_type(fptn::protocol::MSG_IP_PACKET);
 
-  const auto* raw_packet = packet->GetRawPacket();
-  if (!raw_packet) {
-    SPDLOG_ERROR("Cannot create proto payload: raw packet is null");
-    return std::nullopt;
-  }
-
-  const void* data = raw_packet->getRawData();
-  const auto current_size =
-      static_cast<std::size_t>(raw_packet->getRawDataLen());
-
-  if (!data || current_size == 0) {
+  const auto& data = packet->Data();
+  if (data.empty()) {
     SPDLOG_ERROR("Cannot create proto payload: invalid packet data");
     return std::nullopt;
   }
 
-  message->mutable_packet()->set_payload(data, current_size);
+  message->mutable_packet()->set_payload(
+      data.data(), static_cast<int>(data.size()));
 
-  if (current_size < FPTN_IP_PACKET_MAX_SIZE) {
+  if (data.size() < FPTN_IP_PACKET_MAX_SIZE) {
     /**
      * Fill with random data to prevent issues related to TLS-inside-TLS.
      */
     constexpr std::size_t kMaxPaddingBytes = 128;
-    const std::size_t available_space = FPTN_IP_PACKET_MAX_SIZE - current_size;
+    const std::size_t available_space = FPTN_IP_PACKET_MAX_SIZE - data.size();
     const std::size_t padding_size =
         std::min(kMaxPaddingBytes, available_space);
     if (padding_size > 0) {

@@ -217,6 +217,9 @@ class GenericTunInterfaceTest : public ::testing::Test {
 
   static MockTunInterface::Config MakeConfig() {
     MockTunInterface::Config config;
+    config.name = "mock0";
+    config.mtu_size = FPTN_DEFAULT_MTU_SIZE;
+    config.using_rate_calculator = false;
     config.ipv4_addr = fptn::common::network::IPv4Address("10.0.0.1");
     config.ipv4_netmask = 24;
     config.ipv6_addr = fptn::common::network::IPv6Address("fc00:1::1");
@@ -228,15 +231,15 @@ class GenericTunInterfaceTest : public ::testing::Test {
 }  // namespace
 
 TEST_F(GenericTunInterfaceTest, StartAndStop) {
-  MockTunInterface iface("mock0", FPTN_DEFAULT_MTU_SIZE);
-  ASSERT_TRUE(iface.Start(MakeConfig()));
+  MockTunInterface iface(MakeConfig());
+  ASSERT_TRUE(iface.Start());
   EXPECT_EQ(iface.Name(), "mock0");
   EXPECT_TRUE(iface.Stop());
 }
 
 TEST_F(GenericTunInterfaceTest, SendIPv4Packet) {
-  MockTunInterface iface("mock0", FPTN_DEFAULT_MTU_SIZE);
-  ASSERT_TRUE(iface.Start(MakeConfig()));
+  MockTunInterface iface(MakeConfig());
+  ASSERT_TRUE(iface.Start());
 
   auto pkt_data = MakeMinimalIPv4Packet();
   auto packet = fptn::common::network::IPPacket::Parse(pkt_data);
@@ -255,8 +258,8 @@ TEST_F(GenericTunInterfaceTest, SendIPv4Packet) {
 }
 
 TEST_F(GenericTunInterfaceTest, SendIPv6Packet) {
-  MockTunInterface iface("mock0", FPTN_DEFAULT_MTU_SIZE);
-  ASSERT_TRUE(iface.Start(MakeConfig()));
+  MockTunInterface iface(MakeConfig());
+  ASSERT_TRUE(iface.Start());
 
   auto pkt_data = MakeMinimalIPv6Packet();
   auto packet = fptn::common::network::IPPacket::Parse(pkt_data);
@@ -275,7 +278,7 @@ TEST_F(GenericTunInterfaceTest, SendIPv6Packet) {
 }
 
 TEST_F(GenericTunInterfaceTest, ReceiveIPv4Packet) {
-  MockTunInterface iface("mock0", FPTN_DEFAULT_MTU_SIZE);
+  MockTunInterface iface(MakeConfig());
 
   std::mutex callback_mutex;
   std::vector<fptn::common::network::IPPacketData> received;
@@ -283,13 +286,13 @@ TEST_F(GenericTunInterfaceTest, ReceiveIPv4Packet) {
   iface.SetRecvIPPacketCallback([&](fptn::common::network::IPPacketPtr packet) {
     if (packet) {
       std::scoped_lock lock(callback_mutex);
-      const auto* raw = packet->GetRawPacket();
-      const auto* data = static_cast<const std::uint8_t*>(raw->getRawData());
-      received.emplace_back(data, data + raw->getRawDataLen());
+
+      const auto& data = packet->Data();
+      received.emplace_back(data.data(), data.data() + data.size());
     }
   });
 
-  ASSERT_TRUE(iface.Start(MakeConfig()));
+  ASSERT_TRUE(iface.Start());
 
   g_mock_state->InjectPacket(MakeMinimalIPv4Packet());
 
@@ -311,7 +314,7 @@ TEST_F(GenericTunInterfaceTest, ReceiveIPv4Packet) {
 }
 
 TEST_F(GenericTunInterfaceTest, ReceiveIPv6Packet) {
-  MockTunInterface iface("mock0", FPTN_DEFAULT_MTU_SIZE);
+  MockTunInterface iface(MakeConfig());
 
   std::mutex callback_mutex;
   std::vector<fptn::common::network::IPPacketData> received;
@@ -319,13 +322,13 @@ TEST_F(GenericTunInterfaceTest, ReceiveIPv6Packet) {
   iface.SetRecvIPPacketCallback([&](fptn::common::network::IPPacketPtr packet) {
     if (packet) {
       std::scoped_lock lock(callback_mutex);
-      const auto* raw = packet->GetRawPacket();
-      const auto* data = static_cast<const std::uint8_t*>(raw->getRawData());
-      received.emplace_back(data, data + raw->getRawDataLen());
+
+      const auto& data = packet->Data();
+      received.emplace_back(data.data(), data.data() + data.size());
     }
   });
 
-  ASSERT_TRUE(iface.Start(MakeConfig()));
+  ASSERT_TRUE(iface.Start());
 
   g_mock_state->InjectPacket(MakeMinimalIPv6Packet());
 
@@ -348,8 +351,8 @@ TEST_F(GenericTunInterfaceTest, ReceiveIPv6Packet) {
 }
 
 TEST_F(GenericTunInterfaceTest, SendMultipleMixedPackets) {
-  MockTunInterface iface("mock0", FPTN_DEFAULT_MTU_SIZE);
-  ASSERT_TRUE(iface.Start(MakeConfig()));
+  MockTunInterface iface(MakeConfig());
+  ASSERT_TRUE(iface.Start());
 
   auto ipv4_data = MakeMinimalIPv4Packet();
   auto ipv6_data = MakeMinimalIPv6Packet();
@@ -373,9 +376,9 @@ TEST_F(GenericTunInterfaceTest, SendMultipleMixedPackets) {
 }
 
 TEST_F(GenericTunInterfaceTest, DeviceNameUpdatedAfterStart) {
-  MockTunInterface iface("mock0", FPTN_DEFAULT_MTU_SIZE);
+  MockTunInterface iface(MakeConfig());
   EXPECT_EQ(iface.Name(), "mock0");
-  ASSERT_TRUE(iface.Start(MakeConfig()));
+  ASSERT_TRUE(iface.Start());
   EXPECT_EQ(iface.Name(), "mock0");
   iface.Stop();
 }

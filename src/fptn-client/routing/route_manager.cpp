@@ -309,8 +309,7 @@ RouteManager::~RouteManager() {  // NOLINT(bugprone-exception-escape)
   }
 }
 
-bool RouteManager::Apply(
-    std::string tun_name, IPv4Address tun_ipv4, IPv6Address tun_ipv6) {
+bool RouteManager::Apply(std::string tun_name) {
   const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
   if (running_) {
@@ -318,9 +317,6 @@ bool RouteManager::Apply(
   }
 
   tun_interface_name_ = std::move(tun_name);
-  tun_interface_address_ipv4_ = std::move(tun_ipv4);
-  tun_interface_address_ipv6_ = std::move(tun_ipv6);
-
   running_ = true;
 #if defined(__APPLE__) || defined(__linux__)
   detected_out_interface_name_ =
@@ -549,21 +545,23 @@ pass out on {tunInterfaceName} proto tcp from any to any port 53
           config_.vpn_server_ip.ToString(), detected_gateway_ipv4_.ToString()),
       // Default gateway & dns
       fmt::format("route add 0.0.0.0 mask 0.0.0.0 {} METRIC 1 {}",
-          tun_interface_address_ipv4_.ToString(), interface_info),
+          config_.tun_interface_address_ipv4.ToString(), interface_info),
       fmt::format("route add {} mask 255.255.255.255 {} METRIC 2 {}",
           config_.dns_server_ipv4.ToString(),
-          tun_interface_address_ipv4_.ToString(),
+          config_.tun_interface_address_ipv4.ToString(),
           interface_info),  // via TUN
       // DNS
-      config_.enable_advanced_dns_management ? backup_dns_cmd
-                                      : "echo \"No advanced DNS management\" ",
-      config_.enable_advanced_dns_management ? configure_dns_cmd
-                                      : "echo \"No advanced DNS management\" ",
+      config_.enable_advanced_dns_management
+          ? backup_dns_cmd
+          : "echo \"No advanced DNS management\" ",
+      config_.enable_advanced_dns_management
+          ? configure_dns_cmd
+          : "echo \"No advanced DNS management\" ",
       fmt::format("netsh interface ip set dns name=\"{}\" static {}",
           tun_interface_name_, config_.dns_server_ipv4.ToString()),
       // IPv6
       fmt::format("netsh interface ipv6 add route ::/0 \"{}\" \"{}\" ",
-          tun_interface_name_, tun_interface_address_ipv6_.ToString()),
+          tun_interface_name_, config_.tun_interface_address_ipv6.ToString()),
       fmt::format("netsh interface ipv6 add dnsservers=\"{}\" \"{}\" index=1",
           tun_interface_name_, config_.dns_server_ipv6.ToString()),
       // Flush DNS cache
@@ -646,7 +644,7 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
     } else {
       // Include route - remove through VPN interface
       RemoveIPv4RouteFromSystem(route.destination,
-          tun_interface_address_ipv4_.ToString(), tun_interface_name_);
+          config_.tun_interface_address_ipv4.ToString(), tun_interface_name_);
     }
   }
   additional_routes_ipv4_.clear();
@@ -659,7 +657,7 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
     } else {
       // Include route - remove through VPN interface
       RemoveIPv6RouteFromSystem(route.destination,
-          tun_interface_address_ipv6_.ToString(), tun_interface_name_);
+          config_.tun_interface_address_ipv6.ToString(), tun_interface_name_);
     }
   }
   additional_routes_ipv6_.clear();
@@ -817,8 +815,9 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
     }")PSHELL";
 
   const std::vector<std::string> commands = {
-      config_.enable_advanced_dns_management ? restore_dns_cmd
-                                      : "echo \"No advanced DNS management\" ",
+      config_.enable_advanced_dns_management
+          ? restore_dns_cmd
+          : "echo \"No advanced DNS management\" ",
       // Remove routes
       fmt::format("route delete {} mask 255.255.255.255",
           config_.vpn_server_ip.ToString()),
@@ -854,7 +853,6 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
 bool RouteManager::AddDnsRoutesIPv4(
     const std::vector<fptn::common::network::IPv4Address>& ips,
     const RoutingPolicy policy) {
-
   std::string interface_name;
   std::string gateway_ip;
 
@@ -869,7 +867,7 @@ bool RouteManager::AddDnsRoutesIPv4(
     gateway_ip = config_.gateway_ipv4.ToString();
   } else {
     interface_name = tun_interface_name_;
-    gateway_ip = tun_interface_address_ipv4_.ToString();
+    gateway_ip = config_.tun_interface_address_ipv4.ToString();
   }
   if (interface_name.empty()) {
     interface_name = fptn::routing::GetDefaultNetworkInterfaceName();
@@ -935,7 +933,6 @@ bool RouteManager::AddDnsRoutesIPv4(
 bool RouteManager::AddDnsRoutesIPv6(
     const std::vector<fptn::common::network::IPv6Address>& ips,
     const RoutingPolicy policy) {
-
   std::string interface_name;
   std::string gateway_ip;
 
@@ -950,7 +947,7 @@ bool RouteManager::AddDnsRoutesIPv6(
     gateway_ip = config_.gateway_ipv6.ToString();
   } else {
     interface_name = tun_interface_name_;
-    gateway_ip = tun_interface_address_ipv6_.ToString();
+    gateway_ip = config_.tun_interface_address_ipv6.ToString();
   }
 
   if (interface_name.empty()) {
@@ -1116,10 +1113,10 @@ bool RouteManager::AddIncludeNetworks(
 
       if (is_ipv6) {
         success = AddIPv6RouteToSystem(network,
-            tun_interface_address_ipv6_.ToString(), tun_interface_name_);
+            config_.tun_interface_address_ipv6.ToString(), tun_interface_name_);
       } else {
         success = AddIPv4RouteToSystem(network,
-            tun_interface_address_ipv4_.ToString(), tun_interface_name_);
+            config_.tun_interface_address_ipv4.ToString(), tun_interface_name_);
       }
 
       if (success) {

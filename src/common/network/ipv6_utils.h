@@ -10,7 +10,6 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include <boost/asio.hpp>
 #include <boost/multiprecision/cpp_int.hpp>
-#include <pcapplusplus/IPv6Layer.h>  // NOLINT(build/include_order)
 
 namespace fptn::common::network::ipv6 {
 inline boost::multiprecision::uint128_t toUInt128(
@@ -23,14 +22,13 @@ inline boost::multiprecision::uint128_t toUInt128(
 }
 
 inline boost::multiprecision::uint128_t toUInt128(
-    const pcpp::IPv6Address& address) {
-  return toUInt128(boost::asio::ip::make_address_v6(address.toString()));
+    const fptn::common::network::IPv6Address& address) {
+  return toUInt128(boost::asio::ip::make_address_v6(address.ToString()));
 }
 
 inline std::string toString(const boost::multiprecision::uint128_t& val) {
   const std::uint64_t high = static_cast<uint64_t>(val >> 64);  // High 64 bits
-  const std::uint64_t low =
-      static_cast<uint64_t>(val & 0xFFFFFFFFFFFFFFFF);
+  const std::uint64_t low = static_cast<uint64_t>(val & 0xFFFFFFFFFFFFFFFF);
   // Build 16-byte network-order address from the two 64-bit halves
   const boost::asio::ip::address_v6::bytes_type bytes = {{
       static_cast<unsigned char>(high >> 56),

@@ -12,7 +12,6 @@ find_package(OpenSSL REQUIRED)
 find_package(argparse REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(fmt REQUIRED)
-find_package(PcapPlusPlus REQUIRED)
 find_package(Boost REQUIRED COMPONENTS random filesystem process locale)
 find_package(ZLIB REQUIRED)
 find_package(httplib REQUIRED)
@@ -63,7 +62,6 @@ target_link_libraries(
           nlohmann_json::nlohmann_json
           spdlog::spdlog
           fmt::fmt
-          PcapPlusPlus::PcapPlusPlus
           libidn2::libidn2
           re2::re2
           fptn-protocol-lib_static
@@ -177,7 +175,6 @@ WarningsAsErrors: ''
             argparse::argparse
             spdlog::spdlog
             fmt::fmt
-            PcapPlusPlus::PcapPlusPlus
             Qt6::Core
             Qt6::Gui
             Qt6::Widgets

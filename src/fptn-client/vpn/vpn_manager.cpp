@@ -28,8 +28,7 @@ bool VpnManager::IsStarted() {
 
   // const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
-  return running_ && config_.http_client && config_.http_client->IsStarted() &&
-         tun_alive_;
+  return running_ && config_.http_client && config_.http_client->IsStarted();
 }
 
 bool VpnManager::Start() {
@@ -51,15 +50,37 @@ bool VpnManager::Start() {
   config_.http_client->SetRecvIPPacketCallback(std::bind(
       &VpnManager::HandleOnPacketFromWebSocket, this, std::placeholders::_1));
 
-  config_.http_client->SetIPAssignedCallback(
-      // NOLINTNEXTLINE(modernize-avoid-bind)
-      std::bind(&VpnManager::HandleOnIPAssignedCallback, this,
-          std::placeholders::_1, std::placeholders::_2));
+  bool tun_opened = false;
+  if (config_.virtual_net_interface) {
+    config_.virtual_net_interface->SetRecvIPPacketCallback(
+        // NOLINTNEXTLINE(modernize-avoid-bind)
+        std::bind(&VpnManager::HandleOnPacketFromVirtualNetworkInterface, this,
+            std::placeholders::_1));
+    constexpr int kMaxTunOpenAttempts = 5;
+    constexpr auto kTunOpenRetryDelay = std::chrono::milliseconds(100);
+    for (int attempt = 1;
+        running_ && !tun_opened && attempt <= kMaxTunOpenAttempts; ++attempt) {
+      tun_opened = config_.virtual_net_interface->Start();
+      if (!tun_opened) {
+        SPDLOG_WARN(
+            "Failed to open TUN device on (re)connect (attempt {}/{}), "
+            "retrying in {} ms",
+            attempt, kMaxTunOpenAttempts, kTunOpenRetryDelay.count());
+        std::this_thread::sleep_for(kTunOpenRetryDelay);
+      }
+    }
+  }
 
-  config_.virtual_net_interface->SetRecvIPPacketCallback(
-      // NOLINTNEXTLINE(modernize-avoid-bind)
-      std::bind(&VpnManager::HandleOnPacketFromVirtualNetworkInterface, this,
-          std::placeholders::_1));
+  if (!tun_opened) {
+    SPDLOG_ERROR(
+        "Could not open TUN device after IP assignment; skipping route"
+        "setup and marking the connection as down so it can recover");
+    return false;
+  }
+
+  if (config_.route_manager) {
+    config_.route_manager->Apply(config_.virtual_net_interface->Name());
+  }
 
   config_.http_client->Start();
 
@@ -82,7 +103,6 @@ bool VpnManager::Stop() {
     }
 
     running_ = false;
-    tun_alive_ = false;
   }
 
   ws_queue_cv_.notify_all();
@@ -169,7 +189,7 @@ void VpnManager::HandleOnPacketFromWebSocket(
     return;
   }
 
-  constexpr std::size_t kMaxQueueSize = 256;
+  constexpr std::size_t kMaxQueueSize = 512;
 
   std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
@@ -223,85 +243,6 @@ void VpnManager::ProcessWebSocketPackets() {
       }
     }
   }
-}
-
-void VpnManager::HandleOnIPAssignedCallback(
-    const IPv4Address& ip_v4, const IPv6Address& ip_v6) {
-  if (!running_) {
-    return;
-  }
-
-  auto future = std::async(std::launch::async,
-      [this, ip_v4 = std::move(ip_v4), ip_v6 = std::move(ip_v6)]() {
-        if (!running_) {
-          return;
-        }
-        if (config_.virtual_net_interface) {
-          config_.virtual_net_interface->Stop();
-        }
-
-        if (config_.route_manager) {
-          config_.route_manager->Clean();
-        }
-
-        // (Re)open the TUN device. After Stop() the OS adapter from the
-        // previous connection (Wintun on Windows, utun on macOS) may not be
-        // released yet, so the first Start() can fail; retry a few times with a
-        // short delay to win that race.
-        bool tun_opened = false;
-        if (config_.virtual_net_interface) {
-          constexpr int kMaxTunOpenAttempts = 5;
-          constexpr auto kTunOpenRetryDelay = std::chrono::milliseconds(100);
-          for (int attempt = 1;
-              running_ && !tun_opened && attempt <= kMaxTunOpenAttempts;
-              ++attempt) {
-            tun_opened = config_.virtual_net_interface->Start(
-                fptn::common::network::TunInterface::Config{.ipv4_addr = ip_v4,
-                    .ipv4_netmask = 32,
-                    .ipv6_addr = ip_v6,
-                    .ipv6_netmask = 126});
-            if (!tun_opened) {
-              SPDLOG_WARN(
-                  "Failed to open TUN device on (re)connect (attempt {}/{}), "
-                  "retrying in {} ms",
-                  attempt, kMaxTunOpenAttempts, kTunOpenRetryDelay.count());
-              std::this_thread::sleep_for(kTunOpenRetryDelay);
-            }
-          }
-        }
-
-        if (!tun_opened && config_.virtual_net_interface) {
-          config_.virtual_net_interface->Stop();
-          tun_opened = config_.virtual_net_interface->Start(
-              fptn::common::network::TunInterface::Config{.ipv4_addr = ip_v4,
-                  .ipv4_netmask = 32,
-                  .ipv6_addr = ip_v6,
-                  .ipv6_netmask = 126});
-        }
-
-        if (!tun_opened) {
-          // Do NOT apply routes over a TUN that never opened: that is exactly
-          // what produced the "green icon but no traffic" zombie. Leave
-          // tun_alive_ = false so IsStarted() reports the connection as down,
-          // letting the client tear it down and reconnect instead of silently
-          // black-holing all traffic.
-          SPDLOG_ERROR(
-              "Could not open TUN device after IP assignment; skipping route "
-              "setup and marking the connection as down so it can recover");
-          tun_alive_ = false;
-          return;
-        }
-
-        if (config_.route_manager) {
-          config_.route_manager->Apply(
-              config_.virtual_net_interface->Name(), ip_v4, ip_v6);
-        }
-        tun_alive_ = true;
-      });
-
-  const std::unique_lock<std::mutex> lock(mutex_);  // mutex
-
-  pending_tasks_.push_back(std::move(future));
 }
 
 }  // namespace fptn::vpn
