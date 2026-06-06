@@ -584,10 +584,10 @@ boost::asio::awaitable<void> WebsocketClient::RunSender() {
                 if (!ec2 && p) {
                   // change IP addresses
                   if (p->IsIPv4()) {
-                    p->SetSrcIPv4Address(config_.tun_interface_address_ipv4);
+                    p->SetSrcIPv4Address(assigned_ipv4_);
                     p->ComputeCalculateFields();
                   } else if (p->IsIPv6()) {
-                    p->SetSrcIPv6Address(config_.tun_interface_address_ipv6);
+                    p->SetSrcIPv6Address(assigned_ipv6_);
                     p->ComputeCalculateFields();
                   } else {
                     return;
