@@ -9,10 +9,6 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <memory>
 #include <string>
 
-#include <pcapplusplus/EthLayer.h>   // NOLINT(build/include_order)
-#include <pcapplusplus/IPv4Layer.h>  // NOLINT(build/include_order)
-#include <pcapplusplus/Packet.h>     // NOLINT(build/include_order)
-
 #include "common/client_id.h"
 #include "common/network/ip_address.h"
 
@@ -54,9 +50,9 @@ class Session final {
   void DisableChecksumCalculation(const bool value) noexcept;
 
   fptn::common::network::IPPacketPtr ChangeIPAddressToClientIP(
-      fptn::common::network::IPPacketPtr packet) noexcept;
+      fptn::common::network::IPPacketPtr packet) const noexcept;
   fptn::common::network::IPPacketPtr ChangeIPAddressToFakeIP(
-      fptn::common::network::IPPacketPtr packet) noexcept;
+      fptn::common::network::IPPacketPtr packet) const noexcept;
 
  private:
   Config config_;

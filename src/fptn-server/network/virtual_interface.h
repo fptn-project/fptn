@@ -36,8 +36,7 @@ class VirtualInterface final {
   common::network::BatchIPPacketPtr WaitForPackets(
       const std::chrono::milliseconds& duration) noexcept;
   common::network::IPPacketPtr WaitForPacket(
-    const std::chrono::milliseconds& duration) noexcept;
-
+      const std::chrono::milliseconds& duration) noexcept;
 
  protected:
   void IPPacketFromNetwork(fptn::common::network::IPPacketPtr packet) noexcept;
@@ -47,7 +46,6 @@ class VirtualInterface final {
   std::atomic<bool> running_;
 
   const std::string name_;
-  const int mtu_size_;
   const fptn::routing::RouteManagerPtr route_manager_;
 
   fptn::common::network::TunInterface::Config config_;

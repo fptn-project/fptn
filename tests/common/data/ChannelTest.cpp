@@ -22,8 +22,7 @@ TEST(ChannelTest, PushAndWaitForPacket) {
 
   auto packet =
       std::make_unique<fptn::common::network::IPPacket>(std::move(packet_data),
-          static_cast<fptn::ClientID>(1),  // Cast to proper ClientID type
-          pcpp::LINKTYPE_IPV4);
+          static_cast<fptn::ClientID>(1));  // Cast to proper ClientID type
 
   channel.Push(std::move(packet));
   EXPECT_NE(channel.WaitForPacket(std::chrono::milliseconds(100)), nullptr);

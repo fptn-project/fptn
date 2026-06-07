@@ -19,15 +19,21 @@ VirtualInterface::VirtualInterface(const std::string& name,
     fptn::common::network::TunInterface::Config config)
     : running_(false),
       name_(name),
-      mtu_size_(mtu_size),
       route_manager_(std::move(route_manager)),
       config_(std::move(config)),
       from_network_("packets_from_network_interface") {
   const auto callback = [this](auto&& pkt) {
     VirtualInterface::IPPacketFromNetwork(std::forward<decltype(pkt)>(pkt));
   };
-  virtual_network_interface_ =
-      std::make_unique<TunInterface>(name, mtu_size_, false);
+  virtual_network_interface_ = std::make_unique<TunInterface>(
+      fptn::common::network::TunInterface::Config{.name = name,
+          .mtu_size = mtu_size,
+          .using_rate_calculator = false,
+          .ipv4_addr = config_.ipv4_addr,
+          .ipv4_netmask = config_.ipv4_netmask,
+          .ipv6_addr = config_.ipv6_addr,
+          .ipv6_netmask = config_.ipv6_netmask});
+
   virtual_network_interface_->SetRecvIPPacketCallback(callback);
 }
 
@@ -37,7 +43,7 @@ bool VirtualInterface::Check() const noexcept { return thread_.joinable(); }
 
 bool VirtualInterface::Start() noexcept {
   running_ = true;
-  virtual_network_interface_->Start(config_);
+  virtual_network_interface_->Start();
   route_manager_->Apply();  // activate route
   return true;
 }

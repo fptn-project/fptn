@@ -35,6 +35,9 @@ class RouteManager final {
   struct Config {
     std::string out_interface_name;
 
+    IPv4Address tun_interface_address_ipv4;
+    IPv6Address tun_interface_address_ipv6;
+
     IPv4Address vpn_server_ip;
 
     IPv4Address dns_server_ipv4;
@@ -71,7 +74,7 @@ class RouteManager final {
   explicit RouteManager(Config config);
   ~RouteManager();
 
-  bool Apply(std::string tun_name, IPv4Address tun_ipv4, IPv6Address tun_ipv6);
+  bool Apply(std::string tun_name);
   bool Clean();
 
   bool AddDnsRoutesIPv4(
@@ -93,8 +96,6 @@ class RouteManager final {
   const Config config_;
 
   std::string tun_interface_name_;
-  IPv4Address tun_interface_address_ipv4_;
-  IPv6Address tun_interface_address_ipv6_;
 
   std::unordered_set<RouteEntry, RouteEntry::Hash> dns_routes_ipv4_;
   std::unordered_set<RouteEntry, RouteEntry::Hash> dns_routes_ipv6_;

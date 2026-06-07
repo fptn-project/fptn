@@ -54,16 +54,17 @@ class BaseNetInterface {
 
   // Network configuration
   struct Config {
-    fptn::common::network::IPv4Address ipv4_addr;
+    std::string name;
+    int mtu_size;
+    bool using_rate_calculator;
+
+    IPv4Address ipv4_addr;
     std::uint32_t ipv4_netmask = 32;
-    fptn::common::network::IPv6Address ipv6_addr;
+    IPv6Address ipv6_addr;
     std::uint32_t ipv6_netmask = 126;
   };
 
-  bool Start(Config config) {
-    runtime_config_ = std::move(config);
-    return impl()->StartImpl();
-  }
+  bool Start() { return impl()->StartImpl(); }
 
   bool Stop() { return impl()->StopImpl(); }
 
@@ -80,13 +81,10 @@ class BaseNetInterface {
   void SetName(const std::string& name) { name_ = name; }
 
  private:
-  explicit BaseNetInterface(
-      std::string name, int mtu_size, bool using_rate_calculator)
-      : name_(std::move(name)),
-        mtu_size_(mtu_size),
-        recv_ip_packet_callback_(nullptr),
-        runtime_config_(),
-        using_rate_calculator_(using_rate_calculator) {}
+  explicit BaseNetInterface(Config config)
+      : config_(std::move(config)),
+        name_(config_.name),
+        recv_ip_packet_callback_(nullptr) {}
 
   Implementation* impl() { return static_cast<Implementation*>(this); }
 
@@ -95,23 +93,25 @@ class BaseNetInterface {
 
   [[nodiscard]] const fptn::common::network::IPv4Address& IPv4Addr()
       const noexcept {
-    return runtime_config_.ipv4_addr;
+    return config_.ipv4_addr;
   }
 
   [[nodiscard]] int IPv4Netmask() const noexcept {
-    return runtime_config_.ipv4_netmask;
+    return config_.ipv4_netmask;
   }
 
   [[nodiscard]] const fptn::common::network::IPv6Address& IPv6Addr()
       const noexcept {
-    return runtime_config_.ipv6_addr;
+    return config_.ipv6_addr;
   }
 
-  [[nodiscard]] int MtuSize() const noexcept { return mtu_size_; }
+  [[nodiscard]] int MtuSize() const noexcept { return config_.mtu_size; }
 
-  bool UsingRateCalculator() const noexcept { return using_rate_calculator_; }
+  bool UsingRateCalculator() const noexcept {
+    return config_.using_rate_calculator;
+  }
 
-  int IPv6Netmask() const noexcept { return runtime_config_.ipv6_netmask; }
+  int IPv6Netmask() const noexcept { return config_.ipv6_netmask; }
 
   void SetRecvIPPacketCallback(const NewIPPacketCallback& callback) noexcept {
     recv_ip_packet_callback_ = callback;
@@ -122,14 +122,9 @@ class BaseNetInterface {
   }
 
  private:
+  const Config config_;
   std::string name_;
-  int mtu_size_;
-
   NewIPPacketCallback recv_ip_packet_callback_;
-
-  Config runtime_config_;
-
-  const bool using_rate_calculator_;
 };
 
 /**
@@ -159,9 +154,8 @@ class GenericTunInterface final
 
   using Config = typename Base::Config;
 
-  explicit GenericTunInterface(
-      std::string name, int mtu_size, bool using_rate_calculator = true)
-      : Base(std::move(name), mtu_size, using_rate_calculator),
+  explicit GenericTunInterface(Config config)
+      : Base(std::move(config)),
         running_(false),
         to_network_("tun_interface") {}
 
@@ -170,6 +164,10 @@ class GenericTunInterface final
  protected:
   bool StartImpl() noexcept {
     const std::scoped_lock lock(mutex_);  // mutex
+
+    if (running_) {
+      return true;  // Already started — guard against double-start
+    }
 
     try {
       // cppcheck-suppress knownConditionTrueFalse
@@ -252,30 +250,6 @@ class GenericTunInterface final
     return receive_rate_calculator_.GetRateForSecond();
   }
 
-  // void RunReader() {
-  //   const int mtu_size = this->MtuSize();
-  //   const auto callback = this->GetRecvIPPacketCallback();
-  //   const bool rate_calc = this->UsingRateCalculator();
-  //
-  //   IPPacketData buffer(mtu_size);
-  //   while (running_) {
-  //     const int size = device_.Read(buffer.data(), mtu_size);
-  //     if (size > 0) {
-  //       auto packet = IPPacket::Parse(buffer.data(), size);
-  //       if (packet != nullptr && running_) {
-  //         if (callback) {
-  //           callback(std::move(packet));
-  //         }
-  //         if (rate_calc) {
-  //           receive_rate_calculator_.Update(size);  // calculate rate
-  //         }
-  //       }
-  //     } else {
-  //       std::this_thread::sleep_for(std::chrono::milliseconds(1));
-  //     }
-  //   }
-  // }
-
   void RunReader() {
     const int mtu_size = this->MtuSize();
     const auto callback = this->GetRecvIPPacketCallback();
@@ -297,24 +271,8 @@ class GenericTunInterface final
       } else {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
       }
-
-      // test
-      // if (size > 1300) {
-      //  while (running_) {
-      //    auto packet = IPPacket::Parse(buffer.data(), size);
-      //    if (packet != nullptr && running_) {
-      //      if (callback) {
-      //        callback(std::move(packet));
-      //      }
-      //      if (rate_calc) {
-      //        receive_rate_calculator_.Update(size);  // calculate rate
-      //      }
-      //    }
-      //  }
-      // }
     }
   }
-
 
   void RunSender() {
     try {
@@ -325,21 +283,18 @@ class GenericTunInterface final
         // cppcheck-suppress constVariableReference
         for (auto& packet : packets) {
           if (packet) {
-            const auto* raw_packet = packet->GetRawPacket();
-            const void* data =
-                static_cast<const void*>(raw_packet->getRawData());
-            const auto len = raw_packet->getRawDataLen();
-
+            const auto& data = packet->Data();
             // send data
-            if (len && data && running_) {
+            if (!data.empty() && running_) {
+              const int data_size = static_cast<int>(data.size());
               int bytes_written = 0;
               do {
                 // resend if error
-                bytes_written = device_.Write(const_cast<void*>(data), len);
-                if (bytes_written == len && kRateCalculator) {
+                bytes_written = device_.Write(data.data(), data_size);
+                if (bytes_written == data_size && kRateCalculator) {
                   send_rate_calculator_.Update(bytes_written);
                 }
-              } while ( bytes_written != len && running_);
+              } while (bytes_written != data_size && running_);
             }
           }
         }

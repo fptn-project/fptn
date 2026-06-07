@@ -36,9 +36,7 @@ Client::Client(fptn::protocol::https::WebsocketClient::Config config)
   config_.access_token = "";
 }
 
-Client::~Client() {
-  Stop();
-}
+Client::~Client() { Stop(); }
 
 bool Client::Login(
     const std::string& username, const std::string& password, int timeout_sec) {
@@ -150,11 +148,6 @@ std::pair<IPv4Address, IPv6Address> Client::GetDns() {
 void Client::SetRecvIPPacketCallback(
     const NewIPPacketCallback& callback) noexcept {
   config_.new_ip_pkt_callback = callback;
-}
-
-void Client::SetIPAssignedCallback(
-    const Client::OnIPAssignedCallback& callback) noexcept {
-  config_.on_ip_assigned_callback = callback;
 }
 
 bool Client::Send(fptn::common::network::IPPacketPtr packet) const {

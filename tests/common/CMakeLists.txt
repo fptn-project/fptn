@@ -3,7 +3,6 @@ find_package(Boost REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(fmt REQUIRED)
-find_package(PcapPlusPlus REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(jwt-cpp REQUIRED)
 find_package(Boost REQUIRED COMPONENTS random filesystem)
@@ -27,7 +26,6 @@ set(LIBS
     jwt-cpp::jwt-cpp
     spdlog::spdlog
     fmt::fmt
-    PcapPlusPlus::PcapPlusPlus
     fptn-protocol-lib_static
     ${TUNTAP_LIB})
 

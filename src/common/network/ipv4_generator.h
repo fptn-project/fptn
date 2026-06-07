@@ -10,21 +10,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <memory>
 #include <string>
 
-#if _WIN32
-#pragma warning(disable : 4996)
-#endif
-
-#include <boost/asio.hpp>
-#include <boost/system/error_code.hpp>
-#include <pcapplusplus/EthLayer.h>   // NOLINT(build/include_order)
-#include <pcapplusplus/IPv4Layer.h>  // NOLINT(build/include_order)
-#include <pcapplusplus/Packet.h>     // NOLINT(build/include_order)
-
 #include "common/network/ip_address.h"
-
-#if _WIN32
-#pragma warning(default : 4996)
-#endif
 
 namespace fptn::common::network {
 

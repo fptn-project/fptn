@@ -42,7 +42,6 @@ class Client final {
   bool Stop();
   bool Send(fptn::common::network::IPPacketPtr packet) const;
   void SetRecvIPPacketCallback(const NewIPPacketCallback& callback) noexcept;
-  void SetIPAssignedCallback(const OnIPAssignedCallback& callback) noexcept;
   bool IsStarted() const;
 
   const std::string& LatestError() const;
@@ -63,7 +62,6 @@ class Client final {
   fptn::protocol::https::WebsocketClientSPtr ws_;
 
   fptn::protocol::https::WebsocketClient::Config config_;
-
 
   IPv4Address dns_ipv4_;
   IPv6Address dns_ipv6_;

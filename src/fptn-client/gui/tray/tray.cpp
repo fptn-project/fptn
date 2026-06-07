@@ -862,11 +862,14 @@ bool TrayApp::startVpn(QString& err_msg) {
   auto http_client = std::make_unique<fptn::vpn::http::Client>(
       fptn::protocol::https::WebsocketClient::Config{.server_ip = server_ip,
           .server_port = selected_server_.port,
+          .tun_interface_address_ipv4 =
+              common::network::IPv4Address(FPTN_CLIENT_DEFAULT_ADDRESS_IP4),
+          .tun_interface_address_ipv6 =
+              common::network::IPv6Address(FPTN_CLIENT_DEFAULT_ADDRESS_IP6),
           .sni = sni,
           .expected_md5_fingerprint = selected_server_.md5_fingerprint,
           .censorship_strategy = censorship_strategy,
           .on_connected_callback = nullptr,
-          .on_ip_assigned_callback = nullptr,
           .new_ip_pkt_callback = nullptr});
 
   // login
@@ -923,6 +926,10 @@ bool TrayApp::startVpn(QString& err_msg) {
   auto route_manager = std::make_shared<fptn::routing::RouteManager>(
       fptn::routing::RouteManager::Config{
           .out_interface_name = network_interface,
+          .tun_interface_address_ipv4 =
+              common::network::IPv4Address(FPTN_CLIENT_DEFAULT_ADDRESS_IP4),
+          .tun_interface_address_ipv6 =
+              common::network::IPv6Address(FPTN_CLIENT_DEFAULT_ADDRESS_IP6),
           .vpn_server_ip = server_ip,
           .dns_server_ipv4 = dns_server_ipv4,
           .dns_server_ipv6 = dns_server_ipv6,
@@ -974,7 +981,15 @@ bool TrayApp::startVpn(QString& err_msg) {
   // setup tun interface
   auto virtual_network_interface =
       std::make_shared<fptn::common::network::TunInterface>(
-          tun_interface_name, FPTN_DEFAULT_MTU_SIZE);
+          common::network::TunInterface::Config{.name = tun_interface_name,
+              .mtu_size = FPTN_DEFAULT_MTU_SIZE,
+              .using_rate_calculator = true,
+              .ipv4_addr =
+                  common::network::IPv4Address(FPTN_CLIENT_DEFAULT_ADDRESS_IP4),
+              .ipv4_netmask = 32,
+              .ipv6_addr =
+                  common::network::IPv6Address(FPTN_CLIENT_DEFAULT_ADDRESS_IP6),
+              .ipv6_netmask = 126});
 
   // setup vpn client
   vpn_client_ = std::make_unique<fptn::vpn::VpnManager>(

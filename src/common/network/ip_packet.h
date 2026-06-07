@@ -6,63 +6,16 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #pragma once
 
-#include <array>
-#include <cstdint>
-#include <cstdio>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "common/utils/utils.h"
-
 #if _WIN32
-#pragma warning(disable : 4996)
-#endif
-
-#if _WIN32
-#include <Winsock2.h>  // NOLINT(build/include_order)
-
-#include <openssl/base.h>  // NOLINT(build/include_order)
+#include <Winsock2.h>
 #else
 #include <arpa/inet.h>
-#endif
-
-#include <iostream>
-
-#ifdef FPTN_IP_ADDRESS_WITHOUT_PCAP
-#include "common/network/ip_address.h"
-#else
-
-#include <boost/asio/ip/address_v4.hpp>
-#include <boost/asio/ip/address_v6.hpp>
-#include <pcapplusplus/ArpLayer.h>     // NOLINT(build/include_order)
-#include <pcapplusplus/EthLayer.h>     // NOLINT(build/include_order)
-#include <pcapplusplus/IPv4Layer.h>    // NOLINT(build/include_order)
-#include <pcapplusplus/IPv6Layer.h>    // NOLINT(build/include_order)
-#include <pcapplusplus/IcmpLayer.h>    // NOLINT(build/include_order)
-#include <pcapplusplus/IcmpV6Layer.h>  // NOLINT(build/include_order)
-#include <pcapplusplus/MacAddress.h>   // NOLINT(build/include_order)
-#include <pcapplusplus/Packet.h>       // NOLINT(build/include_order)
-
-#ifdef TCPOPT_CC
-#undef TCPOPT_CC
-#endif  // TCPOPT_CC
-#ifdef TCPOPT_CCNEW
-#undef TCPOPT_CCNEW
-#endif  // TCPOPT_CCNEW
-#ifdef TCPOPT_CCECHO
-#undef TCPOPT_CCECHO
-#endif  // TCPOPT_CCECHO
-
-#include <pcapplusplus/DnsLayer.h>  // NOLINT(build/include_order)
-#include <pcapplusplus/TcpLayer.h>  // NOLINT(build/include_order)
-#include <pcapplusplus/UdpLayer.h>  // NOLINT(build/include_order)
-
-#if _WIN32
-#pragma warning(default : 4996)
-#endif
-
 #endif
 
 #ifdef FPTN_WITH_LIBIDN2
@@ -70,13 +23,15 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #endif
 
 #ifdef USING_MIMALLOC
-#include <mimalloc.h>  // NOLINT(build/include_order)
+#include <mimalloc.h>
 #endif
 
-#include <spdlog/spdlog.h>  // NOLINT(build/include_order)
+#include <spdlog/spdlog.h>
 
 #include "common/client_id.h"
 #include "common/network/ip_address.h"
+#include "common/network/ip_utils.h"
+#include "common/utils/utils.h"
 
 namespace fptn::common::network {
 
@@ -88,383 +43,468 @@ using IPPacketData = std::vector<std::uint8_t>;
 
 #define FPTN_PACKET_UNDEFINED_CLIENT_ID MAX_CLIENT_ID
 
-#ifndef FPTN_IP_ADDRESS_WITHOUT_PCAP
+namespace detail {
 
-inline bool CheckIPv4(const IPPacketData& buffer) {
-  return (static_cast<std::uint8_t>(buffer[0]) >> 4) == 4;
+inline constexpr std::size_t kMinIPv4 = 20;
+inline constexpr std::size_t kMinIPv6 = 40;
+inline constexpr std::size_t kUdpHdr = 8;
+inline constexpr std::size_t kDnsHdr = 12;
+
+inline int Ipv4Ihl(const std::uint8_t* p) noexcept {
+  return (p[0] & 0x0Fu) * 4;
 }
 
-inline bool CheckIPv6(const IPPacketData& buffer) {
-  return (static_cast<std::uint8_t>(buffer[0]) >> 4) == 6;
+inline std::uint8_t Ipv4Proto(const std::uint8_t* p) noexcept { return p[9]; }
+
+inline std::uint8_t& Ipv4Ttl(std::uint8_t* p) noexcept { return p[8]; }
+
+inline std::uint8_t Ipv6Next(const std::uint8_t* p) noexcept { return p[6]; }
+
+inline const std::uint8_t* DnsPayloadPtr(
+    const std::uint8_t* udp, const std::uint8_t* end) noexcept {
+  if (udp + kUdpHdr > end) {
+    return nullptr;
+  }
+  if (ReadU16Be(udp) != 53 && ReadU16Be(udp + 2) != 53) {
+    return nullptr;
+  }
+  const std::uint8_t* dns = udp + kUdpHdr;
+  return (dns + kDnsHdr <= end) ? dns : nullptr;
+}
+
+// Parses a DNS name at *cur with pointer-compression support (RFC 1035).
+// Advances *cur past the uncompressed portion.
+inline std::string ParseDnsName(const std::uint8_t* base,
+    const std::uint8_t* end,
+    const std::uint8_t*& cur) noexcept {
+  std::string name;
+  bool jumped = false;
+  const std::uint8_t* ptr = cur;
+  for (int i = 0; i < 128 && ptr < end; ++i) {
+    const std::uint8_t len = *ptr;
+    if (len == 0u) {
+      if (!jumped) cur = ptr + 1;
+      break;
+    }
+    if ((len & 0xC0u) == 0xC0u) {
+      if (ptr + 2 > end) {
+        break;
+      }
+      if (!jumped) {
+        cur = ptr + 2;
+      }
+      jumped = true;
+      ptr = base + (static_cast<std::uint16_t>(len & 0x3Fu) << 8 | ptr[1]);
+      continue;
+    }
+    ++ptr;
+    if (ptr + len > end) {
+      break;
+    }
+    if (!name.empty()) {
+      name += '.';
+    }
+    name.append(reinterpret_cast<const char*>(ptr), len);
+    ptr += len;
+  }
+  return name;
+}
+
+inline const std::uint8_t* DnsAnswerStart(const std::uint8_t* dns,
+    const std::uint8_t* end,
+    int* out_ancount) noexcept {
+  if (dns + kDnsHdr > end) {
+    return nullptr;
+  }
+  if ((dns[2] & 0x80u) == 0u) {
+    return nullptr;
+  }
+  const int qdcount = static_cast<int>(ReadU16Be(dns + 4));
+  *out_ancount = static_cast<int>(ReadU16Be(dns + 6));
+  if (*out_ancount == 0) {
+    return nullptr;
+  }
+
+  const std::uint8_t* cur = dns + kDnsHdr;
+  for (int q = 0; q < qdcount && cur < end; ++q) {
+    for (int s = 0; s < 256 && cur < end; ++s) {
+      const std::uint8_t l = *cur;
+      if (l == 0u) {
+        ++cur;
+        break;
+      }
+      if ((l & 0xC0u) == 0xC0u) {
+        cur += 2;
+        break;
+      }
+      cur += 1 + l;
+    }
+    cur += 4;  // QTYPE + QCLASS
+  }
+  return (cur < end) ? cur : nullptr;
 }
 
 #ifdef FPTN_WITH_LIBIDN2
-
-inline bool IsPunycode(const std::string& str) {
-  return str.find("xn--") != std::string::npos;
+inline bool IsPunycode(const std::string& s) noexcept {
+  return s.find("xn--") != std::string::npos;
 }
-
-inline std::string ConvertDomainToUnicode(const std::string& domain) {
-  if (domain.empty()) {
-    return domain;
+inline std::string ToUnicode(const std::string& domain) noexcept {
+  char* r = nullptr;
+  if (idn2_to_unicode_8z8z(domain.c_str(), &r, 0) == IDN2_OK && r) {
+    std::string out = r;
+    free(r);
+    return out;
   }
-
-  char* result = nullptr;
-  const int ret = idn2_to_unicode_8z8z(domain.c_str(), &result, 0);
-
-  if (ret == IDN2_OK && result != nullptr) {
-    std::string unicode_result = result;
-    free(result);
-    return unicode_result;
-  }
-  if (result != nullptr) {
-    free(result);
-  }
+  if (r) free(r);
   return domain;
 }
 #endif
+
+}  // namespace detail
 
 class IPPacket {
  public:
   static std::unique_ptr<IPPacket> Parse(IPPacketData buffer,
       fptn::ClientID client_id = FPTN_PACKET_UNDEFINED_CLIENT_ID) {
-    // Minimum IPv4 header size
-    if (buffer.empty() || buffer.size() < 20) {
+    const std::size_t sz = buffer.size();
+    if (sz < detail::kMinIPv4) {
       return nullptr;
     }
-    if (CheckIPv4(buffer)) {
-      auto packet = std::make_unique<IPPacket>(
-          std::move(buffer), client_id, pcpp::LINKTYPE_IPV4);
-      if (nullptr != packet->IPv4Layer()) {
-        return packet;
-      }
-    } else if (CheckIPv6(buffer)) {
-      auto packet = std::make_unique<IPPacket>(
-          std::move(buffer), client_id, pcpp::LINKTYPE_IPV6);
-      if (nullptr != packet->IPv6Layer()) {
-        return packet;
-      }
+    const std::uint8_t ver = buffer[0] >> 4;
+    if (ver == 4 || (ver == 6 && sz >= detail::kMinIPv6)) {
+      return std::make_unique<IPPacket>(std::move(buffer), client_id);
     }
     return nullptr;
   }
 
   static std::unique_ptr<IPPacket> Parse(
-      const std::uint8_t* buffer, const std::size_t size) {
-    IPPacketData packet(buffer, buffer + size);
+      const std::uint8_t* buf, std::size_t sz) {
+    if (!buf || sz == 0) {
+      return nullptr;
+    }
+    IPPacketData packet(buf, buf + sz);
     return Parse(std::move(packet));
   }
 
- public:
-  IPPacket(IPPacketData data,
-      fptn::ClientID client_id,
-      const pcpp::LinkLayerType& ip_type)
-      : packet_data_(std::move(data)), client_id_(client_id) {
-    try {
-      raw_packet_ = pcpp::RawPacket(
-          reinterpret_cast<const uint8_t*>(packet_data_.data()),
-          static_cast<int>(packet_data_.size()), timeval{0, 0}, false, ip_type);
+  IPPacket(IPPacketData data, fptn::ClientID client_id)
+      : data_(std::move(data)), client_id_(client_id) {}
 
-      parsed_packet_ = pcpp::Packet(&raw_packet_, false);
-      if (pcpp::LINKTYPE_IPV4 == ip_type) {
-        ipv4_layer_ = parsed_packet_.getLayerOfType<pcpp::IPv4Layer>();
-      } else if (pcpp::LINKTYPE_IPV6 == ip_type) {
-        ipv6_layer_ = parsed_packet_.getLayerOfType<pcpp::IPv6Layer>();
-      }
-    } catch (const std::exception& e) {
-      SPDLOG_WARN(
-          "IP Packet parsing exception (client {}): {}", client_id_, e.what());
-    } catch (...) {
-      SPDLOG_WARN("Unknown error while parsing IP Packet");
-    }
-  }
+  virtual ~IPPacket() = default;
 
-  // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
   void ComputeCalculateFields() noexcept {
-    auto* tcp_layer = parsed_packet_.getLayerOfType<pcpp::TcpLayer>();
-    if (tcp_layer) {
-      tcp_layer->computeCalculateFields();
-    } else {
-      auto* udp_layer = parsed_packet_.getLayerOfType<pcpp::UdpLayer>();
-      if (udp_layer) {
-        udp_layer->computeCalculateFields();
-      }
+    if (data_.size() < detail::kMinIPv4) {
+      return;
     }
-    if (ipv4_layer_) {
-      ipv4_layer_->computeCalculateFields();
-    } else if (ipv6_layer_) {
-      auto* icmp_layer = parsed_packet_.getLayerOfType<pcpp::IcmpV6Layer>();
-      if (icmp_layer) {
-        icmp_layer->computeCalculateFields();
-      }
-      ipv6_layer_->computeCalculateFields();
-    }
-  }
-
-  void SetClientId(fptn::ClientID client_id) noexcept {
-    client_id_ = client_id;
-  }
-
-  void SetDstIPv4Address(const pcpp::IPv4Address& dst) noexcept {
-    if (ipv4_layer_) {
-      ipv4_layer_->getIPv4Header()->timeToLive -= 1;
-      ipv4_layer_->setDstIPv4Address(dst);
-    }
-  }
-
-  void SetSrcIPv4Address(const pcpp::IPv4Address& src) noexcept {
-    if (ipv4_layer_) {
-      ipv4_layer_->getIPv4Header()->timeToLive -= 1;
-      ipv4_layer_->setSrcIPv4Address(src);
-    }
-  }
-
-  void SetDstIPv6Address(const pcpp::IPv6Address& dst) noexcept {
-    if (ipv6_layer_) {
-      ipv6_layer_->setDstIPv6Address(dst);
-    }
-  }
-
-  void SetSrcIPv6Address(const pcpp::IPv6Address& src) noexcept {
-    if (ipv6_layer_) {
-      ipv6_layer_->setSrcIPv6Address(src);
-    }
-  }
-
-  bool IsICMPv4() const {
-    const auto* icmp_v4 = parsed_packet_.getLayerOfType<pcpp::IcmpLayer>();
-    return icmp_v4 != nullptr;
-  }
-
-  bool IsICMPv6() const {
-    const auto* icmp_v6 = parsed_packet_.getLayerOfType<pcpp::IcmpV6Layer>();
-    return icmp_v6 != nullptr;
-  }
-
-  bool IsDns() const {
-    const auto* udp = parsed_packet_.getLayerOfType<pcpp::UdpLayer>();
-    if (udp && (udp->getDstPort() == 53 || udp->getSrcPort() == 53)) {
-      return GetDnsLayer() != nullptr;
-    }
-
-    const auto* tcp = parsed_packet_.getLayerOfType<pcpp::TcpLayer>();
-    if (tcp && (tcp->getDstPort() == 53 || tcp->getSrcPort() == 53)) {
-      return GetDnsLayer() != nullptr;
-    }
-    return false;
-  }
-
-  std::optional<std::string> GetDnsDomain() const {
-    const auto* dns_layer = GetDnsLayer();
-    if (dns_layer) {
-      const auto* query = dns_layer->getFirstQuery();
-      if (query) {
-        std::string domain_name = query->getName();
-#ifdef FPTN_WITH_LIBIDN2
-        if (IsPunycode(domain_name)) {
-          return ConvertDomainToUnicode(domain_name);
-        }
-#endif
-        return domain_name;
-      }
-    }
-    return std::nullopt;
-  }
-
-  std::vector<fptn::common::network::IPv4Address> GetDnsIPv4Addresses() const {
-    const auto* dns_layer = GetDnsLayer();
-    if (!dns_layer) {
-      return {};
-    }
-
-    if (dns_layer->getDnsHeader()->queryOrResponse != 1) {
-      return {};
-    }
-
-    std::vector<fptn::common::network::IPv4Address> ipv4_addresses;
-    auto* answer = dns_layer->getFirstAnswer();
-
-    while (answer != nullptr) {
-      if (answer->getDnsType() == pcpp::DNS_TYPE_A) {
-        try {
-          const std::size_t data_offset = answer->getDataOffset();
-          const std::size_t data_length = answer->getDataLength();
-          if (data_length == 4) {
-            const std::uint8_t* dns_raw_data = dns_layer->getData();
-            const std::size_t dns_data_len = dns_layer->getDataLen();
-
-            if (data_offset + 4 <= dns_data_len) {
-              const uint8_t* ip_bytes = dns_raw_data + data_offset;
-              const std::uint32_t ip_int =
-                  (static_cast<uint32_t>(ip_bytes[0]) << 24) |
-                  (static_cast<uint32_t>(ip_bytes[1]) << 16) |
-                  (static_cast<uint32_t>(ip_bytes[2]) << 8) |
-                  static_cast<uint32_t>(ip_bytes[3]);
-
-              const auto addr = boost::asio::ip::make_address_v4(ip_int);
-              ipv4_addresses.emplace_back(addr.to_string());
-            }
-          }
-        } catch (const std::exception& e) {
-          SPDLOG_WARN("Failed to parse IPv4 from DNS answer '{}': {}",
-              answer->getName(), e.what());
-        }
-      }
-      answer = dns_layer->getNextAnswer(answer);
-    }
-    return ipv4_addresses;
-  }
-
-  std::vector<fptn::common::network::IPv6Address> GetDnsIPv6Addresses() const {
-    const auto* dns_layer = GetDnsLayer();
-    if (!dns_layer) {
-      return {};
-    }
-
-    if (dns_layer->getDnsHeader()->queryOrResponse != 1) {
-      return {};
-    }
-
-    std::vector<fptn::common::network::IPv6Address> ipv6_addresses;
-    auto* answer = dns_layer->getFirstAnswer();
-
-    while (answer != nullptr) {
-      if (answer->getDnsType() == pcpp::DNS_TYPE_AAAA) {
-        try {
-          const std::size_t data_offset = answer->getDataOffset();
-          const std::size_t data_length = answer->getDataLength();
-
-          if (data_length == 16) {
-            const std::uint8_t* dns_raw_data = dns_layer->getData();
-            const std::size_t dns_data_len = dns_layer->getDataLen();
-
-            if (data_offset + 16 <= dns_data_len) {
-              const uint8_t* ip_bytes = dns_raw_data + data_offset;
-              std::array<unsigned char, 16> bytes;
-              std::memcpy(bytes.data(), ip_bytes, 16);
-
-              const auto addr = boost::asio::ip::make_address_v6(bytes);
-              ipv6_addresses.emplace_back(addr.to_string());
-            }
-          }
-        } catch (const std::exception& e) {
-          SPDLOG_WARN("Failed to parse IPv6 from DNS answer '{}': {}",
-              answer->getName(), e.what());
-        }
-      }
-      answer = dns_layer->getNextAnswer(answer);
-    }
-    return ipv6_addresses;
+    RecalculateChecksums(data_.data(), data_.size());
   }
 
   fptn::ClientID ClientId() const noexcept { return client_id_; }
+  void SetClientId(fptn::ClientID id) noexcept { client_id_ = id; }
 
-  pcpp::Packet& Pkt() noexcept { return parsed_packet_; }
-
-  std::size_t Size() const noexcept { return packet_data_.size(); }
-
-  const IPPacketData& Data() const {
-    return packet_data_;
+  virtual bool IsIPv4() const noexcept {
+    return !data_.empty() && (data_[0] >> 4) == 4;
   }
-  const pcpp::RawPacket* GetRawPacket() const noexcept {
-    return parsed_packet_.getRawPacket();
+  virtual bool IsIPv6() const noexcept {
+    return !data_.empty() && (data_[0] >> 4) == 6;
+  }
+
+  std::size_t Size() const noexcept { return data_.size(); }
+  const IPPacketData& Data() const noexcept { return data_; }
+  // const IPPacket* GetRawPacket() const noexcept { return this; }
+
+  IPv4Address GetSrcIPv4Address() const noexcept {
+    if (!IsIPv4() || data_.size() < detail::kMinIPv4) {
+      return {};
+    }
+    char buf[INET_ADDRSTRLEN] = {};
+    const std::uint32_t net = Ipv4GetSrc(data_.data());
+    ::inet_ntop(AF_INET, &net, buf, sizeof(buf));
+    return IPv4Address(buf);
+  }
+
+  IPv4Address GetDstIPv4Address() const noexcept {
+    if (!IsIPv4() || data_.size() < detail::kMinIPv4) {
+      return {};
+    }
+    char buf[INET_ADDRSTRLEN] = {};
+    const std::uint32_t net = Ipv4GetDst(data_.data());
+    ::inet_ntop(AF_INET, &net, buf, sizeof(buf));
+    return IPv4Address(buf);
+  }
+
+  IPv6Address GetSrcIPv6Address() const noexcept {
+    if (!IsIPv6() || data_.size() < detail::kMinIPv6) {
+      return {};
+    }
+    char buf[INET6_ADDRSTRLEN] = {};
+    std::uint8_t addr[16] = {};
+    Ipv6GetSrc(data_.data(), addr);
+    ::inet_ntop(AF_INET6, addr, buf, sizeof(buf));
+    return IPv6Address(buf);
+  }
+
+  IPv6Address GetDstIPv6Address() const noexcept {
+    if (!IsIPv6() || data_.size() < detail::kMinIPv6) {
+      return {};
+    }
+    char buf[INET6_ADDRSTRLEN] = {};
+    std::uint8_t addr[16] = {};
+    Ipv6GetDst(data_.data(), addr);
+    ::inet_ntop(AF_INET6, addr, buf, sizeof(buf));
+    return IPv6Address(buf);
+  }
+
+  void SetDstIPv4Address(const IPv4Address& dst) noexcept {
+    if (!IsIPv4() || data_.size() < detail::kMinIPv4) {
+      return;
+    }
+    std::uint8_t* p = data_.data();
+
+    if (detail::Ipv4Ttl(p) == 0) {
+      return;
+    }
+
+    const std::uint32_t addr = htonl(dst.ToInt());
+    Ipv4SetDst(p, addr);
+    RecalculateChecksums(p, data_.size());
+  }
+
+  void SetSrcIPv4Address(const IPv4Address& src) noexcept {
+    if (!IsIPv4() || data_.size() < detail::kMinIPv4) {
+      return;
+    }
+    std::uint8_t* p = data_.data();
+    if (detail::Ipv4Ttl(p) == 0) {
+      return;
+    }
+    const std::uint32_t addr = htonl(src.ToInt());
+    Ipv4SetSrc(p, addr);
+    RecalculateChecksums(p, data_.size());
+  }
+
+  void SetDstIPv6Address(const IPv6Address& dst) noexcept {
+    if (!IsIPv6() || data_.size() < detail::kMinIPv6) {
+      return;
+    }
+    std::uint8_t addr[16] = {};
+    if (::inet_pton(AF_INET6, dst.ToString().c_str(), addr) != 1) {
+      SPDLOG_WARN("IPPacket::SetDstIPv6Address – invalid '{}'", dst.ToString());
+      return;
+    }
+    Ipv6SetDst(data_.data(), addr);
+    RecalculateChecksums(data_.data(), data_.size());
+  }
+
+  void SetSrcIPv6Address(const IPv6Address& src) noexcept {
+    if (!IsIPv6() || data_.size() < detail::kMinIPv6) {
+      return;
+    }
+    std::uint8_t addr[16] = {};
+    if (::inet_pton(AF_INET6, src.ToString().c_str(), addr) != 1) {
+      SPDLOG_WARN("IPPacket::SetSrcIPv6Address – invalid '{}'", src.ToString());
+      return;
+    }
+    Ipv6SetSrc(data_.data(), addr);
+    RecalculateChecksums(data_.data(), data_.size());
+  }
+
+  bool IsICMPv4() const noexcept {
+    return IsIPv4() && data_.size() >= detail::kMinIPv4 &&
+           detail::Ipv4Proto(data_.data()) == 1u;
+  }
+  bool IsICMPv6() const noexcept {
+    return IsIPv6() && data_.size() >= detail::kMinIPv6 &&
+           detail::Ipv6Next(data_.data()) == 58u;
+  }
+
+  std::pair<const std::uint8_t*, std::size_t> GetTcpPayload() const noexcept {
+    const std::uint8_t* p = data_.data();
+    const std::uint8_t proto =
+        IsIPv4() ? detail::Ipv4Proto(p) : detail::Ipv6Next(p);
+    if (proto != 6u) {
+      return {nullptr, 0};
+    }
+    const std::size_t ip_hdr = IsIPv4() ? detail::Ipv4Ihl(p) : detail::kMinIPv6;
+    if (data_.size() < ip_hdr + 20) {
+      return {nullptr, 0};
+    }
+    const std::uint8_t* tcp = p + ip_hdr;
+    const std::size_t tcp_hdr = (tcp[12] >> 4) * 4;
+    if (data_.size() < ip_hdr + tcp_hdr) {
+      return {nullptr, 0};
+    }
+    return {tcp + tcp_hdr, data_.size() - ip_hdr - tcp_hdr};
+  }
+
+  std::pair<const std::uint8_t*, std::size_t> GetUdpPayload() const noexcept {
+    const std::uint8_t* p = data_.data();
+    const std::uint8_t proto =
+        IsIPv4() ? detail::Ipv4Proto(p) : detail::Ipv6Next(p);
+    if (proto != 17u) {
+      return {nullptr, 0};
+    }
+    const std::size_t ip_hdr = IsIPv4() ? detail::Ipv4Ihl(p) : detail::kMinIPv6;
+    if (data_.size() < ip_hdr + detail::kUdpHdr) {
+      return {nullptr, 0};
+    }
+    return {
+        p + ip_hdr + detail::kUdpHdr, data_.size() - ip_hdr - detail::kUdpHdr};
+  }
+
+  bool IsDns() const noexcept { return DnsPtr() != nullptr; }
+
+  std::optional<std::string> GetDnsDomain() const noexcept {
+    const std::uint8_t* dns = DnsPtr();
+    if (!dns) {
+      return std::nullopt;
+    }
+    if (ReadU16Be(dns + 4) == 0) {
+      return std::nullopt;  // qdcount == 0
+    }
+    const std::uint8_t* cur = dns + detail::kDnsHdr;
+    std::string name =
+        detail::ParseDnsName(dns, data_.data() + data_.size(), cur);
+    if (name.empty()) {
+      return std::nullopt;
+    }
+#ifdef FPTN_WITH_LIBIDN2
+    if (detail::IsPunycode(name)) return detail::ToUnicode(name);
+#endif
+    return name;
+  }
+
+  std::vector<IPv4Address> GetDnsIPv4Addresses() const noexcept {
+    const std::uint8_t* dns = DnsPtr();
+    if (!dns) {
+      return {};
+    }
+    const std::uint8_t* end = data_.data() + data_.size();
+    int ancount = 0;
+    const std::uint8_t* cur = detail::DnsAnswerStart(dns, end, &ancount);
+    if (!cur) {
+      return {};
+    }
+
+    std::vector<IPv4Address> out;
+    for (int a = 0; a < ancount && cur < end; ++a) {
+      // skip NAME
+      for (int s = 0; s < 256 && cur < end; ++s) {
+        const std::uint8_t l = *cur;
+        if (l == 0u) {
+          ++cur;
+          break;
+        }
+        if ((l & 0xC0u) == 0xC0u) {
+          cur += 2;
+          break;
+        }
+        cur += 1 + l;
+      }
+      if (cur + 10 > end) {
+        break;
+      }
+
+      const std::uint16_t rtype = ReadU16Be(cur);
+      cur += 8;  // TYPE + CLASS + TTL
+      const std::uint16_t rdlen = ReadU16Be(cur);
+      cur += 2;
+
+      if (cur + rdlen > end) {
+        break;
+      }
+      if (rtype == 1u && rdlen == 4u) {  // A record
+        char buf[INET_ADDRSTRLEN] = {};
+        const std::uint32_t net =
+            htonl((static_cast<std::uint32_t>(cur[0]) << 24) |
+                  (static_cast<std::uint32_t>(cur[1]) << 16) |
+                  (static_cast<std::uint32_t>(cur[2]) << 8) |
+                  static_cast<std::uint32_t>(cur[3]));
+        if (::inet_ntop(AF_INET, &net, buf, sizeof(buf))) {
+          out.emplace_back(buf);
+        }
+      }
+      cur += rdlen;
+    }
+    return out;
+  }
+
+  std::vector<IPv6Address> GetDnsIPv6Addresses() const noexcept {
+    const std::uint8_t* dns = DnsPtr();
+    if (!dns) {
+      return {};
+    }
+    const std::uint8_t* end = data_.data() + data_.size();
+    int ancount = 0;
+    const std::uint8_t* cur = detail::DnsAnswerStart(dns, end, &ancount);
+    if (!cur) {
+      return {};
+    }
+
+    std::vector<IPv6Address> out;
+    for (int a = 0; a < ancount && cur < end; ++a) {
+      // skip NAME
+      for (int s = 0; s < 256 && cur < end; ++s) {
+        const std::uint8_t l = *cur;
+        if (l == 0u) {
+          ++cur;
+          break;
+        }
+        if ((l & 0xC0u) == 0xC0u) {
+          cur += 2;
+          break;
+        }
+        cur += 1 + l;
+      }
+      if (cur + 10 > end) {
+        break;
+      }
+      const std::uint16_t rtype = ReadU16Be(cur);
+      cur += 8;  // TYPE + CLASS + TTL
+      const std::uint16_t rdlen = ReadU16Be(cur);
+      cur += 2;
+      if (cur + rdlen > end) {
+        break;
+      }
+      if (rtype == 28u && rdlen == 16u) {  // AAAA record
+        char buf[INET6_ADDRSTRLEN] = {};
+        if (::inet_ntop(AF_INET6, cur, buf, sizeof(buf))) {
+          out.emplace_back(buf);
+        }
+      }
+      cur += rdlen;
+    }
+    return out;
   }
 
  protected:
-  pcpp::DnsLayer* GetDnsLayer() const {
-    try {
-      auto* udp_layer = parsed_packet_.getLayerOfType<pcpp::UdpLayer>();
-      if (udp_layer) {
-        return parsed_packet_.getLayerOfType<pcpp::DnsLayer>();
-      }
-      auto* tcp_layer = parsed_packet_.getLayerOfType<pcpp::TcpLayer>();
-      if (tcp_layer && tcp_layer->getLayerPayloadSize() >= 2) {
-        return parsed_packet_.getLayerOfType<pcpp::DnsLayer>();
-      }
-    } catch (...) {
-      // ignore
+  IPPacket() : client_id_(FPTN_PACKET_UNDEFINED_CLIENT_ID) {}  // for tests
+
+  const std::uint8_t* DnsPtr() const noexcept {
+    const std::uint8_t* p = data_.data();
+    const std::uint8_t* end = p + data_.size();
+    if (IsIPv4() && data_.size() >= detail::kMinIPv4 &&
+        detail::Ipv4Proto(p) == 17u) {
+      return detail::DnsPayloadPtr(p + detail::Ipv4Ihl(p), end);
+    }
+    if (IsIPv6() && data_.size() >= detail::kMinIPv6 &&
+        detail::Ipv6Next(p) == 17u) {
+      return detail::DnsPayloadPtr(p + detail::kMinIPv6, end);
     }
     return nullptr;
   }
 
- public:
-  // TODO(stas): Remove virtual functions in the future for better performance.
-  // TODO(stas): Anti-scan tests are currently inadequate and need improvement.
-  virtual ~IPPacket() = default;
-  virtual bool IsIPv4() const noexcept { return ipv4_layer_ != nullptr; }
-  virtual bool IsIPv6() const noexcept { return ipv6_layer_ != nullptr; }
-  virtual pcpp::IPv4Layer* IPv4Layer() noexcept { return ipv4_layer_; }
-  virtual pcpp::IPv6Layer* IPv6Layer() noexcept { return ipv6_layer_; }
-
- protected:
-  // for tests only
-  IPPacket() : client_id_(FPTN_PACKET_UNDEFINED_CLIENT_ID) {}
-
  private:
-  IPPacketData packet_data_;
+  IPPacketData data_;
   fptn::ClientID client_id_;
-  pcpp::RawPacket raw_packet_;
-  pcpp::Packet parsed_packet_;
-
-  pcpp::IPv4Layer* ipv4_layer_ = nullptr;
-  pcpp::IPv6Layer* ipv6_layer_ = nullptr;
 };
 
 using IPPacketPtr = std::unique_ptr<IPPacket>;
 
 #ifdef USING_MIMALLOC
-using mimcalloc = mi_stl_allocator<IPPacketPtr>;
-using BatchIPPacketPtr = std::vector<IPPacketPtr, mimcalloc>;
+using BatchIPPacketPtr =
+    std::vector<IPPacketPtr, mi_stl_allocator<IPPacketPtr>>;  // NOLINT
 #else
 using BatchIPPacketPtr = std::vector<IPPacketPtr>;
-#endif
-
-#else
-
-/**
- * Specific lightweight container for IPv4 packets.
- * Wraps raw IP packet data with basic access methods.
- */
-class LightIPv4Packet {
- public:
-  static std::unique_ptr<LightIPv4Packet> Parse(IPPacketData buffer,
-      std::uint64_t client_id = FPTN_PACKET_UNDEFINED_CLIENT_ID) {
-    if (buffer.empty() || buffer.size() < 20) {  // Minimum IPv4 header size
-      return nullptr;
-    }
-    return std::make_unique<LightIPv4Packet>(std::move(buffer), client_id);
-  }
-
-  static std::unique_ptr<LightIPv4Packet> Parse(
-      const std::uint8_t* buffer, const std::size_t size) {
-    if (buffer == nullptr || size == 0) {
-      return nullptr;
-    }
-    IPPacketData packet(buffer, buffer + size);
-    return Parse(std::move(packet));
-  }
-
-  LightIPv4Packet(IPPacketData buffer, const fptn::ClientID client_id)
-      : ip_packet_(std::move(buffer)) {
-    (void)client_id;
-  }
-
-  ~LightIPv4Packet() = default;
-
-  std::size_t Size() const { return ip_packet_.size(); }
-
-  // specific methods to have general interface with IPPacket
-  const LightIPv4Packet* GetRawPacket() const { return this; }
-  std::size_t getRawDataLen() const { return ip_packet_.size(); }
-  const void* getRawData() const { return ip_packet_.data(); }
-
- private:
-  IPPacketData ip_packet_;
-};
-
-using IPPacket = LightIPv4Packet;
-using IPPacketPtr = std::unique_ptr<LightIPv4Packet>;
-using BatchIPPacketPtr = std::vector<IPPacketPtr>;
-
 #endif
 
 }  // namespace fptn::common::network

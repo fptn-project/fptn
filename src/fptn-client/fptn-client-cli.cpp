@@ -79,6 +79,12 @@ int main(int argc, char* argv[]) {
     args.add_argument("--tun-interface-name")
         .default_value("tun0")
         .help("Network interface name");
+    args.add_argument("--tun-interface-ip")
+        .default_value(FPTN_CLIENT_DEFAULT_ADDRESS_IP4)
+        .help("Network interface IPv4 address");
+    args.add_argument("--tun-interface-ipv6")
+        .default_value(FPTN_CLIENT_DEFAULT_ADDRESS_IP6)
+        .help("Network interface IPv6 address");
     args.add_argument("--sni")
         .default_value(FPTN_DEFAULT_SNI)
         .help(
@@ -221,6 +227,12 @@ int main(int argc, char* argv[]) {
 
     const auto tun_interface_name =
         args.get<std::string>("--tun-interface-name");
+    const auto tun_interface_address_ipv4 =
+        fptn::common::network::IPv4Address::Create(
+            args.get<std::string>("--tun-interface-ip"));
+    const auto tun_interface_address_ipv6 =
+        fptn::common::network::IPv6Address::Create(
+            args.get<std::string>("--tun-interface-ipv6"));
     const auto sni = args.get<std::string>("--sni");
 
     /* check gateway address */
@@ -381,7 +393,6 @@ int main(int argc, char* argv[]) {
             .expected_md5_fingerprint = selected_server.md5_fingerprint,
             .censorship_strategy = censorship_strategy,
             .on_connected_callback = nullptr,
-            .on_ip_assigned_callback = nullptr,
             .new_ip_pkt_callback = nullptr});
 
     const bool status =
@@ -399,12 +410,21 @@ int main(int argc, char* argv[]) {
     /* tun interface */
     auto virtual_network_interface =
         std::make_shared<fptn::common::network::TunInterface>(
-            tun_interface_name, mtu_size);
+            fptn::common::network::TunInterface::Config{
+                .name = tun_interface_name,
+                .mtu_size = mtu_size,
+                .using_rate_calculator = true,
+                .ipv4_addr = tun_interface_address_ipv4,
+                .ipv4_netmask = 32,
+                .ipv6_addr = tun_interface_address_ipv6,
+                .ipv6_netmask = 126});
 
     // route manager
     auto route_manager = std::make_shared<fptn::routing::RouteManager>(
         fptn::routing::RouteManager::Config{
             .out_interface_name = out_network_interface_name,
+            .tun_interface_address_ipv4 = tun_interface_address_ipv4,
+            .tun_interface_address_ipv6 = tun_interface_address_ipv6,
             .vpn_server_ip = server_ip,
             .dns_server_ipv4 = dns_server_ipv4,
             .dns_server_ipv6 = dns_server_ipv6,

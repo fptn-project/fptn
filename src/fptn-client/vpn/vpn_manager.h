@@ -52,16 +52,11 @@ class VpnManager final {
   void HandleOnPacketFromVirtualNetworkInterface(
       fptn::common::network::IPPacketPtr packet);
   void HandleOnPacketFromWebSocket(fptn::common::network::IPPacketPtr packet);
-  void HandleOnIPAssignedCallback(
-      const IPv4Address& ip_v4, const IPv6Address& ip_v6);
 
  private:
   mutable std::mutex mutex_;
   std::atomic<bool> running_;
-  // True only while the TUN device is open and its routes are applied. Gates
-  // IsStarted() so a reconnect that fails to reopen the TUN is reported as
-  // disconnected instead of a "green icon but no traffic" zombie state.
-  std::atomic<bool> tun_alive_{false};
+
   Config config_;
 
   std::thread thread_;

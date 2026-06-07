@@ -23,9 +23,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <boost/beast.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
-#include <pcapplusplus/SSLHandshake.h>  // NOLINT(build/include_order)
-#include <pcapplusplus/SSLLayer.h>      // NOLINT(build/include_order)
-#include <spdlog/spdlog.h>              // NOLINT(build/include_order)
+#include <spdlog/spdlog.h>  // NOLINT(build/include_order)
 
 #include "common/api/handle.h"
 #include "common/network/resolv.h"
@@ -309,66 +307,29 @@ boost::asio::awaitable<Session::ProbingResult> Session::DetectProbing() {
           .sni = default_proxy_domain_,
           .should_close = true};
     }
+
     // Check ssl
-    if (!pcpp::SSLLayer::IsSSLMessage(
-            0, 0, buffer.data(), buffer.size(), true)) {
+    if (!fptn::common::network::IsTlsClientHello(
+            buffer.data(), buffer.size())) {
       SPDLOG_ERROR(
           "Not an SSL message, closing connection (client_id={})", client_id_);
       co_return ProbingResult{.is_probing = true,
           .sni = default_proxy_domain_,
           .should_close = true};
     }
-    // Create SslLayer
-    pcpp::SSLLayer* ssl_layer = pcpp::SSLLayer::createSSLMessage(
-        buffer.data(), buffer.size(), nullptr, nullptr);
-    if (!ssl_layer) {
-      SPDLOG_ERROR(
-          "Failed to create SSL layer from handshake data (client_id={})",
-          client_id_);
-      co_return ProbingResult{.is_probing = true,
-          .sni = default_proxy_domain_,
-          .should_close = true};
-    }
 
-    // Check handshake
-    // https://github.com/wiresock/ndisapi/blob/master/examples/cpp/pcapplusplus/pcapplusplus.cpp#L40
-    const auto* handshake = dynamic_cast<pcpp::SSLHandshakeLayer*>(ssl_layer);
-
-    // Cleanup memory!
-    // std::unique_ptr<pcpp::SSLLayer> ssl_layer_ptr(ssl_layer);
-
-    if (!handshake) {
-      SPDLOG_ERROR("Failed to cast to SSLHandshakeLayer");
-      co_return ProbingResult{.is_probing = true,
-          .sni = default_proxy_domain_,
-          .should_close = true};
-    }
-
-    // Get TTL-HELLO
-    auto* hello =
-        // cppcheck-suppress nullPointerRedundantCheck
-        handshake->getHandshakeMessageOfType<pcpp::SSLClientHelloMessage>();
-    if (!hello) {
-      SPDLOG_ERROR(
+    std::string sni = default_proxy_domain_;
+    const auto sni_opt =
+        common::network::GetTlsSNI(buffer.data(), buffer.size());
+    if (!sni_opt.has_value()) {
+      SPDLOG_WARN(
           "Failed to extract SSLClientHelloMessage from handshake "
           "(client_id={})",
           client_id_);
-      co_return ProbingResult{.is_probing = true,
-          .sni = default_proxy_domain_,
-          .should_close = true};
+    } else {
+      sni = sni_opt.value();
     }
 
-    // Set SNI
-    std::string sni = default_proxy_domain_;
-    auto* sni_ext =
-        // cppcheck-suppress nullPointerRedundantCheck
-        hello->getExtensionOfType<pcpp::SSLServerNameIndicationExtension>();
-    if (sni_ext) {
-      std::string tls_sni = sni_ext->getHostName();
-      if (!tls_sni.empty()) {
-        sni = std::move(tls_sni);
-      }
-    }
     // Validate allowed sni
     if (!allowed_sni_list_.empty()) {
       const bool sni_allowed = std::ranges::any_of(
@@ -405,27 +366,27 @@ boost::asio::awaitable<Session::ProbingResult> Session::DetectProbing() {
 
     // Get Session ID
     constexpr std::size_t kSessionLen = 32;
-    std::size_t session_len = std::min(
-        static_cast<std::uint8_t>(kSessionLen), hello->getSessionIDLength());
-    if (session_len != kSessionLen) {
+    const auto session_id =
+        common::network::GetTlsSessionId(buffer.data(), buffer.size());
+
+    if (session_id.size() != kSessionLen) {
       SPDLOG_ERROR(
           "Invalid session ID length: expected {}, got {} (client_id={})",
-          kSessionLen, session_len, client_id_);
+          kSessionLen, session_id.size(), client_id_);
       co_return ProbingResult{
           .is_probing = true, .sni = sni, .should_close = false};
     }
-    std::uint8_t session_id[kSessionLen] = {0};
-    std::memcpy(session_id, hello->getSessionID(), session_len);
 
     // Check Session ID
     const bool is_fptn_session_id =
-        protocol::https::utils::IsFptnClientSessionID(session_id, session_len);
+        protocol::https::utils::IsFptnClientSessionID(
+            session_id.data(), session_id.size());
     const bool is_decoy_session_id =
         protocol::https::utils::IsDecoyHandshakeSessionID(
-            session_id, session_len);
+            session_id.data(), session_id.size());
     const bool is_decoy_session_id2 =
         protocol::https::utils::IsDecoyHandshakeSessionID2(
-            session_id, session_len);
+            session_id.data(), session_id.size());
     if (!is_fptn_session_id && !is_decoy_session_id && !is_decoy_session_id2) {
       SPDLOG_ERROR(
           "Session ID does not match FPTN client format (client_id={})",
@@ -512,71 +473,38 @@ boost::asio::awaitable<Session::RealityResult> Session::IsRealityHandshake() {
     }
 
     // Check if it's SSL/TLS handshake
-    if (!pcpp::SSLLayer::IsSSLMessage(
-            0, 0, buffer.data(), buffer.size(), true)) {
+    if (!fptn::common::network::IsTlsClientHello(
+            buffer.data(), buffer.size())) {
       co_return RealityResult{.is_reality_mode = false,
           .is_reality_mode2 = false,
           .sni = "",
           .should_close = true};
     }
 
-    // Parse SSL handshake
-    pcpp::SSLLayer* ssl_layer = pcpp::SSLLayer::createSSLMessage(
-        buffer.data(), buffer.size(), nullptr, nullptr);
-    if (!ssl_layer) {
-      co_return RealityResult{.is_reality_mode = false,
-          .is_reality_mode2 = false,
-          .sni = "",
-          .should_close = true};
-    }
-
-    // Check handshake
-    // https://github.com/wiresock/ndisapi/blob/master/examples/cpp/pcapplusplus/pcapplusplus.cpp#L40
-    auto* handshake = dynamic_cast<pcpp::SSLHandshakeLayer*>(ssl_layer);
-    if (!handshake) {
-      co_return RealityResult{.is_reality_mode = false,
-          .is_reality_mode2 = false,
-          .sni = "",
-          .should_close = true};
-    }
-
-    auto* hello =
-        // cppcheck-suppress nullPointerRedundantCheck
-        handshake->getHandshakeMessageOfType<pcpp::SSLClientHelloMessage>();
-    if (!hello) {
-      co_return RealityResult{.is_reality_mode = false,
-          .is_reality_mode2 = false,
-          .sni = "",
-          .should_close = true};
-    }
-
-    // Get SNI
     std::string sni = default_proxy_domain_;
-    auto* sni_ext =
-        // cppcheck-suppress nullPointerRedundantCheck
-        hello->getExtensionOfType<pcpp::SSLServerNameIndicationExtension>();
-    if (sni_ext) {
-      std::string tls_sni = sni_ext->getHostName();
-      if (!tls_sni.empty()) {
-        sni = std::move(tls_sni);
-      }
+    const auto sni_opt =
+        common::network::GetTlsSNI(buffer.data(), buffer.size());
+    if (!sni_opt.has_value()) {
+      SPDLOG_WARN(
+          "Failed to extract SSLClientHelloMessage from handshake "
+          "(client_id={})",
+          client_id_);
+    } else {
+      sni = sni_opt.value();
     }
 
-    // Check if this is a reality mode handshake by examining session ID
+    // Get Session ID
     constexpr std::size_t kSessionLen = 32;
-    std::size_t session_len = std::min(
-        static_cast<std::uint8_t>(kSessionLen), hello->getSessionIDLength());
+    const auto session_id =
+        common::network::GetTlsSessionId(buffer.data(), buffer.size());
 
-    if (session_len == kSessionLen) {
-      std::uint8_t session_id[kSessionLen] = {0};
-      std::memcpy(session_id, hello->getSessionID(), session_len);
-
+    if (session_id.size() == kSessionLen) {
       // Check if it's a decoy handshake (reality mode)
       const bool is_reality = protocol::https::utils::IsDecoyHandshakeSessionID(
-          session_id, session_len);
+          session_id.data(), session_id.size());
       const bool is_reality2 =
           protocol::https::utils::IsDecoyHandshakeSessionID2(
-              session_id, session_len);
+              session_id.data(), session_id.size());
       if (is_reality || is_reality2) {
         co_return RealityResult{.is_reality_mode = is_reality,
             .is_reality_mode2 = is_reality2,

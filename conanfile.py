@@ -126,9 +126,6 @@ class FPTN(ConanFile):
         if not self.options.build_only_fptn_lib:
             self.requires("libidn2/2.3.8")
             self.requires("prometheus-cpp/1.3.0")
-            # pcap++ does not support iOS and Android.
-            # Since libfptn is built as a detached part of the whole project, we don't use pcap++ in that case.
-            self.requires("pcapplusplus/25.05")
 
     def build_requirements(self):
         self.build_requires("cmake/3.22.0", override=True)
