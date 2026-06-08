@@ -38,6 +38,10 @@ Client::Client(fptn::protocol::https::WebsocketClient::Config config)
 
 Client::~Client() { Stop(); }
 
+void Client::SetAccessToken(const std::string& token) {
+  config_.access_token = token;
+}
+
 bool Client::Login(
     const std::string& username, const std::string& password, int timeout_sec) {
   if (!config_.access_token.empty()) {

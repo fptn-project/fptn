@@ -332,8 +332,10 @@ int main(int argc, char* argv[]) {
     const auto access_token = args.get<std::string>("--access-token");
     fptn::config::ConfigFile config(access_token, sni, censorship_strategy);
     fptn::utils::speed_estimator::ServerInfo selected_server;
+    std::string pre_obtained_token;
     try {
       config.Parse();
+      bool use_login_race = preferred_server.empty();
       if (!preferred_server.empty()) {
         auto server_opt = config.GetServer(preferred_server);
         if (server_opt.has_value()) {
@@ -341,10 +343,17 @@ int main(int argc, char* argv[]) {
         } else {
           SPDLOG_WARN("Server '{}' does not exist! Check your token!",
               preferred_server);
-          selected_server = config.FindFastestServer(15);
+          use_login_race = true;
         }
-      } else {
-        selected_server = config.FindFastestServer(15);
+      }
+      if (use_login_race) {
+        auto login_result = config.FindServerByLogin(10);
+        if (!login_result) {
+          SPDLOG_ERROR("All servers unavailable!");
+          return EXIT_FAILURE;
+        }
+        selected_server = login_result->server;
+        pre_obtained_token = std::move(login_result->access_token);
       }
     } catch (const std::runtime_error& err) {
       SPDLOG_ERROR("Config error: {}", err.what());
@@ -395,6 +404,9 @@ int main(int argc, char* argv[]) {
             .on_connected_callback = nullptr,
             .new_ip_pkt_callback = nullptr});
 
+    if (!pre_obtained_token.empty()) {
+      http_client->SetAccessToken(pre_obtained_token);
+    }
     const bool status =
         http_client->Login(config.GetUsername(), config.GetPassword());
     if (!status) {

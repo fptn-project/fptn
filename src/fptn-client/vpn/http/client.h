@@ -34,6 +34,7 @@ class Client final {
  public:
   explicit Client(fptn::protocol::https::WebsocketClient::Config config);
   ~Client();
+  void SetAccessToken(const std::string& token);
   bool Login(const std::string& username,
       const std::string& password,
       int timeout_sec = 5);

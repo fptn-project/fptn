@@ -7,6 +7,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -16,6 +17,11 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 namespace fptn::utils::speed_estimator {
 
+struct LoginResult {
+  ServerInfo server;
+  std::string access_token;
+};
+
 std::uint64_t GetDownloadTimeMs(const ServerInfo& server,
     const std::string& sni,
     int timeout,
@@ -23,6 +29,11 @@ std::uint64_t GetDownloadTimeMs(const ServerInfo& server,
     fptn::protocol::https::CensorshipStrategy censorship_strategy);
 
 ServerInfo FindFastestServer(const std::string& sni,
+    const std::vector<ServerInfo>& servers,
+    fptn::protocol::https::CensorshipStrategy censorship_strategy,
+    int timeout_sec = 15);
+
+std::optional<LoginResult> FindServerByLogin(const std::string& sni,
     const std::vector<ServerInfo>& servers,
     fptn::protocol::https::CensorshipStrategy censorship_strategy,
     int timeout_sec = 15);

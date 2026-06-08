@@ -27,6 +27,8 @@ class ConfigFile final {
   bool Parse();
   fptn::utils::speed_estimator::ServerInfo FindFastestServer(
       int timeout_sec) const;
+  std::optional<fptn::utils::speed_estimator::LoginResult> FindServerByLogin(
+      int timeout_sec) const;
   std::uint64_t GetDownloadTimeMs(
       const fptn::utils::speed_estimator::ServerInfo& server,
       const std::string& sni,

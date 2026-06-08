@@ -107,6 +107,19 @@ ServerInfo ConfigFile::FindFastestServer(int timeout_sec) const {
       sni_, servers_, censorship_strategy_, timeout_sec);
 }
 
+std::optional<fptn::utils::speed_estimator::LoginResult>
+ConfigFile::FindServerByLogin(int timeout_sec) const {
+  // Ensure every server has credentials (CLI path sets them at ConfigFile
+  // level)
+  std::vector<ServerInfo> servers = servers_;
+  for (auto& s : servers) {
+    if (s.username.empty()) s.username = username_;
+    if (s.password.empty()) s.password = password_;
+  }
+  return fptn::utils::speed_estimator::FindServerByLogin(
+      sni_, servers, censorship_strategy_, timeout_sec);
+}
+
 std::uint64_t ConfigFile::GetDownloadTimeMs(const ServerInfo& server,
     const std::string& sni,
     int timeout,
