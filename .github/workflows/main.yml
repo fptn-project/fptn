@@ -51,22 +51,17 @@ jobs:
         run: |
           cd build
           ctest -C Release
-      - name: Build Debian packages
+      - name: Build Debian and RPM packages
         run: |
           cd build
           cmake --build . --target build-deb
           cmake --build . --target build-deb-gui
-      - name: Build RPM package via Container
-        run: |
-          chmod +x ./podman_build.sh
-          bash ./podman_build.sh
+          cmake --build . --target build-rpm
       - name: Upload deb and rpm RELEASE
         if: github.event_name == 'release'
         uses: AButler/upload-release-assets@v3.0
         with:
-          files: |
-            fptn-*.deb
-            *.rpm
+          files: "fptn-*.deb;*.rpm"
           repo-token: ${{ secrets.CI_TOKEN }}
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
@@ -130,22 +125,17 @@ jobs:
         run: |
           cd build
           ctest -C Release
-      - name: Build Debian packages
+      - name: Build Debian and RPM packages
         run: |
           cd build
           cmake --build . --target build-deb
           cmake --build . --target build-deb-gui
-      - name: Build RPM package via Container
-        run: |
-          chmod +x ./podman_build.sh
-          bash ./podman_build.sh
+          cmake --build . --target build-rpm
       - name: Upload deb and rpm
         if: github.event_name == 'release'
         uses: AButler/upload-release-assets@v3.0
         with:
-          files: |
-            fptn-*.deb
-            *.rpm
+          files: "fptn-*.deb;*.rpm"
           repo-token: ${{ secrets.CI_TOKEN }}
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
