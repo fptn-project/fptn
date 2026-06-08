@@ -158,13 +158,7 @@ install -m 755 "${PASSWD_BIN}" "%{buildroot}/usr/bin/fptn-passwd"
 install -m 644 "${RPMBUILD_DIR}/SOURCES/server.conf" "%{buildroot}/etc/fptn/server.conf"
 install -m 644 "${RPMBUILD_DIR}/SOURCES/fptn-server.service" "%{buildroot}/usr/lib/systemd/system/fptn-server.service"
 
-%pre
-if [ -f /etc/fptn/server.conf ]; then
-    cp /etc/fptn/server.conf "/etc/fptn/server.conf.backup.\$(date +'%%Y-%%m-%%d__%%H-%%M-%%S')"
-fi
-
 %post
-chown root:root /etc/fptn/server.conf 2>/dev/null || true
 systemctl daemon-reload >/dev/null 2>&1 || :
 
 %preun
@@ -174,9 +168,9 @@ if [ \$1 -eq 0 ]; then
 fi
 
 %postun
-if [ \$1 -eq 0 ]; then
-    rm -f /usr/lib/systemd/system/fptn-server.service
-    systemctl daemon-reload >/dev/null 2>&1 || :
+systemctl daemon-reload >/dev/null 2>&1 || :
+if [ \$1 -ge 1 ]; then
+    systemctl try-restart fptn-server >/dev/null 2>&1 || :
 fi
 
 %files

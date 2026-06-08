@@ -12,6 +12,8 @@ if ! command -v podman &> /dev/null; then
     DOCKER_CMD="docker"
 fi
 
+mkdir -p "$(pwd)/.conan2_cache"
+
 $DOCKER_CMD run --rm \
   -v "$(pwd):/work:z" \
   -v "$(pwd)/.conan2_cache:/root/.conan2:z" \
@@ -26,9 +28,6 @@ cd build_alma
 cmake .. -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release
 cmake --build . --config Release
 cmake --build . --config Release --target build-rpm
-
-# Fix ownership of files created by root in container
-chown -R ${HOST_UID}:${HOST_GID} /work/build_alma /work/*.rpm 2>/dev/null || true
 
 echo 'Build finished! RPM generated in the root project directory.'
 "
