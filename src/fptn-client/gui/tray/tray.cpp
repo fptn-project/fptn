@@ -839,12 +839,13 @@ bool TrayApp::startVpn(QString& err_msg) {
         config.AddServer(cfg_server);
       }
     }
-    try {
-      selected_server_ = config.FindFastestServer(30);
-    } catch (std::runtime_error& err) {
-      err_msg = QObject::tr("Config error: ") + err.what();
+    const auto login_result = config.FindServerByLogin(10);
+    if (!login_result) {
+      err_msg = QObject::tr("All servers unavailable!");
       return false;
     }
+    selected_server_ = login_result->server;
+    pre_obtained_token_ = login_result->access_token;
   }
 
   const auto server_ip = fptn::routing::ResolveDomain(selected_server_.host);
@@ -872,7 +873,12 @@ bool TrayApp::startVpn(QString& err_msg) {
           .on_connected_callback = nullptr,
           .new_ip_pkt_callback = nullptr});
 
-  // login
+  if (!pre_obtained_token_.empty()) {
+    http_client->SetAccessToken(pre_obtained_token_);
+    pre_obtained_token_.clear();
+  }
+
+  // login (no-op if token already set via SetAccessToken)
   bool login_status =
       http_client->Login(selected_server_.username, selected_server_.password);
   if (!login_status) {

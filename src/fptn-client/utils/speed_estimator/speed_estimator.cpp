@@ -7,17 +7,19 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "fptn-client/utils/speed_estimator/speed_estimator.h"
 
 #include <algorithm>
-#include <atomic>
 #include <condition_variable>
-#include <future>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <random>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
-#include <spdlog/spdlog.h>  // NOLINT(build/include_order)
+#include <fmt/format.h>       // NOLINT(build/include_order)
+#include <nlohmann/json.hpp>  // NOLINT(build/include_order)
+#include <spdlog/spdlog.h>    // NOLINT(build/include_order)
 
 #include "common/api/handle.h"
 
@@ -69,55 +71,107 @@ ServerInfo FindFastestServer(const std::string& sni,
   std::vector<ServerInfo> selected_servers(
       shuffled_servers.begin(), shuffled_servers.begin() + half_size);
 
-  // Create promises and futures for all requests
-  std::vector<std::promise<std::uint64_t>> promises(selected_servers.size());
-  std::vector<std::future<std::uint64_t>> futures;
-  futures.reserve(selected_servers.size());
+  struct State {
+    std::mutex mtx;
+    std::condition_variable cv;
+    std::optional<ServerInfo> first_server;
+    std::size_t completed = 0;
+    std::size_t total = 0;
+  };
+  auto state = std::make_shared<State>();
+  state->total = selected_servers.size();
 
-  for (auto& promise : promises) {
-    // cppcheck-suppress useStlAlgorithm
-    futures.push_back(promise.get_future());
-  }
-
-  // Launch all requests
-  for (std::size_t i = 0; i < selected_servers.size(); ++i) {
+  for (const auto& server : selected_servers) {
     // NOLINTNEXTLINE(bugprone-exception-escape)
-    std::thread([&promise = promises[i], server = selected_servers[i], sni,
-                    timeout_sec, censorship_strategy]() {
+    std::thread([state, server, sni, timeout_sec, censorship_strategy]() {
+      std::uint64_t ms = kMaxTimeout;
       try {
-        const auto time_ms = GetDownloadTimeMs(server, sni, timeout_sec,
-            server.md5_fingerprint, censorship_strategy);
-        promise.set_value(time_ms);
+        ms = GetDownloadTimeMs(server, sni, timeout_sec, server.md5_fingerprint,
+            censorship_strategy);
       } catch (...) {  // NOLINT
-        // Set max timeout in case of exception
-        promise.set_value(kMaxTimeout);
       }
+      {
+        const std::scoped_lock<std::mutex> lock(state->mtx);  // mutex
+        if (ms != kMaxTimeout && !state->first_server.has_value())
+          state->first_server = server;
+        ++state->completed;
+      }
+      state->cv.notify_one();
     }).detach();
   }
 
-  // Wait for all futures with timeout
-  std::vector<std::uint64_t> times;
-  times.reserve(futures.size());
+  std::unique_lock<std::mutex> lock(state->mtx);
+  state->cv.wait_for(lock, std::chrono::seconds(timeout_sec + 2), [&state] {
+    return state->first_server.has_value() || state->completed == state->total;
+  });
 
-  const auto deadline =
-      std::chrono::steady_clock::now() + std::chrono::seconds(timeout_sec + 2);
-
-  for (auto& future : futures) {
-    if (future.wait_until(deadline) == std::future_status::ready) {
-      times.push_back(future.get());
-    } else {
-      // Timeout for this future
-      times.push_back(kMaxTimeout);
-    }
-  }
-
-  // Find fastest server
-  const auto min_it = std::ranges::min_element(times);
-  if (min_it == times.end() || *min_it == kMaxTimeout) {
+  if (!state->first_server.has_value()) {
     throw std::runtime_error("All servers unavailable!");
   }
 
-  return selected_servers[std::distance(times.begin(), min_it)];
+  return *state->first_server;
+}
+
+std::optional<LoginResult> FindServerByLogin(const std::string& sni,
+    const std::vector<ServerInfo>& servers,
+    fptn::protocol::https::CensorshipStrategy censorship_strategy,
+    int timeout_sec) {
+  std::vector<ServerInfo> shuffled_servers = servers;
+  std::random_device rd;
+  std::mt19937 generator(rd());
+  std::ranges::shuffle(shuffled_servers, generator);
+  const std::size_t half_size =
+      std::max<std::size_t>(1, shuffled_servers.size() / 2);
+  std::vector<ServerInfo> selected_servers(
+      shuffled_servers.begin(), shuffled_servers.begin() + half_size);
+
+  struct State {
+    std::mutex mtx;
+    std::condition_variable cv;
+    std::optional<LoginResult> result;
+    std::size_t completed = 0;
+    std::size_t total = 0;
+  };
+  auto state = std::make_shared<State>();
+  state->total = selected_servers.size();
+
+  for (const auto& server : selected_servers) {
+    // NOLINTNEXTLINE(bugprone-exception-escape)
+    std::thread([state, server, sni, timeout_sec, censorship_strategy]() {
+      std::optional<LoginResult> local;
+      try {
+        const std::string body =
+            fmt::format(R"({{ "username": "{}", "password": "{}" }})",
+                server.username, server.password);
+        ApiClient cli(server.host, server.port, sni, server.md5_fingerprint,
+            censorship_strategy);
+        const auto resp = cli.Post(
+            common::api::kApiLoginUrl, body, "application/json", timeout_sec);
+        if (resp.code == 200) {
+          const auto msg = resp.Json();
+          if (msg.contains("access_token")) {
+            local = LoginResult{.server = server,
+                .access_token = msg["access_token"].get<std::string>()};
+          }
+        }
+      } catch (...) {  // NOLINT
+      }
+      {
+        const std::scoped_lock<std::mutex> lock(state->mtx);
+        if (local && !state->result.has_value())
+          state->result = std::move(local);
+        ++state->completed;
+      }
+      state->cv.notify_one();
+    }).detach();
+  }
+
+  std::unique_lock<std::mutex> lock(state->mtx);
+  state->cv.wait_for(lock, std::chrono::seconds(timeout_sec + 2), [&state] {
+    return state->result.has_value() || state->completed == state->total;
+  });
+
+  return state->result;
 }
 
 }  // namespace fptn::utils::speed_estimator

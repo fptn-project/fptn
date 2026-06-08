@@ -87,6 +87,7 @@ class TrayApp : public QWidget {
 
   bool smart_connect_ = false;
   fptn::utils::speed_estimator::ServerInfo selected_server_;
+  std::string pre_obtained_token_;
 
   SettingsModelPtr settings_;
 
