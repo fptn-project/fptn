@@ -4,7 +4,15 @@ set -e
 
 echo "Starting build in AlmaLinux 9 container..."
 
-podman run --rm \
+HOST_UID=$(id -u)
+HOST_GID=$(id -g)
+
+DOCKER_CMD="podman"
+if ! command -v podman &> /dev/null; then
+    DOCKER_CMD="docker"
+fi
+
+$DOCKER_CMD run --rm \
   -v "$(pwd):/work:z" \
   -v "$(pwd)/.conan2_cache:/root/.conan2:z" \
   almalinux:9 bash -c "
@@ -18,6 +26,9 @@ cd build_alma
 cmake .. -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release
 cmake --build . --config Release
 cmake --build . --config Release --target build-rpm
-cp fptn-server-*.rpm /work/
-echo 'Build finished! RPM copied to /work/'
+
+# Fix ownership of files created by root in container
+chown -R ${HOST_UID}:${HOST_GID} /work/build_alma /work/*.rpm 2>/dev/null || true
+
+echo 'Build finished! RPM generated in the root project directory.'
 "

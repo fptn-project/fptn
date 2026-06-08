@@ -140,6 +140,9 @@ Summary:        FPTN VPN Server
 License:        GPLv3
 Group:          System Environment/Daemons
 Requires:       iptables, iproute, net-tools
+Requires(post): systemd
+Requires(preun): systemd
+Requires(postun): systemd
 BuildArch:      ${RPM_ARCH}
 
 %description
@@ -178,6 +181,7 @@ fi
 
 %files
 %defattr(-,root,root,-)
+%dir /etc/fptn
 /usr/bin/fptn-server
 /usr/bin/fptn-passwd
 %config(noreplace) /etc/fptn/server.conf
