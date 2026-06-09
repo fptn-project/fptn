@@ -81,7 +81,7 @@ class CommonUserManager final {
   bool Authenticate(const std::string& username, const std::string& password) {
     const std::scoped_lock lock(mutex_);  // mutex
 
-    LoadUsers();
+    ReloadIfChanged();
 
     auto it = users_.find(username);
     if (it != users_.end()) {
@@ -111,9 +111,19 @@ class CommonUserManager final {
   }
 
  protected:
+  void ReloadIfChanged() {
+    try {
+      const auto mtime = std::filesystem::last_write_time(file_path_);
+      if (mtime != last_write_time_) {
+        last_write_time_ = mtime;
+        LoadUsers();
+      }
+    } catch (const std::filesystem::filesystem_error& e) {
+      std::cerr << "Failed to check file mtime: " << e.what() << std::endl;
+    }
+  }
+
   void LoadUsers() {
-    // FIXIT
-    // update
     users_.clear();
 
     std::ifstream file(file_path_);
@@ -218,6 +228,7 @@ class CommonUserManager final {
   std::unordered_map<std::string, std::pair<std::string, int>> users_;
   mutable std::mutex mutex_;
   std::string file_path_;
+  std::filesystem::file_time_type last_write_time_{};
 };
 
 using CommonUserManagerPtr = std::unique_ptr<CommonUserManager>;

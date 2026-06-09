@@ -32,13 +32,17 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #pragma warning(disable : 4702)
 #endif
 
+#include <boost/asio/awaitable.hpp>
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/redirect_error.hpp>
 #include <boost/asio/ssl/detail/openssl_types.hpp>
 #include <boost/asio/ssl/error.hpp>
 #include <boost/asio/ssl/stream.hpp>
 #include <boost/asio/strand.hpp>
+#include <boost/asio/this_coro.hpp>
+#include <boost/asio/use_awaitable.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/beast/ssl.hpp>
@@ -348,6 +352,125 @@ Response ApiClient::Post(const std::string& handle,
         return self.PostImpl(handle, request, content_type, timeout);
       },
       timeout, "POST", handle, host_, Response{"", 608, "Operation timeout"});
+}
+
+boost::asio::awaitable<Response> ApiClient::AsyncPost(const std::string& handle,
+    const std::string& request,
+    const std::string& content_type,
+    int timeout) const {
+  const auto start_time = std::chrono::steady_clock::now();
+  std::string error;
+  int respcode = 400;
+  std::string body;
+
+  auto executor = co_await boost::asio::this_coro::executor;
+
+  auto* ssl_ctx_raw = utils::CreateNewSslCtx();
+  boost::asio::ssl::context ctx(ssl_ctx_raw);
+
+  fptn::protocol::https::obfuscator::IObfuscatorSPtr obfuscator = nullptr;
+  if (censorship_strategy_ == CensorshipStrategy::kTlsObfuscator) {
+    obfuscator =
+        std::make_shared<protocol::https::obfuscator::TlsObfuscator2>();
+  }
+
+  tcp_stream_type tcp_stream(executor);
+  obfuscator_socket_type obfuscator_stream(std::move(tcp_stream), obfuscator);
+  ssl_stream_type stream(std::move(obfuscator_stream), ctx);
+
+  boost::beast::get_lowest_layer(stream).expires_after(
+      std::chrono::seconds(timeout));
+
+  try {
+    boost::asio::ip::tcp::resolver resolver(executor);
+    const std::string port_str = std::to_string(port_);
+    boost::system::error_code ec;
+
+    auto results = co_await resolver.async_resolve(host_, port_str,
+        boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+    if (ec) {
+      SPDLOG_ERROR("AsyncPost [{}] - DNS failed for {}:{}: {}", handle, host_,
+          port_, ec.message());
+      co_return Response{"", 603, ec.message()};
+    }
+
+    co_await boost::beast::get_lowest_layer(stream).async_connect(
+        results, boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+    if (ec) {
+      SPDLOG_ERROR("AsyncPost [{}] - Connect failed for {}: {}", handle, host_,
+          ec.message());
+      co_return Response{"", 600, ec.message()};
+    }
+
+    utils::SetHandshakeSessionID(stream.native_handle());
+    utils::SetHandshakeSni(stream.native_handle(), sni_);
+    ctx.set_verify_mode(boost::asio::ssl::verify_none);
+
+    co_await stream.async_handshake(boost::asio::ssl::stream_base::client,
+        boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+    if (ec) {
+      SPDLOG_ERROR("AsyncPost [{}] - TLS handshake failed for {}: {}", handle,
+          host_, ec.message());
+      co_return Response{"", 600, ec.message()};
+    }
+
+    stream.next_layer().set_obfuscator(nullptr);
+
+    boost::beast::http::request<boost::beast::http::string_body> req{
+        boost::beast::http::verb::post, handle, 11};
+    req.set(boost::beast::http::field::host, host_);
+    req.set(boost::beast::http::field::content_type, content_type);
+    req.body() = request;
+    req.prepare_payload();
+
+    co_await boost::beast::http::async_write(stream, req,
+        boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+    if (ec) {
+      SPDLOG_ERROR("AsyncPost [{}] - Write failed for {}: {}", handle, host_,
+          ec.message());
+      co_return Response{"", 600, ec.message()};
+    }
+
+    boost::beast::flat_buffer buffer;
+    boost::beast::http::response<boost::beast::http::dynamic_body> res;
+    co_await boost::beast::http::async_read(stream, buffer, res,
+        boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+    if (ec) {
+      SPDLOG_ERROR("AsyncPost [{}] - Read failed for {}: {}", handle, host_,
+          ec.message());
+      co_return Response{"", 600, ec.message()};
+    }
+
+    respcode = static_cast<int>(res.result_int());
+    body = GetHttpBody(res);
+
+    boost::system::error_code shutdown_ec;
+    stream.shutdown(shutdown_ec);
+  } catch (const boost::system::system_error& err) {
+    error = err.what();
+    respcode = 600;
+    SPDLOG_ERROR(
+        "AsyncPost [{}] - System error for {}: {}", handle, host_, error);
+  } catch (const std::exception& e) {
+    error = e.what();
+    respcode = 601;
+    SPDLOG_ERROR("AsyncPost [{}] - Exception for {}: {}", handle, host_, error);
+  }
+
+  const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::steady_clock::now() - start_time);
+
+  if (respcode >= 200 && respcode < 300) {
+    SPDLOG_INFO(
+        "AsyncPost [{}] - Success from {} in {} ms - Status: {}, "
+        "Response: {} bytes",
+        handle, host_, duration.count(), respcode, body.size());
+  } else {
+    SPDLOG_WARN(
+        "AsyncPost [{}] - Failed from {} in {} ms - Status: {}, Error: {}",
+        handle, host_, duration.count(), respcode, error);
+  }
+  co_return Response{body, respcode, error};
 }
 
 bool ApiClient::TestHandshake(int timeout) const {

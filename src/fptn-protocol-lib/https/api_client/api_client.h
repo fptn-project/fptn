@@ -11,6 +11,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <utility>
 #include <vector>
 
+#include <boost/asio/awaitable.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <nlohmann/json.hpp>
 
@@ -39,8 +40,8 @@ struct Response final {
     return *this;
   }
 
-  Response(Response&& other) = delete;
-  Response& operator=(Response&& other) = delete;
+  Response(Response&& other) = default;
+  Response& operator=(Response&& other) = default;
 
   nlohmann::json Json() const { return nlohmann::json::parse(body); }
 };
@@ -64,6 +65,10 @@ class ApiClient {
 
   Response Get(const std::string& handle, int timeout = 5) const;
   Response Post(const std::string& handle,
+      const std::string& request,
+      const std::string& content_type = "application/json",
+      int timeout = 5) const;
+  boost::asio::awaitable<Response> AsyncPost(const std::string& handle,
       const std::string& request,
       const std::string& content_type = "application/json",
       int timeout = 5) const;

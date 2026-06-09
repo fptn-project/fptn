@@ -143,9 +143,12 @@ class IPv4Address : public IPAddress<boost::asio::ip::address> {
     return IPAddress<boost::asio::ip::address>::IsValid() && ip_impl_.is_v4();
   }
 
-  virtual std::uint32_t ToInt() const {
-    if (ip_impl_.is_v4()) {
-      return ip_impl_.to_v4().to_uint();
+  virtual std::uint32_t ToInt() const noexcept {
+    try {
+      if (ip_impl_.is_v4()) {
+        return ip_impl_.to_v4().to_uint();
+      }
+    } catch (...) {
     }
     return 0;
   }

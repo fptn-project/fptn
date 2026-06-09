@@ -10,9 +10,13 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <string>
 #include <utility>
 
+#include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/redirect_error.hpp>
 #include <boost/asio/steady_timer.hpp>
+#include <boost/asio/this_coro.hpp>
+#include <boost/asio/use_awaitable.hpp>
 #include <boost/system/error_code.hpp>
 #include <spdlog/spdlog.h>  // NOLINT(build/include_order)
 
@@ -103,6 +107,51 @@ inline ResolveResult ResolveWithTimeout(boost::asio::io_context& ioc,
     ioc.run_one();
   }
   return result;
+}
+
+inline boost::asio::awaitable<ResolveResult> AsyncResolve(
+    const std::string& host, const std::string& port) {
+  ResolveResult result;
+
+  if (IsIpAddress(host)) {
+    boost::system::error_code ec;
+    auto address = boost::asio::ip::make_address(host, ec);
+    if (ec) {
+      result.error = ec;
+      co_return result;
+    }
+    std::uint16_t port_num = 0;
+    if (!port.empty()) {
+      try {
+        port_num = static_cast<std::uint16_t>(std::stoi(port));
+      } catch (...) {
+        result.error =
+            boost::system::error_code(boost::system::errc::invalid_argument,
+                boost::system::system_category());
+        co_return result;
+      }
+    }
+    boost::asio::ip::tcp::endpoint endpoint(address, port_num);
+    result.results = boost::asio::ip::tcp::resolver::results_type::create(
+        endpoint, host, port);
+    co_return result;
+  }
+
+  auto executor = co_await boost::asio::this_coro::executor;
+  boost::asio::ip::tcp::resolver resolver(executor);
+  boost::system::error_code ec;
+
+  auto results = co_await resolver.async_resolve(boost::asio::ip::tcp::v4(),
+      host, port, boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+
+  result.error = ec;
+  if (!ec) {
+    result.results = std::move(results);
+  } else {
+    SPDLOG_WARN(
+        "AsyncResolve - Failed for {}:{}: {}", host, port, ec.message());
+  }
+  co_return result;
 }
 
 }  // namespace fptn::common::network
