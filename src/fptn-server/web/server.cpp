@@ -60,7 +60,7 @@ Server::Server(std::uint16_t port,
   using std::placeholders::_7;
 
   handshake_cache_manager_ =
-      std::make_shared<HandshakeCacheManager>(ioc_, default_proxy_domain_);
+      std::make_shared<HandshakeCacheManager>(default_proxy_domain_);
 
   listener_ = std::make_shared<Listener>(port_,
       // proxy settings
@@ -171,30 +171,32 @@ fptn::common::network::IPPacketPtr Server::WaitForPacket(
 }
 
 // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
-int Server::HandleApiDns(const http::request& req, http::response& resp) {
+boost::asio::awaitable<int> Server::HandleApiDns(
+    const http::request& req, http::response& resp) {
   (void)req;
 
   resp.body() = fmt::format(R"({{"dns": "{}", "dns_ipv6": "{}" }})",
       dns_server_ipv4_.ToString(), dns_server_ipv6_.ToString());
   resp.set(boost::beast::http::field::content_type,
       "application/json; charset=utf-8");
-  return 200;
+  co_return 200;
 }
 
 // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
-int Server::HandleApiLogin(const http::request& req, http::response& resp) {
+boost::asio::awaitable<int> Server::HandleApiLogin(
+    const http::request& req, http::response& resp) {
   try {
     const auto request = nlohmann::json::parse(req.body());
     const auto username = request.at("username").get<std::string>();
     const auto password = request.at("password").get<std::string>();
     int bandwidth_bit = 0;
-    if (user_manager_->Login(username, password, bandwidth_bit)) {
+    if (co_await user_manager_->LoginAsync(username, password, bandwidth_bit)) {
       SPDLOG_INFO("Successful login for user {}", username);
       const auto tokens = token_manager_->Generate(username, bandwidth_bit);
       resp.body() = fmt::format(
           R"({{ "access_token": "{}", "refresh_token": "{}", "bandwidth_bit": {} }})",
           tokens.first, tokens.second, std::to_string(bandwidth_bit));
-      return 200;
+      co_return 200;
     }
     SPDLOG_WARN("Wrong password for user: \"{}\" ", username);
     resp.body() =
@@ -202,31 +204,33 @@ int Server::HandleApiLogin(const http::request& req, http::response& resp) {
   } catch (const nlohmann::json::exception& e) {
     SPDLOG_ERROR("HTTP JSON AUTH ERROR: {}", e.what());
     resp.body() = R"({"status": "error", "message": "Invalid JSON format."})";
-    return 400;
+    co_return 400;
   } catch (const std::exception& e) {
     SPDLOG_ERROR("HTTP AUTH ERROR: {}", e.what());
     resp.body() =
         R"({"status": "error", "message": "An unexpected error occurred."})";
-    return 500;
+    co_return 500;
   } catch (...) {
     SPDLOG_ERROR("UNDEFINED SERVER ERROR");
     resp.body() = R"({"status": "error", "message": "Undefined server error"})";
-    return 501;
+    co_return 501;
   }
-  return 401;
+  co_return 401;
 }
 
 // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
-int Server::HandleApiMetrics(const http::request& req, http::response& resp) {
+boost::asio::awaitable<int> Server::HandleApiMetrics(
+    const http::request& req, http::response& resp) {
   (void)req;
 
   resp.set(boost::beast::http::field::content_type, "text/html; charset=utf-8");
   resp.body() = prometheus_->Collect();
-  return 200;
+  co_return 200;
 }
 
 // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
-int Server::HandleApiTestFile(const http::request& req, http::response& resp) {
+boost::asio::awaitable<int> Server::HandleApiTestFile(
+    const http::request& req, http::response& resp) {
   (void)req;
 
   static const std::string kData =
@@ -234,7 +238,7 @@ int Server::HandleApiTestFile(const http::request& req, http::response& resp) {
 
   resp.set(boost::beast::http::field::content_type, "application/octet-stream");
   resp.body() = kData;
-  return 200;
+  co_return 200;
 }
 
 fptn::client::SessionSPtr Server::HandleWsOpenConnection(

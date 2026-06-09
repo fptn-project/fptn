@@ -109,9 +109,6 @@ Session::Session(std::uint16_t port,
       support_batch_sending_(false) {
   try {
     client_id_ = ++client_id_counter;
-
-    SPDLOG_INFO("Start new session client_id={}", client_id_);
-
     boost::beast::get_lowest_layer(ws_).socket().set_option(
         boost::asio::ip::tcp::no_delay(true));
 
@@ -424,9 +421,8 @@ boost::asio::awaitable<bool> Session::IsSniSelfProxyAttempt(
   try {
     const auto server_ips = GetServerIpAddresses(server_external_ips_);
 
-    boost::asio::io_context ioc;
     const auto resolve_result =
-        fptn::common::network::ResolveWithTimeout(ioc, sni, "", 5);
+        co_await fptn::common::network::AsyncResolve(sni, "");
 
     if (!resolve_result.success()) {
       SPDLOG_WARN("DNS resolution failed for {}: {}", sni,
@@ -628,9 +624,8 @@ boost::asio::awaitable<bool> Session::HandleProxy(
   try {
     const std::string port_str = std::to_string(port);
 
-    boost::asio::io_context ioc;
     auto resolve_result =
-        fptn::common::network::ResolveWithTimeout(ioc, sni, port_str, kTimeout);
+        co_await fptn::common::network::AsyncResolve(sni, port_str);
 
     if (!resolve_result.success()) {
       SPDLOG_ERROR("Proxy DNS resolution failed for {}:{}: {}", sni, port_str,
@@ -947,12 +942,7 @@ boost::asio::awaitable<bool> Session::HandleHttp(
     co_return false;
   }
 
-  if (url.find(common::api::kApiMetricsUrl) == std::string::npos) {  // NOLINT
-    SPDLOG_INFO("HTTP request (client_id={}): {} {}", client_id_, method, url);
-  } else {
-    SPDLOG_INFO("HTTP request (client_id={}): {} {}", client_id_, method,
-        std::string(common::api::kApiMetricsUrl) + "/<hidden>");
-  }
+  const auto t0 = std::chrono::steady_clock::now();
 
   const auto server_info = fmt::format("fptn/{}", FPTN_VERSION);
   const auto http_date = fptn::time::TimeProvider::Instance()->Rfc7231Date();
@@ -968,13 +958,25 @@ boost::asio::awaitable<bool> Session::HandleHttp(
   resp.set(boost::beast::http::field::date, http_date);
 
   const ApiHandle handler = GetApiHandle(api_handles_, url, method);
+  int http_status = 404;
   if (handler) {
-    int status = handler(request, resp);
-    resp.result(status);
+    http_status = co_await handler(request, resp);
+    resp.result(http_status);
   } else {
     resp.result(boost::beast::http::status::not_found);
     resp.body() = "404 Not Found";
   }
+
+  const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::steady_clock::now() - t0)
+                      .count();
+  const std::string log_url =
+      (url.find(common::api::kApiMetricsUrl) != std::string::npos)  // NOLINT
+          ? std::string(common::api::kApiMetricsUrl) + "/<hidden>"
+          : std::string(url);
+  SPDLOG_INFO("HTTP {} {} -> {} ({}ms) (client_id={})", method, log_url,
+      http_status, ms, client_id_);
+
   resp.prepare_payload();
 
   auto res_ptr = std::make_shared<

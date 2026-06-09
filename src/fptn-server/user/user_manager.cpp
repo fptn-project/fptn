@@ -10,6 +10,8 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <string>
 #include <utility>
 
+#include <boost/asio/awaitable.hpp>
+#include <boost/asio/use_awaitable.hpp>
 #include <fmt/format.h>     // NOLINT(build/include_order)
 #include <spdlog/spdlog.h>  // NOLINT(build/include_order)
 
@@ -34,6 +36,45 @@ UserManager::UserManager(const std::string& userfile,
     common_manager_ =
         std::make_unique<fptn::common::user::CommonUserManager>(userfile);
   }
+}
+
+boost::asio::awaitable<bool> UserManager::LoginAsync(
+    const std::string& username,
+    const std::string& password,
+    int& bandwidth_bit) const {
+  bandwidth_bit = 0;
+  if (use_remote_server_) {
+    SPDLOG_INFO(
+        "LoginAsync request to {}:{}", remote_server_ip_, remote_server_port_);
+
+    const std::string request = fmt::format(
+        R"({{ "username": "{}", "password": "{}" }})", username, password);
+    const auto resp = co_await http_api_client_->AsyncPost(
+        common::api::kApiLoginUrl, request, "application/json");
+
+    if (resp.code == 200) {
+      try {
+        const auto msg = resp.Json();
+        if (msg.contains("access_token") && msg.contains("bandwidth_bit")) {
+          bandwidth_bit = msg["bandwidth_bit"].get<int>();
+          co_return true;
+        }
+        SPDLOG_INFO(
+            "LoginAsync: access_token not found in response. "
+            "Check your connection");
+      } catch (const nlohmann::json::parse_error& e) {
+        SPDLOG_INFO(
+            "LoginAsync: JSON parse error: {}\n{}", e.what(), resp.body);
+      }
+    } else {
+      SPDLOG_INFO("LoginAsync: request failed. Code: {} Msg: {}", resp.code,
+          resp.errmsg);
+    }
+  } else if (common_manager_->Authenticate(username, password)) {
+    bandwidth_bit = common_manager_->GetUserBandwidthBit(username);
+    co_return true;
+  }
+  co_return false;
 }
 
 bool UserManager::Login(const std::string& username,

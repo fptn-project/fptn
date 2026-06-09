@@ -9,6 +9,8 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <memory>
 #include <string>
 
+#include <boost/asio/awaitable.hpp>
+
 #include "common/user/common_user_manager.h"
 
 #include "fptn-protocol-lib/https/api_client/api_client.h"
@@ -50,6 +52,10 @@ class UserManager {
    * @return `true` if the login is successful, `false` otherwise.
    */
   bool Login(const std::string& username,
+      const std::string& password,
+      int& bandwidth_bit) const;
+
+  boost::asio::awaitable<bool> LoginAsync(const std::string& username,
       const std::string& password,
       int& bandwidth_bit) const;
 

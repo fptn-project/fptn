@@ -11,6 +11,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <unordered_map>
 
 #include <boost/asio.hpp>
+#include <boost/asio/awaitable.hpp>
 #include <boost/asio/ssl.hpp>
 #include <boost/beast.hpp>
 #include <boost/beast/ssl.hpp>
@@ -27,7 +28,8 @@ using request = boost::beast::http::request<boost::beast::http::string_body>;
 using response = boost::beast::http::response<boost::beast::http::string_body>;
 }  // namespace http
 
-using ApiHandle = std::function<int(const http::request&, http::response&)>;
+using ApiHandle = std::function<boost::asio::awaitable<int>(
+    const http::request&, http::response&)>;
 
 using ApiHandleMap = std::unordered_map<std::string, ApiHandle>;
 

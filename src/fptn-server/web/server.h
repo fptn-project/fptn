@@ -58,10 +58,14 @@ class Server final {
 
  protected:
   // http
-  int HandleApiDns(const http::request& req, http::response& resp);
-  int HandleApiLogin(const http::request& req, http::response& resp);
-  int HandleApiMetrics(const http::request& req, http::response& resp);
-  int HandleApiTestFile(const http::request& req, http::response& resp);
+  boost::asio::awaitable<int> HandleApiDns(
+      const http::request& req, http::response& resp);
+  boost::asio::awaitable<int> HandleApiLogin(
+      const http::request& req, http::response& resp);
+  boost::asio::awaitable<int> HandleApiMetrics(
+      const http::request& req, http::response& resp);
+  boost::asio::awaitable<int> HandleApiTestFile(
+      const http::request& req, http::response& resp);
 
  protected:
   // websocket

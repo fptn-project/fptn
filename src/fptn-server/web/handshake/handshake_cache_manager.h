@@ -22,20 +22,13 @@ using HandshakeResponse = std::shared_ptr<std::vector<std::uint8_t>>;
 
 class HandshakeCacheManager final {
  public:
-  explicit HandshakeCacheManager(boost::asio::io_context& ioc,
-      std::string default_domain,
+  explicit HandshakeCacheManager(std::string default_domain,
       std::chrono::seconds cache_ttl = std::chrono::seconds(1200));
 
   boost::asio::awaitable<HandshakeResponse> GetHandshake(const std::string& sni,
       const std::uint8_t* buffer_ptr,
       std::size_t size,
       const std::chrono::seconds& timeout);
-
- protected:
-  boost::asio::awaitable<HandshakeResponse> FetchRealHandshake(
-      const std::string& sni,
-      const std::vector<std::uint8_t>& client_handshake_data,
-      const std::chrono::seconds& timeout) const;
 
   HandshakeResponse CheckCache(const std::string& cache_key);
 
@@ -47,7 +40,6 @@ class HandshakeCacheManager final {
 
   mutable std::mutex mutex_;
 
-  boost::asio::io_context& ioc_;
   std::chrono::seconds cache_ttl_;
 
   const std::string default_domain_;

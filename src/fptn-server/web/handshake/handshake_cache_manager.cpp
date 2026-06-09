@@ -15,18 +15,64 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <boost/asio.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/beast.hpp>
-#include <spdlog/spdlog.h>              // NOLINT(build/include_order)
+#include <spdlog/spdlog.h>  // NOLINT(build/include_order)
 
 #include "common/network/resolv.h"
 #include "common/network/utils.h"
 
+namespace {
+
+boost::asio::awaitable<fptn::web::HandshakeResponse> FetchRealHandshake(
+    const std::string& sni,
+    const std::vector<std::uint8_t>& client_handshake_data,
+    const std::chrono::seconds& timeout) {
+  auto executor = co_await boost::asio::this_coro::executor;
+  boost::asio::ip::tcp::socket target_socket(executor);
+
+  constexpr std::size_t kMaxTotalSize = 65536;
+  auto full_response = std::make_shared<std::vector<std::uint8_t>>();
+  full_response->reserve(kMaxTotalSize);
+  try {
+    // DNS resolution
+    const auto resolve_result =
+        co_await fptn::common::network::AsyncResolve(sni, "443");
+
+    if (!resolve_result.success()) {
+      SPDLOG_WARN("DNS failed for {}: {}", sni, resolve_result.error.message());
+      co_return nullptr;
+    }
+
+    // Connect to real server
+    co_await boost::asio::async_connect(
+        target_socket, resolve_result.results, boost::asio::use_awaitable);
+
+    // Send client handshake
+    co_await boost::asio::async_write(target_socket,
+        boost::asio::buffer(client_handshake_data), boost::asio::use_awaitable);
+
+    const auto server_response =
+        co_await fptn::common::network::WaitForServerTlsHelloAsync(
+            target_socket, timeout);
+    if (server_response.has_value()) {
+      *full_response = server_response.value();
+    }
+    SPDLOG_INFO("Received {} bytes from {}", full_response->size(), sni);
+  } catch (const std::exception& e) {
+    SPDLOG_ERROR("Error fetching handshake from {}: {}", sni, e.what());
+  }
+
+  boost::system::error_code close_ec;
+  target_socket.close(close_ec);
+
+  co_return full_response;
+}
+}  // namespace
+
 namespace fptn::web {
 
-HandshakeCacheManager::HandshakeCacheManager(boost::asio::io_context& ioc,
-    std::string default_domain,
-    std::chrono::seconds cache_ttl)
-    : ioc_(ioc),
-      cache_ttl_(cache_ttl),
+HandshakeCacheManager::HandshakeCacheManager(
+    std::string default_domain, std::chrono::seconds cache_ttl)
+    : cache_ttl_(cache_ttl),
       default_domain_(std::move(default_domain)) {}  // NOLINT
 
 HandshakeResponse HandshakeCacheManager::CheckCache(
@@ -100,51 +146,6 @@ boost::asio::awaitable<HandshakeResponse> HandshakeCacheManager::GetHandshake(
   }
   SPDLOG_WARN("Failed to fetch handshake from real server for SNI: {}", sni);
   co_return HandshakeResponse();
-}
-
-boost::asio::awaitable<HandshakeResponse>
-HandshakeCacheManager::FetchRealHandshake(const std::string& sni,
-    const std::vector<std::uint8_t>& client_handshake_data,
-    const std::chrono::seconds& timeout) const {
-  boost::asio::ip::tcp::socket target_socket(ioc_);
-
-  constexpr std::size_t kMaxTotalSize = 65536;
-  auto full_response = std::make_shared<std::vector<std::uint8_t>>();
-  full_response->reserve(kMaxTotalSize);
-  try {
-    // DNS resolution
-    boost::asio::io_context resolve_ioc;
-    const auto resolve_result = fptn::common::network::ResolveWithTimeout(
-        resolve_ioc, sni, "443", timeout.count());
-
-    if (!resolve_result.success()) {
-      SPDLOG_WARN("DNS failed for {}: {}", sni, resolve_result.error.message());
-      co_return nullptr;
-    }
-
-    // Connect to real server
-    co_await boost::asio::async_connect(
-        target_socket, resolve_result.results, boost::asio::use_awaitable);
-
-    // Send client handshake
-    co_await boost::asio::async_write(target_socket,
-        boost::asio::buffer(client_handshake_data), boost::asio::use_awaitable);
-
-    const auto server_response =
-        co_await common::network::WaitForServerTlsHelloAsync(
-            target_socket, timeout);
-    if (server_response.has_value()) {
-      *full_response = server_response.value();
-    }
-    SPDLOG_INFO("Received {} bytes from {}", full_response->size(), sni);
-  } catch (const std::exception& e) {
-    SPDLOG_ERROR("Error fetching handshake from {}: {}", sni, e.what());
-  }
-
-  boost::system::error_code close_ec;
-  target_socket.close(close_ec);
-
-  co_return full_response;
 }
 
 }  // namespace fptn::web
