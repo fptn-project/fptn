@@ -744,40 +744,74 @@ std::vector<std::uint8_t> WebsocketClient::GenerateHandshakePacket() const {
   auto builder = camouflage::tls::Builder::Create();
   switch (config_.censorship_strategy) {
     /* Chrome */
+    case CensorshipStrategy::kSniRealityModeChrome149:
+      SPDLOG_INFO("Selected strategy: Chrome 149");
+      builder.GoogleChrome(
+          camouflage::tls::google_chrome::Version::kV_149_0_7827_103);
+      break;
+    case CensorshipStrategy::kSniRealityModeChrome148:
+      SPDLOG_INFO("Selected strategy: Chrome 148");
+      builder.GoogleChrome(
+          camouflage::tls::google_chrome::Version::kV_148_0_7778_216);
+      break;
     case CensorshipStrategy::kSniRealityModeChrome147:
+      SPDLOG_INFO("Selected strategy: Chrome 147");
       builder.GoogleChrome(
           camouflage::tls::google_chrome::Version::kV_147_0_7727_56);
       break;
     case CensorshipStrategy::kSniRealityModeChrome146:
+      SPDLOG_INFO("Selected strategy: Chrome 146");
       builder.GoogleChrome(
           camouflage::tls::google_chrome::Version::kV_146_0_7680_178);
       break;
     case CensorshipStrategy::kSniRealityModeChrome145:
+      SPDLOG_INFO("Selected strategy: Chrome 145");
       builder.GoogleChrome(
           camouflage::tls::google_chrome::Version::kV_145_0_7632_46);
       break;
-    /* Firefox */
+      /* Firefox */
+    case CensorshipStrategy::kSniRealityModeFirefox151:
+      SPDLOG_INFO("Selected strategy: Firefox 151");
+      builder.Firefox(camouflage::tls::firefox::Version::kV_151_0_3);
+      break;
+    case CensorshipStrategy::kSniRealityModeFirefox150:
+      SPDLOG_INFO("Selected strategy: Firefox 150");
+      builder.Firefox(camouflage::tls::firefox::Version::kV_150_0_3);
+      break;
     case CensorshipStrategy::kSniRealityModeFirefox149:
+      SPDLOG_INFO("Selected strategy: Firefox 149");
       builder.Firefox(camouflage::tls::firefox::Version::kV_149_0);
       break;
+    /* Safari */
+    case CensorshipStrategy::kSniRealityModeSafari26_5:
+      SPDLOG_INFO("Selected strategy: Safari 26.5");
+      builder.Safari(camouflage::tls::safari::Version::kV_26_5);
+      break;
+    case CensorshipStrategy::kSniRealityModeSafari26_4:
+      SPDLOG_INFO("Selected strategy: Safari 26.4");
+      builder.Safari(camouflage::tls::safari::Version::kV_26_4);
+      break;
     /* Yandex */
-    case CensorshipStrategy::kSniRealityModeYandex26:
+    case CensorshipStrategy::kSniRealityModeYandex26_4:
+      SPDLOG_INFO("Selected strategy: Yandex 26.4");
+      builder.YandexBrowser(
+          camouflage::tls::yandex_browser::Version::kV_26_4_3_897);
+      break;
+    case CensorshipStrategy::kSniRealityModeYandex26_3:
+      SPDLOG_INFO("Selected strategy: Yandex 26.3");
       builder.YandexBrowser(
           camouflage::tls::yandex_browser::Version::kV_26_3_3_881);
       break;
     case CensorshipStrategy::kSniRealityModeYandex25:
+      SPDLOG_INFO("Selected strategy: Yandex 25");
       builder.YandexBrowser(
           camouflage::tls::yandex_browser::Version::kV_25_8_3_828);
       break;
     case CensorshipStrategy::kSniRealityModeYandex24:
+      SPDLOG_INFO("Selected strategy: Yandex 24");
       builder.YandexBrowser(
           camouflage::tls::yandex_browser::Version::kV_24_12_0_1772);
       break;
-    /* Safari */
-    case CensorshipStrategy::kSniRealityModeSafari26:
-      builder.Safari(camouflage::tls::safari::Version::kV_26_4);
-      break;
-    /* Default */
     default:
       SPDLOG_DEBUG("Using fallback handshake generator for SNI: {}", sni_);
       return utils::GenerateDecoyTlsHandshake(config_.sni);

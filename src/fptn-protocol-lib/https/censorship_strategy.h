@@ -12,17 +12,23 @@ enum class CensorshipStrategy : int {
   kTlsObfuscator = 1,
   kSniRealityMode = 2,
   /* Chrome */
-  kSniRealityModeChrome147 = 20,
+  kSniRealityModeChrome145 = 20,
   kSniRealityModeChrome146 = 21,
-  kSniRealityModeChrome145 = 22,
+  kSniRealityModeChrome147 = 22,
+  kSniRealityModeChrome148 = 23,
+  kSniRealityModeChrome149 = 24,
   /* Firefox */
   kSniRealityModeFirefox149 = 60,
+  kSniRealityModeFirefox150 = 61,
+  kSniRealityModeFirefox151 = 62,
   /* Yandex Browser */
-  kSniRealityModeYandex26 = 80,
+  kSniRealityModeYandex24 = 80,
   kSniRealityModeYandex25 = 81,
-  kSniRealityModeYandex24 = 82,
+  kSniRealityModeYandex26_3 = 82,
+  kSniRealityModeYandex26_4 = 83,
   /* Safari */
-  kSniRealityModeSafari26 = 100,
+  kSniRealityModeSafari26_4 = 100,
+  kSniRealityModeSafari26_5 = 101
 };
 
 inline bool IsRealityModeWithFakeHandshake(const CensorshipStrategy& strategy) {
@@ -31,10 +37,12 @@ inline bool IsRealityModeWithFakeHandshake(const CensorshipStrategy& strategy) {
          strategy == CensorshipStrategy::kSniRealityModeChrome146 ||
          strategy == CensorshipStrategy::kSniRealityModeChrome145 ||
          strategy == CensorshipStrategy::kSniRealityModeFirefox149 ||
-         strategy == CensorshipStrategy::kSniRealityModeYandex26 ||
+         strategy == CensorshipStrategy::kSniRealityModeYandex26_4 ||
+         strategy == CensorshipStrategy::kSniRealityModeYandex26_3 ||
          strategy == CensorshipStrategy::kSniRealityModeYandex25 ||
          strategy == CensorshipStrategy::kSniRealityModeYandex24 ||
-         strategy == CensorshipStrategy::kSniRealityModeSafari26;
+         strategy == CensorshipStrategy::kSniRealityModeSafari26_5 ||
+         strategy == CensorshipStrategy::kSniRealityModeSafari26_4;
 }
 
 }  // namespace fptn::protocol::https
