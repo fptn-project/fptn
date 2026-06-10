@@ -364,7 +364,7 @@ bool RouteManager::Apply(std::string tun_name) {
       fmt::format("iptables -A INPUT -i {} -s {} -j ACCEPT",
           detected_out_interface_name_, config_.vpn_server_ip.ToString()),
       // IPv4 default & DNS route
-      fmt::format("ip route add default dev {}", tun_interface_name_),
+      fmt::format("ip route change default dev {}", tun_interface_name_),
       fmt::format("ip route add {} dev {}", config_.dns_server_ipv4.ToString(),
           tun_interface_name_),  // via TUN
                                  // IPv6 default
@@ -675,8 +675,9 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
           detected_out_interface_name_, config_.vpn_server_ip.ToString()),
       fmt::format("iptables -D INPUT -i {} -s {} -j ACCEPT",
           detected_out_interface_name_, config_.vpn_server_ip.ToString()),
-      // del routes
-      fmt::format("ip route del default dev {}", tun_interface_name_),
+      // restore default gateway
+      fmt::format("ip route change default via {} dev {}", detected_gateway_ipv4_.ToString(), detected_out_interface_name_),
+      // del ipv6 route
       fmt::format("ip route del {} via {} dev {}",
           config_.vpn_server_ip.ToString(), detected_gateway_ipv4_.ToString(),
           detected_out_interface_name_),
