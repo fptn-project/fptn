@@ -240,17 +240,23 @@ void SettingsModel::Load(bool dont_load_server) {
           bypass_method_ != kBypassMethodObfuscation &&
           bypass_method_ != kBypassMethodSniReality &&
           /* Chrome */
+          bypass_method_ != kBypassMethodSniRealityChrome149 &&
+          bypass_method_ != kBypassMethodSniRealityChrome148 &&
           bypass_method_ != kBypassMethodSniRealityChrome147 &&
           bypass_method_ != kBypassMethodSniRealityChrome146 &&
           bypass_method_ != kBypassMethodSniRealityChrome145 &&
           /* Firefox */
+          bypass_method_ != kBypassMethodSniRealityFirefox151 &&
+          bypass_method_ != kBypassMethodSniRealityFirefox150 &&
           bypass_method_ != kBypassMethodSniRealityFirefox149 &&
           /* Yandex Browser */
-          bypass_method_ != kBypassMethodSniRealityYandex26 &&
+          bypass_method_ != kBypassMethodSniRealityYandex26_4 &&
+          bypass_method_ != kBypassMethodSniRealityYandex26_3 &&
           bypass_method_ != kBypassMethodSniRealityYandex25 &&
           bypass_method_ != kBypassMethodSniRealityYandex24 &&
           /* Safari */
-          bypass_method_ != kBypassMethodSniRealitySafari26)) {
+          bypass_method_ != kBypassMethodSniRealitySafari26_5 &&
+          bypass_method_ != kBypassMethodSniRealitySafari26_4)) {
     bypass_method_ = kBypassMethodSniRealityYandex25;  // BYDEFAULT
   }
 

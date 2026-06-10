@@ -676,7 +676,8 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
       fmt::format("iptables -D INPUT -i {} -s {} -j ACCEPT",
           detected_out_interface_name_, config_.vpn_server_ip.ToString()),
       // restore default gateway
-      fmt::format("ip route change default via {} dev {}", detected_gateway_ipv4_.ToString(), detected_out_interface_name_),
+      fmt::format("ip route change default via {} dev {}",
+          detected_gateway_ipv4_.ToString(), detected_out_interface_name_),
       // del ipv6 route
       fmt::format("ip route del {} via {} dev {}",
           config_.vpn_server_ip.ToString(), detected_gateway_ipv4_.ToString(),

@@ -756,65 +756,58 @@ bool TrayApp::startVpn(QString& err_msg) {
   fptn::protocol::https::CensorshipStrategy censorship_strategy =
       fptn::protocol::https::CensorshipStrategy::kSni;
 
+  using fptn::protocol::https::CensorshipStrategy;
   const auto& bypass_method = settings_->BypassMethod();
   if (bypass_method == SettingsModel::kBypassMethodSni) {
     SPDLOG_INFO("Using default spoofing to bypass censorship");
-    censorship_strategy = fptn::protocol::https::CensorshipStrategy::kSni;
+    censorship_strategy = CensorshipStrategy::kSni;
   } else if (bypass_method == SettingsModel::kBypassMethodObfuscation) {
     SPDLOG_INFO("Using obfuscation to bypass censorship");
-    censorship_strategy =
-        fptn::protocol::https::CensorshipStrategy::kTlsObfuscator;
+    censorship_strategy = CensorshipStrategy::kTlsObfuscator;
   } else if (bypass_method == SettingsModel::kBypassMethodSniReality) {
     // DEPRECATED
     SPDLOG_INFO("Using generic reality mode to bypass censorship");
-    censorship_strategy =
-        fptn::protocol::https::CensorshipStrategy::kSniRealityMode;
+    censorship_strategy = CensorshipStrategy::kSniRealityMode;
   }
   /* chrome */
-  else if (bypass_method == SettingsModel::kBypassMethodSniRealityChrome147) {
-    SPDLOG_INFO("Using Chrome 147 reality mode to bypass censorship");
-    censorship_strategy =
-        fptn::protocol::https::CensorshipStrategy::kSniRealityModeChrome147;
+  else if (bypass_method == SettingsModel::kBypassMethodSniRealityChrome149) {
+    censorship_strategy = CensorshipStrategy::kSniRealityModeChrome149;
+  } else if (bypass_method == SettingsModel::kBypassMethodSniRealityChrome148) {
+    censorship_strategy = CensorshipStrategy::kSniRealityModeChrome148;
+  } else if (bypass_method == SettingsModel::kBypassMethodSniRealityChrome147) {
+    censorship_strategy = CensorshipStrategy::kSniRealityModeChrome147;
   } else if (bypass_method == SettingsModel::kBypassMethodSniRealityChrome146) {
-    SPDLOG_INFO("Using Chrome 146 reality mode to bypass censorship");
-    censorship_strategy =
-        fptn::protocol::https::CensorshipStrategy::kSniRealityModeChrome146;
+    censorship_strategy = CensorshipStrategy::kSniRealityModeChrome146;
   } else if (bypass_method == SettingsModel::kBypassMethodSniRealityChrome145) {
-    SPDLOG_INFO("Using Chrome 145 reality mode to bypass censorship");
-    censorship_strategy =
-        fptn::protocol::https::CensorshipStrategy::kSniRealityModeChrome145;
+    censorship_strategy = CensorshipStrategy::kSniRealityModeChrome145;
   }
   /* firefox */
-  else if (bypass_method == SettingsModel::kBypassMethodSniRealityFirefox149) {
-    SPDLOG_INFO("Using Firefox 149 reality mode to bypass censorship");
-    censorship_strategy =
-        fptn::protocol::https::CensorshipStrategy::kSniRealityModeFirefox149;
+  else if (bypass_method == SettingsModel::kBypassMethodSniRealityFirefox151) {
+    censorship_strategy = CensorshipStrategy::kSniRealityModeFirefox151;
+  } else if (bypass_method ==
+             SettingsModel::kBypassMethodSniRealityFirefox150) {
+    censorship_strategy = CensorshipStrategy::kSniRealityModeFirefox150;
+  } else if (bypass_method ==
+             SettingsModel::kBypassMethodSniRealityFirefox149) {
+    censorship_strategy = CensorshipStrategy::kSniRealityModeFirefox149;
   }
   /* Yandex */
-  else if (bypass_method == SettingsModel::kBypassMethodSniRealityYandex26) {
-    SPDLOG_INFO("Using Yandex 26 reality mode to bypass censorship");
-    censorship_strategy =
-        fptn::protocol::https::CensorshipStrategy::kSniRealityModeYandex26;
+  else if (bypass_method == SettingsModel::kBypassMethodSniRealityYandex26_4) {
+    censorship_strategy = CensorshipStrategy::kSniRealityModeYandex26_4;
+  } else if (bypass_method ==
+             SettingsModel::kBypassMethodSniRealityYandex26_3) {
+    censorship_strategy = CensorshipStrategy::kSniRealityModeYandex26_3;
   } else if (bypass_method == SettingsModel::kBypassMethodSniRealityYandex25) {
-    SPDLOG_INFO("Using Yandex 25 reality mode to bypass censorship");
-    censorship_strategy =
-        fptn::protocol::https::CensorshipStrategy::kSniRealityModeYandex25;
+    censorship_strategy = CensorshipStrategy::kSniRealityModeYandex25;
   } else if (bypass_method == SettingsModel::kBypassMethodSniRealityYandex24) {
-    SPDLOG_INFO("Using Yandex 24 reality mode to bypass censorship");
-    censorship_strategy =
-        fptn::protocol::https::CensorshipStrategy::kSniRealityModeYandex24;
+    censorship_strategy = CensorshipStrategy::kSniRealityModeYandex24;
   }
   /* Safari */
-  else if (bypass_method == SettingsModel::kBypassMethodSniRealitySafari26) {
-    SPDLOG_INFO("Using Safari 26 reality mode to bypass censorship");
-    censorship_strategy =
-        fptn::protocol::https::CensorshipStrategy::kSniRealityModeSafari26;
-  }
-  /* Default */
-  else {
-    SPDLOG_INFO("Using default SNI spoofing to bypass censorship");
-    censorship_strategy =
-        fptn::protocol::https::CensorshipStrategy::kSniRealityModeYandex25;
+  else if (bypass_method == SettingsModel::kBypassMethodSniRealitySafari26_5) {
+    censorship_strategy = CensorshipStrategy::kSniRealityModeSafari26_5;
+  } else if (bypass_method ==
+             SettingsModel::kBypassMethodSniRealitySafari26_4) {
+    censorship_strategy = CensorshipStrategy::kSniRealityModeSafari26_4;
   }
 
   if (cancel_connecting_) {

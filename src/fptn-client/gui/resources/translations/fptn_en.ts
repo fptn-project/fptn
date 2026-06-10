@@ -285,7 +285,15 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
         </message>
         <message>
             <source>SNI-REALITY (Generic)</source>
-            <translation>Domain spoofing</translation>
+            <translation>Domain spoofing (default)</translation>
+        </message>
+        <message>
+            <source>SNI-REALITY (Chrome 149)</source>
+            <translation>Domain spoofing (Chrome 149)</translation>
+        </message>
+        <message>
+            <source>SNI-REALITY (Chrome 148)</source>
+            <translation>Domain spoofing (Chrome 148)</translation>
         </message>
         <message>
             <source>SNI-REALITY (Chrome 147)</source>
@@ -300,12 +308,24 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>Domain spoofing (Chrome 145)</translation>
         </message>
         <message>
+            <source>SNI-REALITY (Firefox 151)</source>
+            <translation>Domain spoofing (Firefox 151)</translation>
+        </message>
+        <message>
+            <source>SNI-REALITY (Firefox 150)</source>
+            <translation>Domain spoofing (Firefox 150)</translation>
+        </message>
+        <message>
             <source>SNI-REALITY (Firefox 149)</source>
             <translation>Domain spoofing (Firefox 149)</translation>
         </message>
         <message>
-            <source>SNI-REALITY (Yandex 26)</source>
-            <translation>Domain spoofing (Yandex 26)</translation>
+            <source>SNI-REALITY (Yandex 26.4)</source>
+            <translation>Domain spoofing (Yandex 26.4)</translation>
+        </message>
+        <message>
+            <source>SNI-REALITY (Yandex 26.3)</source>
+            <translation>Domain spoofing (Yandex 26.3)</translation>
         </message>
         <message>
             <source>SNI-REALITY (Yandex 25)</source>
@@ -316,8 +336,12 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>Domain spoofing (Yandex 24)</translation>
         </message>
         <message>
-            <source>SNI-REALITY (Safari 26)</source>
-            <translation>Domain spoofing (Safari 26)</translation>
+            <source>SNI-REALITY (Safari 26.5)</source>
+            <translation>Domain spoofing (Safari 26.5)</translation>
+        </message>
+        <message>
+            <source>SNI-REALITY (Safari 26.4)</source>
+            <translation>Domain spoofing (Safari 26.4)</translation>
         </message>
 
         <message>

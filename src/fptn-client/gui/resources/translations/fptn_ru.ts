@@ -286,7 +286,15 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
         </message>
         <message>
             <source>SNI-REALITY (Generic)</source>
-            <translation>Подмена домена</translation>
+            <translation>Подмена домена (по умолчанию)</translation>
+        </message>
+        <message>
+            <source>SNI-REALITY (Chrome 149)</source>
+            <translation>Подмена домена (Chrome 149)</translation>
+        </message>
+        <message>
+            <source>SNI-REALITY (Chrome 148)</source>
+            <translation>Подмена домена (Chrome 148)</translation>
         </message>
         <message>
             <source>SNI-REALITY (Chrome 147)</source>
@@ -301,12 +309,24 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>Подмена домена (Chrome 145)</translation>
         </message>
         <message>
+            <source>SNI-REALITY (Firefox 151)</source>
+            <translation>Подмена домена (Firefox 151)</translation>
+        </message>
+        <message>
+            <source>SNI-REALITY (Firefox 150)</source>
+            <translation>Подмена домена (Firefox 150)</translation>
+        </message>
+        <message>
             <source>SNI-REALITY (Firefox 149)</source>
             <translation>Подмена домена (Firefox 149)</translation>
         </message>
         <message>
-            <source>SNI-REALITY (Yandex 26)</source>
-            <translation>Подмена домена (Яндекс 26)</translation>
+            <source>SNI-REALITY (Yandex 26.4)</source>
+            <translation>Подмена домена (Яндекс 26.4)</translation>
+        </message>
+        <message>
+            <source>SNI-REALITY (Yandex 26.3)</source>
+            <translation>Подмена домена (Яндекс 26.3)</translation>
         </message>
         <message>
             <source>SNI-REALITY (Yandex 25)</source>
@@ -317,8 +337,12 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>Подмена домена (Яндекс 24)</translation>
         </message>
         <message>
-            <source>SNI-REALITY (Safari 26)</source>
-            <translation>Подмена домена (Safari 26)</translation>
+            <source>SNI-REALITY (Safari 26.5)</source>
+            <translation>Подмена домена (Safari 26.5)</translation>
+        </message>
+        <message>
+            <source>SNI-REALITY (Safari 26.4)</source>
+            <translation>Подмена домена (Safari 26.4)</translation>
         </message>
         <message>
             <source>Support the project on</source>

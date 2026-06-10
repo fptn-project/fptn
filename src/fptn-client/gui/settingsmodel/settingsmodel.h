@@ -119,6 +119,10 @@ class SettingsModel : public QObject {
   static constexpr const char* kBypassMethodSniReality = "SNI-REALITY";
 
   /* chrome */
+  static constexpr const char* kBypassMethodSniRealityChrome149 =
+      "SNI-REALITY-CHROME-149";
+  static constexpr const char* kBypassMethodSniRealityChrome148 =
+      "SNI-REALITY-CHROME-148";
   static constexpr const char* kBypassMethodSniRealityChrome147 =
       "SNI-REALITY-CHROME-147";
   static constexpr const char* kBypassMethodSniRealityChrome146 =
@@ -126,18 +130,26 @@ class SettingsModel : public QObject {
   static constexpr const char* kBypassMethodSniRealityChrome145 =
       "SNI-REALITY-CHROME-145";
   /* Firefox */
+  static constexpr const char* kBypassMethodSniRealityFirefox151 =
+      "SNI-REALITY-FIREFOX-151";
+  static constexpr const char* kBypassMethodSniRealityFirefox150 =
+      "SNI-REALITY-FIREFOX-150";
   static constexpr const char* kBypassMethodSniRealityFirefox149 =
       "SNI-REALITY-FIREFOX-149";
   /* Yandex Browser */
-  static constexpr const char* kBypassMethodSniRealityYandex26 =
-      "SNI-REALITY-YANDEX-26";
+  static constexpr const char* kBypassMethodSniRealityYandex26_4 =
+      "SNI-REALITY-YANDEX-26-4";
+  static constexpr const char* kBypassMethodSniRealityYandex26_3 =
+      "SNI-REALITY-YANDEX-26-3";
   static constexpr const char* kBypassMethodSniRealityYandex25 =
       "SNI-REALITY-YANDEX-25";
   static constexpr const char* kBypassMethodSniRealityYandex24 =
       "SNI-REALITY-YANDEX-24";
   /* Safari */
-  static constexpr const char* kBypassMethodSniRealitySafari26 =
-      "SNI-REALITY-SAFARI-26";
+  static constexpr const char* kBypassMethodSniRealitySafari26_5 =
+      "SNI-REALITY-SAFARI-26-5";
+  static constexpr const char* kBypassMethodSniRealitySafari26_4 =
+      "SNI-REALITY-SAFARI-26-4";
 
  public:
   explicit SettingsModel(const QMap<QString, QString>& languages,

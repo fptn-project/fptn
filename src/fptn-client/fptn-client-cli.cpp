@@ -42,15 +42,17 @@ int main(int argc, char* argv[]) {
   try {
     const std::set<std::string> bypass_methods = {"sni-spoofing", "obfuscation",
         /* chrome */
-        "sni-spoofing-chrome147", "sni-spoofing-chrome146",
-        "sni-spoofing-chrome145",
+        "sni-spoofing-chrome-149", "sni-spoofing-chrome-148",
+        "sni-spoofing-chrome-147", "sni-spoofing-chrome-146",
+        "sni-spoofing-chrome-145",
         /* Firefox */
-        "sni-spoofing-firefox149",
+        "sni-spoofing-firefox-151", "sni-spoofing-firefox-150",
+        "sni-spoofing-firefox-149",
         /* Yandex */
-        "sni-spoofing-yandex26", "sni-spoofing-yandex25",
-        "sni-spoofing-yandex24",
+        "sni-spoofing-yandex-26-4", "sni-spoofing-yandex-26-3",
+        "sni-spoofing-yandex-25", "sni-spoofing-yandex-24",
         /* Safari */
-        "sni-spoofing-safari26"};
+        "sni-spoofing-safari-26-5", "sni-spoofing-safari-26-4"};
     const std::set<std::string> tunnel_modes = {"exclude", "include"};
 
     using fptn::protocol::https::obfuscator::GetObfuscatorByName;
@@ -104,21 +106,35 @@ int main(int argc, char* argv[]) {
             "Method to bypass censorship:\n"
             "  sni-spoofing            - SNI spoofing\n"
             "  obfuscation             - TLS obfuscation\n"
-            "  sni-spoofing-chrome147  - SNI spoofing with Chrome 146 "
+            "  sni-spoofing-chrome-149  - SNI spoofing with Chrome 149 "
             "handshake\n"
-            "  sni-spoofing-chrome146  - SNI spoofing with Chrome 146 "
+            "  sni-spoofing-chrome-148  - SNI spoofing with Chrome 148 "
             "handshake\n"
-            "  sni-spoofing-chrome145  - SNI spoofing with Chrome 145 "
+            "  sni-spoofing-chrome-147  - SNI spoofing with Chrome 146 "
             "handshake\n"
-            "  sni-spoofing-firefox149 - SNI spoofing with Firefox 149 "
+            "  sni-spoofing-chrome-147  - SNI spoofing with Chrome 146 "
             "handshake\n"
-            "  sni-spoofing-yandex26   - SNI spoofing with Yandex 26 "
+            "  sni-spoofing-chrome-146  - SNI spoofing with Chrome 146 "
             "handshake\n"
-            "  sni-spoofing-yandex25   - SNI spoofing with Yandex 25 "
+            "  sni-spoofing-chrome-145  - SNI spoofing with Chrome 145 "
             "handshake\n"
-            "  sni-spoofing-yandex24   - SNI spoofing with Yandex 24 "
+            "  sni-spoofing-firefox-151 - SNI spoofing with Firefox 151 "
             "handshake\n"
-            "  sni-spoofing-safari26   - SNI spoofing with Safari 26 "
+            "  sni-spoofing-firefox-150 - SNI spoofing with Firefox 150 "
+            "handshake\n"
+            "  sni-spoofing-firefox-149 - SNI spoofing with Firefox 149 "
+            "handshake\n"
+            "  sni-spoofing-yandex-26-4   - SNI spoofing with Yandex 26.4 "
+            "handshake\n"
+            "  sni-spoofing-yandex-26-3   - SNI spoofing with Yandex 26.3 "
+            "handshake\n"
+            "  sni-spoofing-yandex-25   - SNI spoofing with Yandex 25 "
+            "handshake\n"
+            "  sni-spoofing-yandex-24   - SNI spoofing with Yandex 24 "
+            "handshake\n"
+            "  sni-spoofing-safari-26-5   - SNI spoofing with Safari 26.5 "
+            "handshake\n"
+            "  sni-spoofing-safari-26-4   - SNI spoofing with Safari 26.4 "
             "handshake\n")
         .action([&bypass_methods](const std::string& v) {
           if (!bypass_methods.contains(v)) {
@@ -256,52 +272,47 @@ int main(int argc, char* argv[]) {
       return EXIT_FAILURE;
     }
 
+    using fptn::protocol::https::CensorshipStrategy;
     const auto bypass_method = args.get<std::string>("--bypass-method");
-    fptn::protocol::https::CensorshipStrategy censorship_strategy =
-        fptn::protocol::https::CensorshipStrategy::kSni;
+    CensorshipStrategy censorship_strategy = CensorshipStrategy::kSni;
     if (bypass_method == "obfuscation") {
-      censorship_strategy =
-          fptn::protocol::https::CensorshipStrategy::kTlsObfuscator;
+      censorship_strategy = CensorshipStrategy::kTlsObfuscator;
     }
     /* Chrome */
-    else if (bypass_method == "sni-spoofing-chrome147") {
-      SPDLOG_INFO("Using Chrome 147 handshake for censorship bypass");
-      censorship_strategy =
-          fptn::protocol::https::CensorshipStrategy::kSniRealityModeChrome147;
-    } else if (bypass_method == "sni-spoofing-chrome146") {
-      SPDLOG_INFO("Using Chrome 146 handshake for censorship bypass");
-      censorship_strategy =
-          fptn::protocol::https::CensorshipStrategy::kSniRealityModeChrome146;
-    } else if (bypass_method == "sni-spoofing-chrome145") {
-      SPDLOG_INFO("Using Chrome 144 handshake for censorship bypass");
-      censorship_strategy =
-          fptn::protocol::https::CensorshipStrategy::kSniRealityModeChrome145;
+    else if (bypass_method == "sni-spoofing-chrome-149") {
+      censorship_strategy = CensorshipStrategy::kSniRealityModeChrome149;
+    } else if (bypass_method == "sni-spoofing-chrome-148") {
+      censorship_strategy = CensorshipStrategy::kSniRealityModeChrome148;
+    } else if (bypass_method == "sni-spoofing-chrome-147") {
+      censorship_strategy = CensorshipStrategy::kSniRealityModeChrome147;
+    } else if (bypass_method == "sni-spoofing-chrome-146") {
+      censorship_strategy = CensorshipStrategy::kSniRealityModeChrome146;
+    } else if (bypass_method == "sni-spoofing-chrome-145") {
+      censorship_strategy = CensorshipStrategy::kSniRealityModeChrome145;
     }
     /* Firefox */
-    else if (bypass_method == "sni-spoofing-firefox149") {
-      SPDLOG_INFO("Using Firefox 149 handshake for censorship bypass");
-      censorship_strategy =
-          fptn::protocol::https::CensorshipStrategy::kSniRealityModeFirefox149;
+    else if (bypass_method == "sni-spoofing-firefox-151") {
+      censorship_strategy = CensorshipStrategy::kSniRealityModeFirefox151;
+    } else if (bypass_method == "sni-spoofing-firefox-150") {
+      censorship_strategy = CensorshipStrategy::kSniRealityModeFirefox150;
+    } else if (bypass_method == "sni-spoofing-firefox149") {
+      censorship_strategy = CensorshipStrategy::kSniRealityModeFirefox149;
     }
     /* Yandex */
-    else if (bypass_method == "sni-spoofing-yandex26") {
-      SPDLOG_INFO("Using Yandex 26 handshake for censorship bypass");
-      censorship_strategy =
-          fptn::protocol::https::CensorshipStrategy::kSniRealityModeYandex26;
-    } else if (bypass_method == "sni-spoofing-yandex25") {
-      SPDLOG_INFO("Using Yandex 25 handshake for censorship bypass");
-      censorship_strategy =
-          fptn::protocol::https::CensorshipStrategy::kSniRealityModeYandex25;
-    } else if (bypass_method == "sni-spoofing-yandex24") {
-      SPDLOG_INFO("Using Yandex 25 handshake for censorship bypass");
-      censorship_strategy =
-          fptn::protocol::https::CensorshipStrategy::kSniRealityModeYandex25;
+    else if (bypass_method == "sni-spoofing-yandex-26-4") {
+      censorship_strategy = CensorshipStrategy::kSniRealityModeYandex26_4;
+    } else if (bypass_method == "sni-spoofing-yandex-26-3") {
+      censorship_strategy = CensorshipStrategy::kSniRealityModeYandex26_3;
+    } else if (bypass_method == "sni-spoofing-yandex-25") {
+      censorship_strategy = CensorshipStrategy::kSniRealityModeYandex25;
+    } else if (bypass_method == "sni-spoofing-yandex-24") {
+      censorship_strategy = CensorshipStrategy::kSniRealityModeYandex24;
     }
     /* Safari */
-    else if (bypass_method == "sni-spoofing-safari26") {
-      SPDLOG_INFO("Using Safari 26 handshake for censorship bypass");
-      censorship_strategy =
-          fptn::protocol::https::CensorshipStrategy::kSniRealityModeSafari26;
+    else if (bypass_method == "sni-spoofing-safari-26-5") {
+      censorship_strategy = CensorshipStrategy::kSniRealityModeSafari26_5;
+    } else if (bypass_method == "sni-spoofing-safari-26-4") {
+      censorship_strategy = CensorshipStrategy::kSniRealityModeSafari26_4;
     }
 
     /* parse network lists */
