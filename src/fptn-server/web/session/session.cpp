@@ -421,16 +421,19 @@ boost::asio::awaitable<bool> Session::IsSniSelfProxyAttempt(
   try {
     const auto server_ips = GetServerIpAddresses(server_external_ips_);
 
-    const auto resolve_result =
-        co_await fptn::common::network::AsyncResolve(sni, "");
-
-    if (!resolve_result.success()) {
+    boost::asio::ip::tcp::resolver resolver(
+        co_await boost::asio::this_coro::executor);
+    boost::system::error_code resolve_ec;
+    const auto resolve_results = co_await resolver.async_resolve(
+        sni, "",
+        boost::asio::redirect_error(boost::asio::use_awaitable, resolve_ec));
+    if (resolve_ec) {
       SPDLOG_WARN("DNS resolution failed for {}: {}", sni,
-          resolve_result.error.message());
+          resolve_ec.message());
     }
 
     // Iterate through resolved endpoints
-    for (const auto& endpoint : resolve_result.results) {
+    for (const auto& endpoint : resolve_results) {
       const auto ip = endpoint.endpoint().address().to_string();
       if (ip.empty()) {
         continue;
