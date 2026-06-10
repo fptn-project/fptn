@@ -33,9 +33,13 @@ enum class CensorshipStrategy : int {
 
 inline bool IsRealityModeWithFakeHandshake(const CensorshipStrategy& strategy) {
   return strategy == CensorshipStrategy::kSniRealityMode ||
+         strategy == CensorshipStrategy::kSniRealityModeChrome149 ||
+         strategy == CensorshipStrategy::kSniRealityModeChrome148 ||
          strategy == CensorshipStrategy::kSniRealityModeChrome147 ||
          strategy == CensorshipStrategy::kSniRealityModeChrome146 ||
          strategy == CensorshipStrategy::kSniRealityModeChrome145 ||
+         strategy == CensorshipStrategy::kSniRealityModeFirefox151 ||
+         strategy == CensorshipStrategy::kSniRealityModeFirefox150 ||
          strategy == CensorshipStrategy::kSniRealityModeFirefox149 ||
          strategy == CensorshipStrategy::kSniRealityModeYandex26_4 ||
          strategy == CensorshipStrategy::kSniRealityModeYandex26_3 ||
