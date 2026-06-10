@@ -524,10 +524,8 @@ pass out on {tunInterfaceName} proto tcp from any to any port 53
     }")PSHELL";
 
   const std::string configure_dns_cmd = R"PSHELL(powershell -Command "
-    $dns4 = ')PSHELL" + config_.dns_server_ipv4.ToString() +
-                                        R"PSHELL(';
-    $dns6 = ')PSHELL" + config_.dns_server_ipv6.ToString() +
-                                        R"PSHELL(';
+    $dns4 = '127.0.0.1';
+    $dns6 = '::1';
     $interface = ')PSHELL" + detected_out_interface_name_ +
                                         R"PSHELL(';
     if (-not $interface) { $interface = ''; }
