@@ -114,19 +114,20 @@ HandshakeCacheManager::FetchRealHandshake(const std::string& sni,
   auto full_response = std::make_shared<std::vector<std::uint8_t>>();
   full_response->reserve(kMaxTotalSize);
   try {
-    // DNS resolution
-    boost::asio::io_context resolve_ioc;
-    const auto resolve_result = fptn::common::network::ResolveWithTimeout(
-        resolve_ioc, sni, "443", timeout.count());
-
-    if (!resolve_result.success()) {
-      SPDLOG_WARN("DNS failed for {}: {}", sni, resolve_result.error.message());
+    // DNS resolution (async — does not block the io_context thread)
+    boost::asio::ip::tcp::resolver resolver(
+        co_await boost::asio::this_coro::executor);
+    boost::system::error_code resolve_ec;
+    const auto resolve_results = co_await resolver.async_resolve(sni, "443",
+        boost::asio::redirect_error(boost::asio::use_awaitable, resolve_ec));
+    if (resolve_ec) {
+      SPDLOG_WARN("DNS failed for {}: {}", sni, resolve_ec.message());
       co_return nullptr;
     }
 
     // Connect to real server
     co_await boost::asio::async_connect(
-        target_socket, resolve_result.results, boost::asio::use_awaitable);
+        target_socket, resolve_results, boost::asio::use_awaitable);
 
     // Send client handshake
     co_await boost::asio::async_write(target_socket,
