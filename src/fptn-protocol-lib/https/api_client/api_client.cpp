@@ -582,8 +582,8 @@ Response ApiClient::GetImpl(const std::string& handle, int timeout) const {
       SPDLOG_ERROR("GET [{}] - DNS resolution failed for {}:{}: {}", handle,
           host_, port_, error);
     } else {
-      SPDLOG_INFO(
-          "GET [{}] - Connecting to server: {}:{}", handle, host_, port_);
+      SPDLOG_INFO("GET [{}] - Connecting to server: {}:{} [strategy={}]",
+          handle, host_, port_, ToString(censorship_strategy_));
 
       boost::beast::get_lowest_layer(stream).expires_after(
           std::chrono::seconds(timeout));
@@ -750,8 +750,8 @@ Response ApiClient::PostImpl(const std::string& handle,
       SPDLOG_ERROR("POST [{}] - DNS resolution failed for {}:{}: {}", handle,
           host_, port_, error);
     } else {
-      SPDLOG_INFO(
-          "POST [{}] - Connecting to server: {}:{}", handle, host_, port_);
+      SPDLOG_INFO("POST [{}] - Connecting to server: {}:{} [strategy={}]",
+          handle, host_, port_, ToString(censorship_strategy_));
 
       boost::beast::get_lowest_layer(stream).expires_after(
           std::chrono::seconds(timeout));
@@ -927,7 +927,8 @@ bool ApiClient::TestHandshakeImpl(int timeout) const {
       return false;
     }
 
-    SPDLOG_INFO("TestHandshake - Connecting to server: {}:{}", host_, port_);
+    SPDLOG_INFO("TestHandshake - Connecting to server: {}:{} [strategy={}]",
+        host_, port_, ToString(censorship_strategy_));
 
     boost::beast::get_lowest_layer(stream).expires_after(
         std::chrono::seconds(timeout));

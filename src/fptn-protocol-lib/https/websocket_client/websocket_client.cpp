@@ -95,8 +95,8 @@ void WebsocketClient::Run() {
     return;
   }
 
-  SPDLOG_INFO(
-      "Connecting to {}:{}", config_.server_ip.ToString(), config_.server_port);
+  SPDLOG_INFO("Connecting to {}:{} [strategy={}]", config_.server_ip.ToString(),
+      config_.server_port, ToString(config_.censorship_strategy));
 
   auto self = weak_from_this();
   boost::asio::co_spawn(
