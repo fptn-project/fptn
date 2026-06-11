@@ -6,6 +6,8 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #pragma once
 
+#include <string>
+
 namespace fptn::protocol::https {
 enum class CensorshipStrategy : int {
   kSni = 0,
@@ -30,6 +32,47 @@ enum class CensorshipStrategy : int {
   kSniRealityModeSafari26_4 = 100,
   kSniRealityModeSafari26_5 = 101
 };
+
+inline std::string ToString(const CensorshipStrategy& strategy) {
+  switch (strategy) {
+    case CensorshipStrategy::kSni:
+      return "SNI";
+    case CensorshipStrategy::kTlsObfuscator:
+      return "TLS Obfuscation";
+    case CensorshipStrategy::kSniRealityMode:
+      return "SNI-Reality";
+    case CensorshipStrategy::kSniRealityModeChrome145:
+      return "Chrome 145";
+    case CensorshipStrategy::kSniRealityModeChrome146:
+      return "Chrome 146";
+    case CensorshipStrategy::kSniRealityModeChrome147:
+      return "Chrome 147";
+    case CensorshipStrategy::kSniRealityModeChrome148:
+      return "Chrome 148";
+    case CensorshipStrategy::kSniRealityModeChrome149:
+      return "Chrome 149";
+    case CensorshipStrategy::kSniRealityModeFirefox149:
+      return "Firefox 149";
+    case CensorshipStrategy::kSniRealityModeFirefox150:
+      return "Firefox 150";
+    case CensorshipStrategy::kSniRealityModeFirefox151:
+      return "Firefox 151";
+    case CensorshipStrategy::kSniRealityModeYandex24:
+      return "Yandex 24";
+    case CensorshipStrategy::kSniRealityModeYandex25:
+      return "Yandex 25";
+    case CensorshipStrategy::kSniRealityModeYandex26_3:
+      return "Yandex 26.3";
+    case CensorshipStrategy::kSniRealityModeYandex26_4:
+      return "Yandex 26.4";
+    case CensorshipStrategy::kSniRealityModeSafari26_4:
+      return "Safari 26.4";
+    case CensorshipStrategy::kSniRealityModeSafari26_5:
+      return "Safari 26.5";
+    default:
+      return "Unknown";
+  }
+}
 
 inline bool IsRealityModeWithFakeHandshake(const CensorshipStrategy& strategy) {
   return strategy == CensorshipStrategy::kSniRealityMode ||
