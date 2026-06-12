@@ -51,16 +51,17 @@ jobs:
         run: |
           cd build
           ctest -C Release
-      - name: Build Debian package
+      - name: Build Debian and RPM packages
         run: |
           cd build
           cmake --build . --target build-deb
           cmake --build . --target build-deb-gui
-      - name: Upload deb RELEASE
+          cmake --build . --target build-rpm
+      - name: Upload deb and rpm RELEASE
         if: github.event_name == 'release'
         uses: AButler/upload-release-assets@v3.0
         with:
-          files: "fptn-*.deb"
+          files: "fptn-*.deb;*.rpm"
           repo-token: ${{ secrets.CI_TOKEN }}
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
@@ -68,6 +69,7 @@ jobs:
           name: Ubuntu86_64Artifacts
           path: |
             *.deb
+            *.rpm
           if-no-files-found: warn
       - name: Build and Push Docker Image (amd64)
         if: github.event_name == 'release'
@@ -123,16 +125,17 @@ jobs:
         run: |
           cd build
           ctest -C Release
-      - name: Build Debian package
+      - name: Build Debian and RPM packages
         run: |
           cd build
           cmake --build . --target build-deb
           cmake --build . --target build-deb-gui
-      - name: Upload deb
+          cmake --build . --target build-rpm
+      - name: Upload deb and rpm
         if: github.event_name == 'release'
         uses: AButler/upload-release-assets@v3.0
         with:
-          files: "fptn-*.deb"
+          files: "fptn-*.deb;*.rpm"
           repo-token: ${{ secrets.CI_TOKEN }}
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
@@ -140,6 +143,7 @@ jobs:
           name: UbuntuArmArtifacts
           path: |
             *.deb
+            *.rpm
           if-no-files-found: warn
       - name: Build and Push Docker Image (arm64)
         if: github.event_name == 'release'

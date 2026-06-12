@@ -159,6 +159,14 @@ if (NOT FPTN_BUILD_ONLY_FPTN_LIB)
                 "${CMAKE_CURRENT_SOURCE_DIR}/deploy/linux/deb/create-client-cli-deb-package.sh ${CMAKE_BINARY_DIR}/src/fptn-client/fptn-client-cli ${FPTN_VERSION}; ${CMAKE_CURRENT_SOURCE_DIR}/deploy/linux/deb/create-server-deb-package.sh ${CMAKE_BINARY_DIR}/src/fptn-server/fptn-server ${CMAKE_BINARY_DIR}/src/fptn-passwd/fptn-passwd ${FPTN_VERSION}"
                 COMMENT "Building .deb package"
                 VERBATIM)
+        add_custom_target(
+                build-rpm
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                COMMAND
+                bash -c
+                "chmod +x ${CMAKE_CURRENT_SOURCE_DIR}/deploy/linux/rpm/create-server-rpm-package.sh && ${CMAKE_CURRENT_SOURCE_DIR}/deploy/linux/rpm/create-server-rpm-package.sh ${CMAKE_BINARY_DIR}/src/fptn-server/fptn-server ${CMAKE_BINARY_DIR}/src/fptn-passwd/fptn-passwd ${FPTN_VERSION}"
+                COMMENT "Building .rpm package"
+                VERBATIM)
         if ("${FPTN_BUILD_WITH_GUI_CLIENT}")
             add_custom_target(
                     build-deb-gui
