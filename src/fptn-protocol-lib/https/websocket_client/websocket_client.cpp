@@ -25,6 +25,7 @@ namespace fptn::protocol::https {
 
 WebsocketClient::WebsocketClient(Config config, int thread_number)
     : ioc_(thread_number),
+      work_guard_(boost::asio::make_work_guard(ioc_)),
       ctx_(https::utils::CreateNewSslCtx()),
       resolver_(boost::asio::make_strand(ioc_)),
       strand_(boost::asio::make_strand(ioc_)),
@@ -111,12 +112,11 @@ void WebsocketClient::Run() {
       },
       boost::asio::detached);
   try {
-    while (running_ || !was_stopped_) {
-      const std::size_t processed = ioc_.poll_one();
-      if (processed == 0) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-      }
-    }
+    // Block until Stop() releases the work guard AND every pending handler has
+    // drained (RunReader/RunSender resumptions, socket-close completions, the
+    // watchdog). Draining is what releases their shared_from_this() captures and
+    // breaks the ioc_<->client reference cycle, so the object can be destroyed.
+    ioc_.run();
   } catch (...) {
     SPDLOG_WARN("Exception while running");
   }
@@ -171,40 +171,40 @@ bool WebsocketClient::Stop() {
     SPDLOG_ERROR("Unknown exception during closing write channel");
   }
 
+  // Ungated by was_inited_: cancels an in-flight Connect()-phase async_resolve,
+  // which is otherwise bounded only by the OS DNS timeout, stalling the drain.
   try {
     SPDLOG_INFO("Closing resolver");
-    if (was_inited_) {
-      resolver_.cancel();
-    }
+    resolver_.cancel();
   } catch (const std::exception&) {
     SPDLOG_DEBUG("Exception cancelling resolver");
   } catch (...) {
     SPDLOG_ERROR("Unknown exception during closing resolver");
   }
 
-  // Close TCP connection
+  // Close TCP connection. Ungated by was_inited_ so a Stop() racing the connect
+  // phase actively aborts the in-flight connect/handshake (closing the socket
+  // errors out the pending op) instead of waiting for the beast timeout.
   try {
-    if (was_inited_) {
-      SPDLOG_INFO("Shutting down TCP socket...");
+    SPDLOG_INFO("Shutting down TCP socket...");
 
-      auto& tcp = boost::beast::get_lowest_layer(ws_);
+    auto& tcp = boost::beast::get_lowest_layer(ws_);
+    if (tcp.socket().is_open()) {
       const boost::asio::socket_base::linger linger(true, 0);
       tcp.socket().set_option(linger);
 
-      if (tcp.socket().is_open()) {
-        tcp.socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
-        if (ec && ec != boost::asio::error::not_connected) {
-          SPDLOG_WARN("TCP socket shutdown error: {}", ec.message());
-        } else {
-          SPDLOG_INFO("TCP socket shutdown successfully");
-        }
+      tcp.socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
+      if (ec && ec != boost::asio::error::not_connected) {
+        SPDLOG_WARN("TCP socket shutdown error: {}", ec.message());
+      } else {
+        SPDLOG_INFO("TCP socket shutdown successfully");
+      }
 
-        tcp.socket().close(ec);
-        if (ec) {
-          SPDLOG_WARN("TCP socket close error: {}", ec.message());
-        } else {
-          SPDLOG_INFO("TCP socket closed successfully");
-        }
+      tcp.socket().close(ec);
+      if (ec) {
+        SPDLOG_WARN("TCP socket close error: {}", ec.message());
+      } else {
+        SPDLOG_INFO("TCP socket closed successfully");
       }
     }
   } catch (const boost::system::system_error& err) {
@@ -236,6 +236,12 @@ bool WebsocketClient::Stop() {
   if (auto* ssl = ws_.next_layer().native_handle()) {
     https::utils::AttachCertificateVerificationCallbackDelete(ssl);
   }
+
+  // Release the work guard so Run()'s ioc_.run() returns once the cancellations
+  // above have drained. The drain releases the RunReader/RunSender coroutines'
+  // shared_from_this(), breaking the ioc_<->client cycle that previously leaked
+  // the entire client (and its multi-MB buffers) on every reconnect.
+  work_guard_.reset();
 
   was_stopped_ = true;
   SPDLOG_INFO("WebSocket client stopped successfully");
