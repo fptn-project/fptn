@@ -21,6 +21,10 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "fptn-protocol-lib/https/api_client/api_client.h"
 #include "fptn-protocol-lib/https/obfuscator/methods/tls2/tls_obfuscator2.h"
 
+#ifdef __APPLE__
+#include <netinet/tcp.h>
+#endif
+
 namespace fptn::protocol::https {
 
 WebsocketClient::WebsocketClient(Config config, int thread_number)
@@ -349,6 +353,25 @@ boost::asio::awaitable<bool> WebsocketClient::Connect() {
     // TCP options
     socket.set_option(boost::asio::ip::tcp::no_delay(true));
     socket.set_option(boost::asio::socket_base::reuse_address(true));
+
+    socket.set_option(boost::asio::socket_base::keep_alive(true));
+
+#ifdef __APPLE__
+    // Darwin-specific TCP keepalive fine-tuning.
+    // Kernel probes run during device sleep — no app CPU needed.
+    {
+        int fd = socket.native_handle();
+        int keepidle = 15;   // idle seconds before first probe
+        int keepintvl = 5;   // seconds between probes
+        int keepcnt  = 3;    // probe count before declaring dead
+        setsockopt(fd, IPPROTO_TCP, TCP_KEEPALIVE, &keepidle,
+                   sizeof(keepidle));
+        setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &keepintvl,
+                   sizeof(keepintvl));
+        setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &keepcnt,
+                   sizeof(keepcnt));
+    }
+#endif
 
     // Optimize socket buffers
     try {

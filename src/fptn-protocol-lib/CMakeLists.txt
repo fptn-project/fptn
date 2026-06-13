@@ -122,7 +122,7 @@ foreach(target "${PROJECT_NAME}_static")
   if (IOS)
     set_target_properties(${target}
       PROPERTIES
-          CXX_STANDARD 17
+          CXX_STANDARD 20
           CXX_STANDARD_REQUIRED ON
           CXX_EXTENSIONS OFF
           XCODE_ATTRIBUTE_ENABLE_BITCODE "NO"
