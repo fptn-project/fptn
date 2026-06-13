@@ -39,7 +39,7 @@
 
         <message>
             <source>Unable to find the default gateway IP address. Please check your connection and make sure no other VPN is active. If the error persists, specify the gateway address in the FPTN settings using your router's IP address, and ensure that an active internet interface (adapter) is selected. If the issue remains unresolved, please contact the developer via Telegram @fptn_chat.</source>
-            <translation>آدرس IP پیش‌فرض网关 یافت نشد. لطفاً اتصال خود را بررسی کرده و مطمئن شوید که هیچ VPN دیگری فعال نیست. در صورت ادامه خطا، آدرس网关 را در تنظیمات FPTN با استفاده از آدرس IP روتر خود مشخص کنید و مطمئن شوید که یک رابط (آداپتور) اینترنتی فعال انتخاب شده است. اگر مشکل همچنان پابرجا بود، از طریق تلگرام @fptn_chat با توسعه‌دهنده تماس بگیرید.</translation>
+            <translation>آدرس IP پیش‌فرض دروازه یافت نشد. لطفاً اتصال خود را بررسی کرده و مطمئن شوید که هیچ VPN دیگری فعال نیست. در صورت ادامه خطا، آدرس دروازه را در تنظیمات FPTN با استفاده از آدرس IP روتر خود مشخص کنید و مطمئن شوید که یک رابط )آداپتور( اینترنتی فعال انتخاب شده است. اگر مشکل همچنان پابرجا بود، از طریق تلگرام @fptn_chat با توسعه‌دهنده تماس بگیرید.</translation>
         </message>
         <message>
             <source>Configuration error</source>
@@ -64,11 +64,11 @@
 
         <message>
             <source>Network Interface (adapter)</source>
-            <translation>رابط شبکه (آداپتور)</translation>
+            <translation>رابط شبکه )آداپتور(</translation>
         </message>
         <message>
             <source>Gateway IP Address (typically your router's address)</source>
-            <translation>آدرس IP网关 (معمولاً آدرس روتر شما)</translation>
+            <translation>آدرس IP دروازه )معمولاً آدرس روتر شما(</translation>
         </message>
         <message>
             <source>Name</source>
@@ -277,71 +277,71 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
         </message>
         <message>
             <source>SNI</source>
-            <translation>جعل دامنه (SNI)</translation>
+            <translation>جعل دامنه )SNI(</translation>
         </message>
         <message>
             <source>OBFUSCATION</source>
-            <translation>پنهان‌سازی ترافیک (obfuscation)</translation>
+            <translation>پنهان‌سازی ترافیک )obfuscation(</translation>
         </message>
         <message>
             <source>SNI-REALITY (Generic)</source>
-            <translation>جعل دامنه (پیش‌فرض)</translation>
+            <translation>جعل دامنه )پیش‌فرض(</translation>
         </message>
         <message>
             <source>SNI-REALITY (Chrome 149)</source>
-            <translation>جعل دامنه (کروم 149)</translation>
+            <translation>جعل دامنه )کروم 149(</translation>
         </message>
         <message>
             <source>SNI-REALITY (Chrome 148)</source>
-            <translation>جعل دامنه (کروم 148)</translation>
+            <translation>جعل دامنه )کروم 148(</translation>
         </message>
         <message>
             <source>SNI-REALITY (Chrome 147)</source>
-            <translation>جعل دامنه (کروم 147)</translation>
+            <translation>جعل دامنه )کروم 147(</translation>
         </message>
         <message>
             <source>SNI-REALITY (Chrome 146)</source>
-            <translation>جعل دامنه (کروم 146)</translation>
+            <translation>جعل دامنه )کروم 146(</translation>
         </message>
         <message>
             <source>SNI-REALITY (Chrome 145)</source>
-            <translation>جعل دامنه (کروم 145)</translation>
+            <translation>جعل دامنه )کروم 145(</translation>
         </message>
         <message>
             <source>SNI-REALITY (Firefox 151)</source>
-            <translation>جعل دامنه (فایرفاکس 151)</translation>
+            <translation>جعل دامنه )فایرفاکس 151(</translation>
         </message>
         <message>
             <source>SNI-REALITY (Firefox 150)</source>
-            <translation>جعل دامنه (فایرفاکس 150)</translation>
+            <translation>جعل دامنه )فایرفاکس 150(</translation>
         </message>
         <message>
             <source>SNI-REALITY (Firefox 149)</source>
-            <translation>جعل دامنه (فایرفاکس 149)</translation>
+            <translation>جعل دامنه )فایرفاکس 149(</translation>
         </message>
         <message>
             <source>SNI-REALITY (Yandex 26.4)</source>
-            <translation>جعل دامنه (یاندکس 26.4)</translation>
+            <translation>جعل دامنه )یاندکس 26.4(</translation>
         </message>
         <message>
             <source>SNI-REALITY (Yandex 26.3)</source>
-            <translation>جعل دامنه (یاندکس 26.3)</translation>
+            <translation>جعل دامنه )یاندکس 26.3(</translation>
         </message>
         <message>
             <source>SNI-REALITY (Yandex 25)</source>
-            <translation>جعل دامنه (یاندکس 25)</translation>
+            <translation>جعل دامنه )یاندکس 25(</translation>
         </message>
         <message>
             <source>SNI-REALITY (Yandex 24)</source>
-            <translation>جعل دامنه (یاندکس 24)</translation>
+            <translation>جعل دامنه )یاندکس 24(</translation>
         </message>
         <message>
             <source>SNI-REALITY (Safari 26.5)</source>
-            <translation>جعل دامنه (سافاری 26.5)</translation>
+            <translation>جعل دامنه )سافاری 26.5(</translation>
         </message>
         <message>
             <source>SNI-REALITY (Safari 26.4)</source>
-            <translation>جعل دامنه (سافاری 26.4)</translation>
+            <translation>جعل دامنه )سافاری 26.4(</translation>
         </message>
 
         <message>
@@ -448,7 +448,7 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
         </message>
         <message>
             <source>Completely block access to the main domain AND all its subdomains. Format: domain:example.com (one per line)</source>
-            <translation>مسدودیت کامل دسترسی به دامنه اصلی و همه زیردامنه‌های آن. قالب: domain:example.com (هر خط یک مورد)</translation>
+            <translation>مسدودیت کامل دسترسی به دامنه اصلی و همه زیردامنه‌های آن. قالب: domain:example.com )هر خط یک مورد(</translation>
         </message>
         <message>
             <source>Exclude tunnel networks</source>
@@ -468,7 +468,7 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
         </message>
         <message>
             <source>Enable split tunnel</source>
-            <translation>فعال کردن تونل تقسیم‌شده (آزمایشی)</translation>
+            <translation>فعال کردن تونل تقسیم‌شده )آزمایشی(</translation>
         </message>
         <message>
             <source>When enabled, you can configure which sites use VPN and which go directly.</source>
@@ -508,7 +508,7 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
         </message>
         <message>
             <source>Enable advanced DNS management</source>
-            <translation>فعال کردن مدیریت پیشرفته DNS (آزمایشی)</translation>
+            <translation>فعال کردن مدیریت پیشرفته DNS )آزمایشی(</translation>
         </message>
         <message>
             <source>Enables advanced DNS configuration to prevent leaks. Recommended when using split tunneling. Use with caution!</source>
