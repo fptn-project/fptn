@@ -17,15 +17,15 @@ class FPTN(ConanFile):
         "argparse/3.2",
         "boost/1.90.0",
         "brotli/1.2.0",
-        "cpp-httplib/0.30.0",
+        "cpp-httplib/0.46.1",
         "fmt/12.1.0",
-        "jwt-cpp/0.7.1",
+        "jwt-cpp/0.7.2",
         "mimalloc/3.3.2",
         "nlohmann_json/3.12.0",
         "protobuf/5.29.3",
         "re2/20251105",
         "spdlog/1.17.0",
-        "zlib/1.3.1",
+        "zlib/1.3.2",
     )
     settings = (
         "os",
@@ -120,21 +120,21 @@ class FPTN(ConanFile):
     def requirements(self):
         self._register_local_recipe("boringssl", "openssl", "boringssl", True, False)
         if self.options.with_gui_client:
-            self.requires("qt/6.7.3")
+            self.requires("qt/6.11.1")
         if self.settings.os != "Windows":
-            self.requires("meson/1.10.0", override=True, force=True)
+            self.requires("meson/1.10.2", override=True, force=True)
         if not self.options.build_only_fptn_lib:
             self.requires("libidn2/2.3.8")
             self.requires("prometheus-cpp/1.3.0")
 
     def build_requirements(self):
-        self.build_requires("cmake/3.22.0", override=True)
+        self.build_requires("cmake/3.31.12", override=True)
         self.tool_requires("protobuf/5.29.3")
 
         self.test_requires("gtest/1.17.0")
 
         if self.settings.os != "Windows":
-            self.build_requires("meson/1.10.0", override=True)
+            self.build_requires("meson/1.10.2", override=True)
 
     def generate(self):
         tc = CMakeToolchain(self)

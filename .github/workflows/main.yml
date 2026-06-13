@@ -32,7 +32,7 @@ jobs:
           sed -i "s/^FPTN_VERSION = \".*\"/FPTN_VERSION = \"$RELEASE_VERSION\"/" conanfile.py
       - name: Install dependencies
         run: |
-          conan install . --output-folder=build --build=missing -o with_gui_client=True --settings build_type=Release -s compiler.cppstd=17
+          conan install . --output-folder=build --build=missing -o with_gui_client=True --settings build_type=Release -s compiler.cppstd=17 -c "tools.build:defines=['QT_NO_INT128']"
       - name: Run cpplint
         run: |
           python3 cpplint.py --recursive --filter=-build/c++17,-whitespace/newline,-readability/braces --counting=total ./src/ ./tests/
@@ -104,7 +104,7 @@ jobs:
           sed -i "s/^FPTN_VERSION = \".*\"/FPTN_VERSION = \"$RELEASE_VERSION\"/" conanfile.py
       - name: Install dependencies
         run: |
-          conan install . --output-folder=build --build=missing -o with_gui_client=True --settings build_type=Release -s compiler.cppstd=17
+          conan install . --output-folder=build --build=missing -o with_gui_client=True --settings build_type=Release -s compiler.cppstd=17 -c "tools.build:defines=['QT_NO_INT128']"
       - name: Run cpplint
         run: |
           python3 cpplint.py --recursive --filter=-build/c++17,-whitespace/newline,-readability/braces --counting=total ./src/ ./tests/

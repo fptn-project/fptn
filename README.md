@@ -131,7 +131,7 @@ You can also deploy your own management and monitoring tools:
 2. Install Conan (version 2.24.0):
 
 ```bash
-pip install conan==2.24.0
+pip install conan
 ```
 
 3. Detect and configure the Conan profile:
@@ -144,16 +144,35 @@ conan profile detect --force
 
 *(For debugging and development purposes, use Debug instead of Release.)*
 
+- Linux:
+
 ```bash
-conan install . --output-folder=build --build=missing  -s compiler.cppstd=17 -o with_gui_client=True --settings build_type=Debug
+conan install . --output-folder=build --build=missing -s compiler.cppstd=17 -o with_gui_client=True --settings build_type=Debug -c "tools.build:defines=['QT_NO_INT128']"
 
 cd build
-
-# Linux & macOS only
 cmake .. -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Debug
-# Windows only
-cmake .. -G "Visual Studio 17 2022" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Debug
+cmake --build . --config Debug
+ctest
+```
 
+- macOS:
+
+```bash
+conan install . --output-folder=build --build=missing -s compiler.cppstd=17 -o with_gui_client=True --settings build_type=Debug
+
+cd build
+cmake .. -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Debug
+cmake --build . --config Debug
+ctest
+```
+
+- Windows:
+
+```bash
+conan install . --output-folder=build --build=missing -s compiler.cppstd=17 -o with_gui_client=True --settings build_type=Debug
+
+cd build
+cmake .. -G "Visual Studio 17 2022" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Debug
 cmake --build . --config Debug
 ctest
 ```
@@ -219,22 +238,3 @@ Our Telegram chat for users and developers: [FPTN Project](https://t.me/fptn_pro
 
 Join the community and the development team!
 
----
-
-## Community Tools
-
-The following tools are built and maintained by the community to extend or simplify working with FPTN.
-
-### fptn-manager
-
-A small external management tool built around FPTN, focused on simplifying deployment and common day-to-day administrative tasks.
-
-It is especially useful for users who prefer not to work directly with Docker commands or internal configuration details.
-
-It provides:
-- A Docker-based installer
-- An interactive CLI for user, password, and token management
-- Easier initial setup and repeated operations
-
-Project repository:  
-https://github.com/FarazFe/fptn-manager

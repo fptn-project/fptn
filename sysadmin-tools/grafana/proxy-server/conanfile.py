@@ -21,7 +21,7 @@ class FptnProxy(ConanFile):
     )
     requires = (
         "argparse/3.2",
-        "cpp-httplib/0.30.0",
+        "cpp-httplib/0.46.1",
         "fmt/12.1.0",
         "nlohmann_json/3.12.0",
     )
