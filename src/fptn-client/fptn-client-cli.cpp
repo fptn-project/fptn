@@ -409,6 +409,8 @@ int main(int argc, char* argv[]) {
     auto http_client = std::make_unique<fptn::vpn::http::Client>(
         fptn::protocol::https::WebsocketClient::Config{.server_ip = server_ip,
             .server_port = selected_server.port,
+            .tun_interface_address_ipv4 = tun_interface_address_ipv4,
+            .tun_interface_address_ipv6 = tun_interface_address_ipv6,
             .sni = sni,
             .expected_md5_fingerprint = selected_server.md5_fingerprint,
             .censorship_strategy = censorship_strategy,
