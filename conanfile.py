@@ -120,7 +120,7 @@ class FPTN(ConanFile):
     def requirements(self):
         self._register_local_recipe("boringssl", "openssl", "boringssl", True, False)
         if self.options.with_gui_client:
-            self.requires("qt/6.11.1")
+            self.requires("qt/6.7.3")
         if self.settings.os != "Windows":
             self.requires("meson/1.10.2", override=True, force=True)
         if not self.options.build_only_fptn_lib:

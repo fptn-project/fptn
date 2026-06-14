@@ -109,8 +109,8 @@ def copy_qt_libraries(frameworks_path: pathlib.Path):
         lib_path = pathlib.Path(lib)
         lib_name = lib_path.name
         if r"qtbase/bin/" in str(lib_path.as_posix()):
-            if r".6.11.1.dll" in lib_name:
-                lib_name = lib_name.replace(".6.11.1.dll", ".6.dll")
+            if r".6.7.3.dll" in lib_name:
+                lib_name = lib_name.replace(".6.7.3.dll", ".6.dll")
             print(f"Copy {lib} -> {frameworks_path / lib_name}")
             shutil.copy(lib, frameworks_path / lib_name)
         elif "qtbase/plugins" in str(lib_path.as_posix()):

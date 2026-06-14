@@ -89,8 +89,8 @@ def create_app(
             lib_path = pathlib.Path(lib)
             lib_name = lib_path.name
             if r"qtbase/lib/" in lib:
-                if r".6.11.1.dylib" in lib_name:
-                    lib_name = lib_name.replace(".6.11.1.dylib", ".6.dylib")
+                if r".6.7.3.dylib" in lib_name:
+                    lib_name = lib_name.replace(".6.7.3.dylib", ".6.dylib")
                 print(f"Copy {lib} -> {frameworks_path / lib_name}")
                 shutil.copy(lib, frameworks_path / lib_name)
             elif "qtbase/plugins/" in str(lib_path):
