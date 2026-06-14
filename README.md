@@ -238,3 +238,23 @@ Our Telegram chat for users and developers: [FPTN Project](https://t.me/fptn_pro
 
 Join the community and the development team!
 
+---
+
+## Community Tools
+
+The following tools are built and maintained by the community to extend or simplify working with FPTN.
+
+### fptn-manager ⚠️ Unmaintained
+
+> This tool has not been updated for a long time and may not work with the current version of FPTN.
+> For server installation and management, use the official instructions on [DockerHub](https://hub.docker.com/r/fptnvpn/fptn-vpn-server).
+
+A small external management tool built around FPTN, focused on simplifying deployment and common day-to-day administrative tasks.
+
+It provides:
+- A Docker-based installer
+- An interactive CLI for user, password, and token management
+- Easier initial setup and repeated operations
+
+Project repository:  
+https://github.com/FarazFe/fptn-manager
