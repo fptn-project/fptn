@@ -43,6 +43,7 @@ using fptn::gui::TrayApp;
 
 namespace {
 
+#ifndef __APPLE__
 QPixmap LoadIcon(const QString& icon_path, int size = 12) {
   QPixmap pixmap(icon_path);
   if (pixmap.isNull()) {
@@ -51,6 +52,7 @@ QPixmap LoadIcon(const QString& icon_path, int size = 12) {
   return pixmap.scaled(
       size, size, Qt::KeepAspectRatio, Qt::SmoothTransformation);
 }
+#endif
 
 void ShowError(const QString& title, const QString& msg) {
   QMessageBox msg_box;
@@ -139,7 +141,9 @@ TrayApp::TrayApp(const SettingsModelPtr& settings, QObject* parent)
 
   // Show connection... label
   connecting_label_action_ = new QAction(QObject::tr("Connecting..."), this);
+#ifndef __APPLE__
   connecting_label_action_->setIcon(LoadIcon(":/icons/menu_connection.png"));
+#endif
   connect(connecting_label_action_, &QAction::triggered, this,
       &TrayApp::handleDefaultState);
 
@@ -149,7 +153,9 @@ TrayApp::TrayApp(const SettingsModelPtr& settings, QObject* parent)
 
   // Disconect
   disconnect_action_ = new QAction(QObject::tr("Disconnect"), this);
+#ifndef __APPLE__
   disconnect_action_->setIcon(LoadIcon(":/icons/menu_disconnect.png"));
+#endif
   connect(disconnect_action_, &QAction::triggered, this,
       &TrayApp::onDisconnectFromServer);
 
@@ -164,7 +170,9 @@ TrayApp::TrayApp(const SettingsModelPtr& settings, QObject* parent)
 
   // Settings
   settings_action_ = new QAction(QObject::tr("Settings"), this);
+#ifndef __APPLE__
   settings_action_->setIcon(LoadIcon(":/icons/menu_settings.png"));
+#endif
   connect(
       settings_action_, &QAction::triggered, this, &TrayApp::onShowSettings);
 
@@ -172,15 +180,19 @@ TrayApp::TrayApp(const SettingsModelPtr& settings, QObject* parent)
   auto_update_action_ = new QAction(
       QObject::tr("New version available") + " " + auto_available_version_,
       this);
+#ifndef __APPLE__
   auto_update_action_->setIcon(
       LoadIcon(":/icons/menu_new_version_download.png"));
+#endif
   connect(auto_update_action_, &QAction::triggered, this,
       [this] { OpenWebBrowser(FPTN_GITHUB_PAGE_LINK); });
   auto_update_action_->setVisible(false);
 
   // Quit
   quit_action_ = new QAction(QObject::tr("Quit"), this);
+#ifndef __APPLE__
   quit_action_->setIcon(LoadIcon(":/icons/menu_exit.png"));
+#endif
   connect(quit_action_, &QAction::triggered, this, &QCoreApplication::quit);
 
   // Show menu
@@ -303,7 +315,9 @@ void TrayApp::UpdateTrayMenu() {
       if (0 != servers_number) {
         smart_connect_action_ =
             new QAction(QObject::tr("Smart Connect"), connect_menu_);
+#ifndef __APPLE__
         smart_connect_action_->setIcon(QIcon(":/icons/ping_green_circle.png"));
+#endif
         connect(smart_connect_action_, &QAction::triggered, [this]() {
           smart_connect_ = true;
           onConnectToServer();
@@ -345,7 +359,9 @@ void TrayApp::UpdateTrayMenu() {
             if (!limited_zone_connect_menu_) {
               limited_zone_connect_menu_ = new QMenu(
                   QObject::tr("Limited access servers") + "  ", connect_menu_);
+#ifndef __APPLE__
               connect_menu_->setIcon(LoadIcon(":/icons/menu_server_list.png"));
+#endif
               connect_menu_->addMenu(limited_zone_connect_menu_);
             }
             auto* server_connect =
