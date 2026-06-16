@@ -279,7 +279,7 @@ boost::asio::awaitable<bool> WebsocketClient::RunInternal() {
       SPDLOG_WARN("Failed to set socket options: {}", e.what());
     }
 
-    boost::beast::get_lowest_layer(ws_).expires_after(std::chrono::hours(24));
+    boost::beast::get_lowest_layer(ws_).expires_after(std::chrono::hours(3));
 
     // Start timer
     StartWatchdog();
@@ -312,7 +312,7 @@ boost::asio::awaitable<bool> WebsocketClient::Connect() {
     boost::system::error_code ec;
 
     // DNS resolution
-    boost::beast::get_lowest_layer(ws_).expires_after(std::chrono::seconds(30));
+    boost::beast::get_lowest_layer(ws_).expires_after(std::chrono::seconds(5));
     const auto server_port_str = std::to_string(config_.server_port);
     const auto results = co_await resolver_.async_resolve(
         config_.server_ip.ToString(), server_port_str,
