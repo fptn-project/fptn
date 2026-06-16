@@ -106,6 +106,7 @@ class RouteManager final {
  private:
   std::string detected_out_interface_name_;
   fptn::common::network::IPv4Address detected_gateway_ipv4_;
+  fptn::common::network::IPv6Address detected_gateway_ipv6_;
 
 #ifdef __linux__
   std::vector<std::string> original_dns_servers_;
