@@ -514,7 +514,8 @@ bool ApiClient::PerformFakeHandshake2(
     }
 
     /* Wait for server answer */
-    const auto server_hello = common::network::WaitForServerTlsHello(socket);
+    const auto server_hello = common::network::WaitForServerTlsHello(
+        socket, std::chrono::milliseconds(1500));
     if (!server_hello.has_value()) {
       SPDLOG_ERROR("Failed to receive ServerHello from {}", sni_);
       return false;

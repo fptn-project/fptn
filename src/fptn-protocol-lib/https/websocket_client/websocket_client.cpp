@@ -674,7 +674,8 @@ boost::asio::awaitable<bool> WebsocketClient::PerformFakeHandshake2() {
 
     /* Wait for server answer */
     const auto server_hello =
-        co_await common::network::WaitForServerTlsHelloAsync(tcp_socket);
+        co_await common::network::WaitForServerTlsHelloAsync(
+            tcp_socket, std::chrono::milliseconds(1500));
     if (!server_hello.has_value()) {
       SPDLOG_ERROR("Failed to receive ServerHello from {}", config_.sni);
       co_return false;
