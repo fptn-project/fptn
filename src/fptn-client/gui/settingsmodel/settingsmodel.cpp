@@ -229,11 +229,11 @@ void SettingsModel::Load(bool dont_load_server) {
     bypass_method_ = service_obj["bypass_method"].toString();
   }
 
-  // /* Replace DEPRECATED METHODS */
-  // if (bypass_method_ == kBypassMethodSni ||
-  //     bypass_method_ == kBypassMethodSniReality) {
-  //   bypass_method_ = kBypassMethodSniRealityYandex25;
-  // }
+  /* Replace DEPRECATED METHODS */
+  if (bypass_method_ == kBypassMethodSni ||
+      bypass_method_ == kBypassMethodSniReality) {
+    bypass_method_ = kBypassMethodSniRealityYandex26_4;
+  }
 
   if (bypass_method_.isEmpty() ||
       (bypass_method_ != kBypassMethodSni &&
@@ -257,7 +257,7 @@ void SettingsModel::Load(bool dont_load_server) {
           /* Safari */
           bypass_method_ != kBypassMethodSniRealitySafari26_5 &&
           bypass_method_ != kBypassMethodSniRealitySafari26_4)) {
-    bypass_method_ = kBypassMethodSniRealityYandex25;  // BYDEFAULT
+    bypass_method_ = kBypassMethodSniRealityYandex26_4;  // BYDEFAULT
   }
 
   if (service_obj.contains("blacklist_domains")) {
@@ -538,7 +538,8 @@ int SettingsModel::GetExistServiceIndex(const QString& name) const {
 }
 
 QString SettingsModel::BypassMethod() const {
-  return bypass_method_.isEmpty() ? kBypassMethodSni : bypass_method_;
+  return bypass_method_.isEmpty() ? kBypassMethodSniRealityYandex26_4
+                                  : bypass_method_;
 }
 
 void SettingsModel::SetBypassMethod(const QString& method) {

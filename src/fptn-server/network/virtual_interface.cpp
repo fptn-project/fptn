@@ -66,8 +66,9 @@ void VirtualInterface::SendBatch(
 }
 
 fptn::common::network::BatchIPPacketPtr VirtualInterface::WaitForPackets(
-    const std::chrono::milliseconds& duration) noexcept {
-  return from_network_.WaitForPackets(duration);
+    const std::chrono::milliseconds& duration,
+    std::size_t max_batch_size) noexcept {
+  return from_network_.WaitForPackets(duration, max_batch_size);
 }
 
 fptn::common::network::IPPacketPtr VirtualInterface::WaitForPacket(

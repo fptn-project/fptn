@@ -34,7 +34,8 @@ class VirtualInterface final {
   void SendBatch(fptn::common::network::BatchIPPacketPtr packets) noexcept;
 
   common::network::BatchIPPacketPtr WaitForPackets(
-      const std::chrono::milliseconds& duration) noexcept;
+      const std::chrono::milliseconds& duration,
+      std::size_t max_batch_size = 64) noexcept;
   common::network::IPPacketPtr WaitForPacket(
       const std::chrono::milliseconds& duration) noexcept;
 

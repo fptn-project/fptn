@@ -55,6 +55,7 @@ class VpnManager final {
 
  private:
   mutable std::mutex mutex_;
+  mutable std::mutex queue_mutex_;
   std::atomic<bool> running_;
 
   Config config_;

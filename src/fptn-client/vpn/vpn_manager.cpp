@@ -191,7 +191,7 @@ void VpnManager::HandleOnPacketFromWebSocket(
 
   constexpr std::size_t kMaxQueueSize = 512;
 
-  std::unique_lock<std::mutex> lock(mutex_);  // mutex
+  std::unique_lock<std::mutex> lock(queue_mutex_);
 
   if (ws_packet_queue_.size() >= kMaxQueueSize) {
     SPDLOG_WARN("WebSocket packet queue is full, dropping packet");
@@ -204,42 +204,50 @@ void VpnManager::HandleOnPacketFromWebSocket(
 }
 
 void VpnManager::ProcessWebSocketPackets() {
-  fptn::common::network::IPPacketPtr packet;
   while (running_) {
+    fptn::common::network::BatchIPPacketPtr batch;
     {
-      std::unique_lock<std::mutex> lock(mutex_);  // mutex
-
+      std::unique_lock<std::mutex> lock(queue_mutex_);  // mutex
       ws_queue_cv_.wait(
           lock, [this]() { return !ws_packet_queue_.empty() || !running_; });
       if (!running_ && ws_packet_queue_.empty()) {
         break;
       }
-      if (!ws_packet_queue_.empty()) {
-        packet = std::move(ws_packet_queue_.front());
+      while (!ws_packet_queue_.empty()) {
+        batch.push_back(std::move(ws_packet_queue_.front()));
         ws_packet_queue_.pop();
       }
     }
 
-    if (!packet) {
+    if (batch.empty()) {
       continue;
     }
 
-    for (const auto& plugin : config_.plugins) {
-      if (packet) {
-        auto [processed_packet, triggered] =
-            plugin->HandlePacket(std::move(packet));
-        packet = std::move(processed_packet);
-        if (triggered) {
-          break;
+    fptn::common::network::BatchIPPacketPtr to_send;
+    to_send.reserve(batch.size());
+    for (auto& packet : batch) {
+      for (const auto& plugin : config_.plugins) {
+        if (packet) {
+          auto [processed_packet, triggered] =
+              plugin->HandlePacket(std::move(packet));
+          packet = std::move(processed_packet);
+          if (triggered) {
+            break;
+          }
         }
+      }
+      if (packet) {
+        to_send.push_back(std::move(packet));
       }
     }
 
-    if (packet) {
-      const std::unique_lock<std::mutex> lock(mutex_);  // mutex
+    if (!to_send.empty()) {
+      const std::unique_lock<std::mutex> lock(mutex_);
       // cppcheck-suppress knownConditionTrueFalse
       if (running_ && config_.virtual_net_interface) {
-        config_.virtual_net_interface->Send(std::move(packet));
+        for (auto& packet : to_send) {
+          config_.virtual_net_interface->Send(std::move(packet));
+        }
       }
     }
   }

@@ -40,7 +40,7 @@ int main(int argc, char* argv[]) {
   }
 #endif
   try {
-    const std::set<std::string> bypass_methods = {"sni-spoofing", "obfuscation",
+    const std::set<std::string> bypass_methods = {"obfuscation",
         /* chrome */
         "sni-spoofing-chrome-149", "sni-spoofing-chrome-148",
         "sni-spoofing-chrome-147", "sni-spoofing-chrome-146",
@@ -101,18 +101,15 @@ int main(int argc, char* argv[]) {
             "Example: domain:ria.ru blocks ria.ru and all *.ria.ru sites");
     // Method to bypass censorship
     args.add_argument("--bypass-method")
-        .default_value("sni-spoofing")
+        .default_value("sni-spoofing-yandex-26-4")
         .help(
             "Method to bypass censorship:\n"
-            "  sni-spoofing            - SNI spoofing\n"
             "  obfuscation             - TLS obfuscation\n"
             "  sni-spoofing-chrome-149  - SNI spoofing with Chrome 149 "
             "handshake\n"
             "  sni-spoofing-chrome-148  - SNI spoofing with Chrome 148 "
             "handshake\n"
-            "  sni-spoofing-chrome-147  - SNI spoofing with Chrome 146 "
-            "handshake\n"
-            "  sni-spoofing-chrome-147  - SNI spoofing with Chrome 146 "
+            "  sni-spoofing-chrome-147  - SNI spoofing with Chrome 147 "
             "handshake\n"
             "  sni-spoofing-chrome-146  - SNI spoofing with Chrome 146 "
             "handshake\n"
@@ -124,17 +121,17 @@ int main(int argc, char* argv[]) {
             "handshake\n"
             "  sni-spoofing-firefox-149 - SNI spoofing with Firefox 149 "
             "handshake\n"
-            "  sni-spoofing-yandex-26-4   - SNI spoofing with Yandex 26.4 "
+            "  sni-spoofing-yandex-26-4 - SNI spoofing with Yandex 26.4 "
             "handshake\n"
-            "  sni-spoofing-yandex-26-3   - SNI spoofing with Yandex 26.3 "
+            "  sni-spoofing-yandex-26-3 - SNI spoofing with Yandex 26.3 "
             "handshake\n"
             "  sni-spoofing-yandex-25   - SNI spoofing with Yandex 25 "
             "handshake\n"
             "  sni-spoofing-yandex-24   - SNI spoofing with Yandex 24 "
             "handshake\n"
-            "  sni-spoofing-safari-26-5   - SNI spoofing with Safari 26.5 "
+            "  sni-spoofing-safari-26-5 - SNI spoofing with Safari 26.5 "
             "handshake\n"
-            "  sni-spoofing-safari-26-4   - SNI spoofing with Safari 26.4 "
+            "  sni-spoofing-safari-26-4 - SNI spoofing with Safari 26.4 "
             "handshake\n")
         .action([&bypass_methods](const std::string& v) {
           if (!bypass_methods.contains(v)) {
@@ -274,7 +271,8 @@ int main(int argc, char* argv[]) {
 
     using fptn::protocol::https::CensorshipStrategy;
     const auto bypass_method = args.get<std::string>("--bypass-method");
-    CensorshipStrategy censorship_strategy = CensorshipStrategy::kSni;
+    CensorshipStrategy censorship_strategy =
+        CensorshipStrategy::kSniRealityModeYandex26_4;
     if (bypass_method == "obfuscation") {
       censorship_strategy = CensorshipStrategy::kTlsObfuscator;
     }
@@ -299,9 +297,10 @@ int main(int argc, char* argv[]) {
       censorship_strategy = CensorshipStrategy::kSniRealityModeFirefox149;
     }
     /* Yandex */
-    else if (bypass_method == "sni-spoofing-yandex-26-4") {
-      censorship_strategy = CensorshipStrategy::kSniRealityModeYandex26_4;
-    } else if (bypass_method == "sni-spoofing-yandex-26-3") {
+    // else if (bypass_method == "sni-spoofing-yandex-26-4") {
+    //   censorship_strategy = CensorshipStrategy::kSniRealityModeYandex26_4;
+    // }
+    else if (bypass_method == "sni-spoofing-yandex-26-3") {
       censorship_strategy = CensorshipStrategy::kSniRealityModeYandex26_3;
     } else if (bypass_method == "sni-spoofing-yandex-25") {
       censorship_strategy = CensorshipStrategy::kSniRealityModeYandex25;

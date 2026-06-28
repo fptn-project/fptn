@@ -163,8 +163,6 @@ void SettingsWidget::SetupUi() {
       new QLabel(QObject::tr("Bypass blocking method"), this);
   bypass_method_combo_box_ = new QComboBox(this);
   bypass_method_combo_box_->addItem(
-      QObject::tr("SNI"), SettingsModel::kBypassMethodSni);
-  bypass_method_combo_box_->addItem(
       QObject::tr("OBFUSCATION"), SettingsModel::kBypassMethodObfuscation);
   /* Chrome */
   bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Chrome 149)"),
@@ -204,11 +202,7 @@ void SettingsWidget::SetupUi() {
   bypass_method_combo_box_->setMinimumWidth(200);
 
   const QString current_method = settings_->BypassMethod();
-  if (current_method == SettingsModel::kBypassMethodSni) {
-    bypass_method_combo_box_->setCurrentText(QObject::tr("SNI"));
-  }
-  /* Obfuscation */
-  else if (current_method == SettingsModel::kBypassMethodObfuscation) {
+  if (current_method == SettingsModel::kBypassMethodObfuscation) {
     bypass_method_combo_box_->setCurrentText(QObject::tr("OBFUSCATION"));
   }
   /* Chrome */
@@ -265,11 +259,6 @@ void SettingsWidget::SetupUi() {
              SettingsModel::kBypassMethodSniRealitySafari26_4) {
     bypass_method_combo_box_->setCurrentText(
         QObject::tr("SNI-REALITY (Safari 26.4)"));
-  }
-  /* Default */
-  else {
-    bypass_method_combo_box_->setCurrentText(
-        QObject::tr("SNI-REALITY (Yandex 25)"));
   }
 
   connect(bypass_method_combo_box_, &QComboBox::currentTextChanged, this,

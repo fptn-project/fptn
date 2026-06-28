@@ -476,7 +476,7 @@ boost::asio::awaitable<bool> WebsocketClient::Connect() {
     try {
       boost::beast::websocket::stream_base::timeout timeout_option;
       timeout_option.handshake_timeout = std::chrono::seconds(10);
-      timeout_option.idle_timeout = std::chrono::seconds(5);
+      timeout_option.idle_timeout = std::chrono::seconds(15);
       timeout_option.keep_alive_pings = true;
       ws_.set_option(timeout_option);
     } catch (const std::exception& e) {

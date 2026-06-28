@@ -96,7 +96,7 @@ Session::Session(std::uint16_t port,
       ws_(ssl_stream_type(
           obfuscator_socket_type(tcp_stream_type(std::move(socket))), ctx)),
       strand_(boost::asio::make_strand(ws_.get_executor())),
-      write_channel_(strand_, 512),
+      write_channel_(strand_, 1024),
       api_handles_(api_handles),
       handshake_cache_manager_(std::move(handshake_cache_manager)),
       ws_open_callback_(std::move(ws_open_callback)),
@@ -755,7 +755,7 @@ boost::asio::awaitable<void> Session::RunReader() {
 }
 
 boost::asio::awaitable<void> Session::RunSender() {
-  constexpr std::size_t kMaxBatchSize = 32;
+  constexpr std::size_t kMaxBatchSize = 64;
   auto token = boost::asio::bind_cancellation_slot(
       cancel_signal_.slot(), boost::asio::as_tuple(boost::asio::use_awaitable));
   try {
@@ -1142,6 +1142,22 @@ void Session::Send(common::network::IPPacketPtr pkt) {
   if (!status && !full_queue_) {
     full_queue_ = true;
     SPDLOG_WARN("Session::send queue is full (client_id={})", client_id_);
+  }
+}
+
+void Session::SendBatch(common::network::BatchIPPacketPtr pkts) {
+  if (!running_.load(std::memory_order_acquire)) {
+    return;
+  }
+
+  boost::system::error_code ec;
+  for (auto& pkt : pkts) {
+    if (!pkt) continue;
+    const bool status = write_channel_.try_send(ec, std::move(pkt));
+    if (!status && !full_queue_) {
+      full_queue_ = true;
+      SPDLOG_WARN("Session::send queue is full (client_id={})", client_id_);
+    }
   }
 }
 

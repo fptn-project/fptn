@@ -1,7 +1,7 @@
 services:
   fptn-server:
     restart: unless-stopped
-    image: fptnvpn/fptn-vpn-server:latest
+    image: fptnvpn/fptn-vpn-server:0.4.2
     privileged: true
     cap_add:
       - NET_ADMIN
@@ -10,7 +10,7 @@ services:
       - SYS_ADMIN
       - SYS_RESOURCE
     sysctls:
-      net.ipv4.ip_local_port_range: "1024 65535"
+      net.ipv4.ip_local_port_range: "6890 65535"
     ulimits:
       nproc:
         soft: 524288

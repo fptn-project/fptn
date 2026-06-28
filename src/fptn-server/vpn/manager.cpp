@@ -6,6 +6,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include "vpn/manager.h"
 
+#include <unordered_map>
 #include <utility>
 
 using fptn::vpn::Manager;
@@ -76,16 +77,20 @@ bool Manager::Start() {
 }
 
 void Manager::RunToClient() const {
-  constexpr std::chrono::milliseconds kTimeout{100};
+  constexpr std::chrono::milliseconds kTimeout{10};
 
   while (running_) {
-    auto packets = network_interface_->WaitForPackets(kTimeout);
+    auto packets = network_interface_->WaitForPackets(kTimeout, 256);
+
+    // Group packets by web session to send each session a batch at once
+    std::unordered_map<fptn::ClientID, common::network::BatchIPPacketPtr>
+        batches;
+
     for (auto& packet : packets) {
       if (!packet || (!packet->IsIPv4() && !packet->IsIPv6())) {
         continue;
       }
 
-      // get session using "fake" client address
       fptn::client::SessionSPtr nat_session = nullptr;
       if (packet->IsIPv4()) {
         nat_session = nat_->GetSessionByFakeIPv4(packet->GetDstIPv4Address());
@@ -97,19 +102,23 @@ void Manager::RunToClient() const {
         continue;
       }
 
-      // check shaper
       auto& shaper = nat_session->TrafficShaperToClient();
       if (shaper && !shaper->CheckSpeedLimit(packet->Size())) {
         continue;
       }
+
       packet = nat_session->ChangeIPAddressToClientIP(std::move(packet));
-      if (!packet && running_) {
+      if (!packet) {
         continue;
       }
-      auto web_session = web_server_->GetSessionById(packet->ClientId());
-      // send
-      if (web_session && running_) {
-        web_session->Send(std::move(packet));
+
+      const auto client_id = packet->ClientId();
+      batches[client_id].push_back(std::move(packet));
+    }
+    for (auto& [client_id, batch] : batches) {
+      auto web_session = web_server_->GetSessionById(client_id);
+      if (web_session) {
+        web_session->SendBatch(std::move(batch));
       }
     }
   }
@@ -147,18 +156,17 @@ void Manager::RunFromClient() const {
       // filter
       packet = filter_->Apply(std::move(packet));
 
-      // prepare for send
       if (packet) {
         packet = session->ChangeIPAddressToFakeIP(std::move(packet));
-        network_interface_->Send(std::move(packet));
-        // prepared_batch.emplace_back(std::move(packet));
+        if (packet) {
+          prepared_batch.emplace_back(std::move(packet));
+        }
       }
     }
 
-    // // send data
-    // if (!prepared_batch.empty() && running_) {
-    //   network_interface_->SendBatch(std::move(prepared_batch));
-    // }
+    if (!prepared_batch.empty() && running_) {
+      network_interface_->SendBatch(std::move(prepared_batch));
+    }
   }
 }
 

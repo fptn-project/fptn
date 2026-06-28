@@ -174,7 +174,7 @@ void Client::Run() {
   // Time window for counting attempts (1 minute)
   constexpr auto kReconnectionWindow = std::chrono::seconds(120);
   // Delay between reconnection attempts
-  constexpr auto kReconnectionDelay = std::chrono::milliseconds(300);
+  constexpr auto kReconnectionDelay = std::chrono::milliseconds(500);
 
   // Current count of reconnection attempts
   reconnection_attempts_ = kMaxReconnectionAttempts_;
