@@ -221,8 +221,9 @@ inline bool IsClientHelloComplete(const std::vector<std::uint8_t>& data) {
 //   Finished).
 // ---------------------------------------------------------------------------
 inline bool IsServerHelloComplete(const std::vector<std::uint8_t>& data) {
-  if (data.size() < 5) return false;
-
+  if (data.size() < 5) {
+    return false;
+  }
   std::size_t pos = 0;
   bool found_server_hello = false;
   bool is_tls13 = false;
@@ -247,8 +248,9 @@ inline bool IsServerHelloComplete(const std::vector<std::uint8_t>& data) {
             (static_cast<std::uint32_t>(data[hpos + 1]) << 16) |
             (static_cast<std::uint32_t>(data[hpos + 2]) << 8) | data[hpos + 3];
 
-        if (hpos + 4 + msg_len > hend) return false;
-
+        if (hpos + 4 + msg_len > hend) {
+          return false;
+        }
         if (msg_type == 2) {  // ServerHello
           found_server_hello = true;
           // Must parse supported_versions extension — legacy_version is always

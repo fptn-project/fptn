@@ -146,6 +146,7 @@ class Session : public std::enable_shared_from_this<Session> {
   std::atomic<bool> full_queue_;
 
   bool support_batch_sending_;
+  bool use_yaff_serializer_;
 
   boost::asio::cancellation_signal cancel_signal_;
 };

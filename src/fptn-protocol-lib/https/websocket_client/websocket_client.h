@@ -27,7 +27,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "fptn-protocol-lib/https/censorship_strategy.h"
 #include "fptn-protocol-lib/https/obfuscator/tcp_stream/tcp_stream.h"
 #include "fptn-protocol-lib/https/utils/tls/tls.h"
-#include "fptn-protocol-lib/protobuf/protocol.h"
+#include "fptn-protocol-lib/protocol/protobuf/protobuf_serializer.h"
 
 namespace fptn::protocol::https {
 

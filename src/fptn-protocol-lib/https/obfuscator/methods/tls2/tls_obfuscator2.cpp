@@ -22,7 +22,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 namespace {
 
-constexpr std::size_t kMmaxBufferSize = 65536;
+constexpr std::size_t kMmaxBufferSize = 1024 * 256;
 
 enum {
   kFptnTlsApplicationHeaderType = 0x17,

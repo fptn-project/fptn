@@ -42,7 +42,7 @@ class Server final {
       std::vector<std::string> allowed_sni_list,
       std::size_t max_active_sessions_per_user,
       std::string server_external_ips,
-      int thread_number = 12);
+      int thread_number = 16);
   ~Server();
   bool Start();
   bool Stop();

@@ -33,8 +33,9 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "fptn-protocol-lib/https/obfuscator/methods/tls/tls_obfuscator.h"
 #include "fptn-protocol-lib/https/obfuscator/methods/tls2/tls_obfuscator2.h"
 #include "fptn-protocol-lib/https/utils/tls/tls.h"
-#include "fptn-protocol-lib/protobuf/protocol.h"
+#include "fptn-protocol-lib/protocol/protobuf/protobuf_serializer.h"
 #include "fptn-protocol-lib/time/time_provider.h"
+#include "fptn-protocol-lib/protocol/yaff/yaff_serializer.h"
 
 namespace {
 std::atomic<fptn::ClientID> client_id_counter = 0;
@@ -106,7 +107,8 @@ Session::Session(std::uint16_t port,
       init_completed_(false),
       ws_session_was_opened_(false),
       full_queue_(false),
-      support_batch_sending_(false) {
+      support_batch_sending_(false),
+      use_yaff_serializer_(false) {
   try {
     client_id_ = ++client_id_counter;
     boost::beast::get_lowest_layer(ws_).socket().set_option(
@@ -216,6 +218,12 @@ boost::asio::awaitable<void> Session::Run() {
         Close();
         co_return;
       }
+
+      // Refresh the beast timeout: the construction-time deadline was already
+      // partly spent on probing and DNS, so give the fake handshake a full,
+      // fresh budget instead of a stale one that can cancel its reads midway.
+      boost::beast::get_lowest_layer(ws_).expires_after(
+          std::chrono::seconds(10));
 
       bool reality_success = false;
       if (result.is_reality_mode) {
@@ -424,12 +432,11 @@ boost::asio::awaitable<bool> Session::IsSniSelfProxyAttempt(
     boost::asio::ip::tcp::resolver resolver(
         co_await boost::asio::this_coro::executor);
     boost::system::error_code resolve_ec;
-    const auto resolve_results = co_await resolver.async_resolve(
-        sni, "",
+    const auto resolve_results = co_await resolver.async_resolve(sni, "",
         boost::asio::redirect_error(boost::asio::use_awaitable, resolve_ec));
     if (resolve_ec) {
-      SPDLOG_WARN("DNS resolution failed for {}: {}", sni,
-          resolve_ec.message());
+      SPDLOG_WARN(
+          "DNS resolution failed for {}: {}", sni, resolve_ec.message());
     }
 
     // Iterate through resolved endpoints
@@ -724,7 +731,9 @@ boost::asio::awaitable<void> Session::RunReader() {
         if (support_batch_sending_) {
           // BATCH MODE
           auto batch_packets =
-              fptn::protocol::protobuf::DeserializeBatchIPPacket(buffer);
+              use_yaff_serializer_
+                  ? fptn::protocol::yaff::DeserializeBatchIPPacket(buffer)
+                  : fptn::protocol::protobuf::DeserializeBatchIPPacket(buffer);
           for (auto& raw_ip : batch_packets) {
             auto packet = fptn::common::network::IPPacket::Parse(
                 std::move(raw_ip), client_id_);
@@ -781,8 +790,12 @@ boost::asio::awaitable<void> Session::RunSender() {
           }
         }
         if (!packets.empty()) {
-          auto batch_data = fptn::protocol::protobuf::SerializeBatchIPPacket(
-              std::move(packets));
+          auto batch_data =
+              use_yaff_serializer_
+                  ? fptn::protocol::yaff::SerializeBatchIPPacket(
+                        std::move(packets))
+                  : fptn::protocol::protobuf::SerializeBatchIPPacket(
+                        std::move(packets));
           if (batch_data.has_value()) {
             co_await ws_.async_write(boost::asio::buffer(batch_data.value()),
                 boost::asio::use_awaitable);
@@ -1006,6 +1019,10 @@ boost::asio::awaitable<bool> Session::HandleWebSocket2(
       nat_session->DisableChecksumCalculation(true);
       ws_session_was_opened_ = true;
       support_batch_sending_ = true;
+      use_yaff_serializer_ =
+          request.contains("X-Serializer") && request["X-Serializer"] == "yaff";
+      SPDLOG_INFO("Session serializer: {} (client_id={})",
+          use_yaff_serializer_ ? "yaff" : "protobuf", client_id_);
 
       if (nat_session) {
         co_await ws_.async_accept(request,
@@ -1018,9 +1035,14 @@ boost::asio::awaitable<bool> Session::HandleWebSocket2(
       SPDLOG_INFO("Successfully connected to {}", client_ip.ToString());
 
       // send IP address to client
-      const auto message = protocol::protobuf::SerializeIPAssignmentMessage(
-          nat_session->FakeClientIPv4().ToString(),
-          nat_session->FakeClientIPv6().ToString());
+      const auto message =
+          use_yaff_serializer_
+              ? protocol::yaff::SerializeIPAssignmentMessage(
+                    nat_session->FakeClientIPv4().ToString(),
+                    nat_session->FakeClientIPv6().ToString())
+              : protocol::protobuf::SerializeIPAssignmentMessage(
+                    nat_session->FakeClientIPv4().ToString(),
+                    nat_session->FakeClientIPv6().ToString());
 
       if (message.has_value()) {
         co_await ws_.async_write(

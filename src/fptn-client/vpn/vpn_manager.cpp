@@ -189,7 +189,7 @@ void VpnManager::HandleOnPacketFromWebSocket(
     return;
   }
 
-  constexpr std::size_t kMaxQueueSize = 512;
+  constexpr std::size_t kMaxQueueSize = 1024 * 16;
 
   std::unique_lock<std::mutex> lock(queue_mutex_);
 

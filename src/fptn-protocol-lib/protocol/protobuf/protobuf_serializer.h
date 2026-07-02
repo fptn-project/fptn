@@ -8,29 +8,18 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include <optional>
 #include <string>
-#include <vector>
 
 #include <boost/beast/core/flat_buffer.hpp>
 
-#ifdef USING_MIMALLOC
-#include <mimalloc.h>  // NOLINT(build/include_order)
-#endif
-
 #include "common/network/ip_packet.h"
-#include "common/utils/utils.h"
+
+#include "fptn-protocol-lib/protocol/payload.h"
 
 namespace fptn::protocol::protobuf {
 
-#ifdef USING_MIMALLOC
-using ProtoPayload = std::vector<std::uint8_t, mi_stl_allocator<std::uint8_t>>;
-using ProtoPayloadOpt = std::optional<ProtoPayload>;
-using BatchProtoPayload = std::vector<ProtoPayload,
-  mi_stl_allocator<ProtoPayload>>;  // NOLINT
-#else
-using ProtoPayload = std::vector<std::uint8_t>;
-using ProtoPayloadOpt = std::optional<ProtoPayload>;
-using BatchProtoPayload = std::vector<ProtoPayload>;
-#endif
+using protocol::BatchProtoPayload;
+using protocol::ProtoPayload;
+using protocol::ProtoPayloadOpt;
 
 // DEPRECATED
 ProtoPayloadOpt DeserializeIPPacket(const boost::beast::flat_buffer& buffer);

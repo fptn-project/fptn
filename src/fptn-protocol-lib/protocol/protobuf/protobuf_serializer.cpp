@@ -4,9 +4,11 @@ Copyright (c) 2024-2026 Stas Skokov
 Distributed under the MIT License (https://opensource.org/licenses/MIT)
 =============================================================================*/
 
-#include "fptn-protocol-lib/protobuf/protocol.h"
+#include "fptn-protocol-lib/protocol/protobuf/protobuf_serializer.h"
 
 #include <algorithm>
+#include <array>
+#include <chrono>
 #include <memory>
 #include <random>
 #include <string>
@@ -46,15 +48,6 @@ class ArenaManager {
   std::size_t count_{0};
   std::unique_ptr<google::protobuf::Arena> arena_;
 };
-
-const std::vector<std::uint8_t>& RandomPaddingData() {
-  static const std::vector<std::uint8_t> kRandomData = [] {
-    std::vector<std::uint8_t> data(FPTN_IP_PACKET_MAX_SIZE, 0);
-    fptn::common::utils::GenerateRandomBytes(data.data(), data.size());
-    return data;
-  }();
-  return kRandomData;
-}
 
 }  // namespace
 
@@ -132,20 +125,27 @@ ProtoPayloadOpt SerializeIPPacket(fptn::common::network::IPPacketPtr packet) {
   message->mutable_packet()->set_payload(
       data.data(), static_cast<int>(data.size()));
 
+#ifdef FPTN_ENABLE_PACKET_PADDING
   if (data.size() < FPTN_IP_PACKET_MAX_SIZE) {
-    /**
-     * Fill with random data to prevent issues related to TLS-inside-TLS.
-     */
+    // Random-length padding to obscure packet size (TLS-inside-TLS).
+    constexpr std::size_t kMinPaddingBytes = 64;
     constexpr std::size_t kMaxPaddingBytes = 128;
-    const std::size_t available_space = FPTN_IP_PACKET_MAX_SIZE - data.size();
-    const std::size_t padding_size =
-        std::min(kMaxPaddingBytes, available_space);
-    if (padding_size > 0) {
-      const auto& padding_data = RandomPaddingData();
-      message->mutable_packet()->set_padding_data(
-          reinterpret_cast<const char*>(padding_data.data()), padding_size);
-    }
+    static const std::array<char, kMaxPaddingBytes> kPadding = [] {
+      std::array<char, kMaxPaddingBytes> buf{};
+      fptn::common::utils::GenerateRandomBytes(
+          reinterpret_cast<std::uint8_t*>(buf.data()), buf.size());
+      return buf;
+    }();
+    const auto ts = static_cast<std::size_t>(
+        std::chrono::steady_clock::now().time_since_epoch().count());
+    // Keep payload + padding within the IP packet limit (below the MTU).
+    const std::size_t available = FPTN_IP_PACKET_MAX_SIZE - data.size();
+    const std::size_t padding_size = std::min(
+        kMinPaddingBytes + (ts % (kMaxPaddingBytes - kMinPaddingBytes)),
+        available);
+    message->mutable_packet()->set_padding_data(kPadding.data(), padding_size);
   }
+#endif
   const std::size_t estimated_size = message->ByteSizeLong();
   if (estimated_size == 0) {
     SPDLOG_ERROR("Failed to serialize Message: estimated size is 0");
