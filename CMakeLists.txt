@@ -30,15 +30,16 @@ if(MSVC)
   add_compile_definitions(_WIN32_WINNT=0x0A00)  # Windows 10
 endif()
 
-# Global project definitions
+if (FPTN_WITH_MIMALLOC)
+    add_definitions(-DUSING_MIMALLOC)
+endif()
 
-if (FPTN_BUILD_ONLY_FPTN_LIB)
-else()
-  add_definitions(-DUSING_MIMALLOC)
+if (NOT FPTN_BUILD_ONLY_FPTN_LIB)
   set(FPTN_WITH_LIBIDN2 ON)
   add_compile_definitions(FPTN_WITH_LIBIDN2)
 endif()
 
+# Global project definitions
 add_compile_definitions(FPTN_VERSION=\"${FPTN_VERSION}\")
 add_compile_definitions(FPTN_DEFAULT_MTU_SIZE=1420)
 add_compile_definitions(FPTN_DEFAULT_SNI=\"rutube.ru\")

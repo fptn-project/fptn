@@ -28,7 +28,9 @@ find_package(OpenSSL REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(fmt REQUIRED)
 find_package(re2 REQUIRED)
-find_package(mimalloc REQUIRED)
+if (FPTN_WITH_MIMALLOC)
+  find_package(mimalloc REQUIRED)
+endif()
 
 find_package(Boost REQUIRED COMPONENTS random filesystem nowide locale)
 find_package(ZLIB REQUIRED)
@@ -148,10 +150,13 @@ foreach(target "${PROJECT_NAME}_static")
     spdlog::spdlog
     fmt::fmt
     re2::re2
-    mimalloc-static
     ntp_client
     camouflage-tls
     ${LIBIDN2_LIB}
     ${IOS_LIBS}
   )
+
+  if (FPTN_WITH_MIMALLOC)
+    target_link_libraries(${target} mimalloc-static)
+  endif()
 endforeach()
