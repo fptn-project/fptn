@@ -78,7 +78,10 @@ yaff_generate(
   OUT_VAR YAFF_SRCS
 )
 set_source_files_properties(${YAFF_SRCS} PROPERTIES SKIP_CLANG_TIDY ON)
-if(NOT MSVC)
+if(MSVC)
+  set_source_files_properties(${YAFF_SRCS} protocol/yaff/yaff_serializer.cpp
+      PROPERTIES COMPILE_OPTIONS "/WX-")
+else()
   set_source_files_properties(${YAFF_SRCS} protocol/yaff/yaff_serializer.cpp
       PROPERTIES COMPILE_OPTIONS "-Wno-error")
 endif()

@@ -40,6 +40,14 @@ class YaffConan(ConanFile):
             "install(TARGETS yaff_protoc_plugin\n    EXPORT YaFFTargets\n",
             "install(TARGETS yaff_protoc_plugin\n",
         )
+        # MSVC only forward-declares std::ostream via <string_view>, so the
+        # operator<< in array.h fails with an incomplete type. Pull in <ostream>.
+        replace_in_file(
+            self,
+            os.path.join(self.source_folder, "include", "yaff", "array.h"),
+            "#include <string_view>",
+            "#include <ostream>\n#include <string_view>",
+        )
 
     def generate(self):
         tc = CMakeToolchain(self)
