@@ -119,6 +119,7 @@ class FPTN(ConanFile):
 
     def requirements(self):
         self._register_local_recipe("boringssl", "openssl", "boringssl", True, False)
+        self._register_local_recipe("yaff", "yaff", "0.0.0", visible=False)
         if self.options.with_gui_client:
             self.requires("qt/6.7.3")
         if self.settings.os != "Windows":
@@ -130,6 +131,7 @@ class FPTN(ConanFile):
     def build_requirements(self):
         self.build_requires("cmake/3.31.12", override=True)
         self.tool_requires("protobuf/5.29.3")
+        self.tool_requires("yaff/0.0.0@local/local")
 
         self.test_requires("gtest/1.17.0")
 
@@ -234,6 +236,28 @@ class FPTN(ConanFile):
                     src=camouflage_tls_lib_src,
                     dst=os.path.join(self.package_folder, "lib"),
                 )
+            # absorb yaff (runtime lib + headers), since it is a private dependency
+            yaff_pkg = self.dependencies["yaff"].package_folder
+            copy(
+                self,
+                "*.a",
+                src=os.path.join(yaff_pkg, "lib"),
+                dst=os.path.join(self.package_folder, "lib"),
+                keep_path=False,
+            )
+            copy(
+                self,
+                "*.lib",
+                src=os.path.join(yaff_pkg, "lib"),
+                dst=os.path.join(self.package_folder, "lib"),
+                keep_path=False,
+            )
+            copy(
+                self,
+                "*.h",
+                src=os.path.join(yaff_pkg, "include"),
+                dst=os.path.join(self.package_folder, "include"),
+            )
 
     def package_info(self):
         if self.options.build_only_fptn_lib:
@@ -241,6 +265,7 @@ class FPTN(ConanFile):
                 "fptn-protocol-lib_static",
                 "ntp_client",
                 "camouflage-tls",
+                "yaff_proto",
             ]
             self.cpp_info.includedirs = ["include"]
             self.cpp_info.libdirs = ["lib"]
@@ -277,7 +302,7 @@ class FPTN(ConanFile):
     def export(self):
         copy(self, f"*", src=self.recipe_folder, dst=self.export_folder)
 
-    def _register_local_recipe(self, recipe, name, version, override=False, force=False):
+    def _register_local_recipe(self, recipe, name, version, override=False, force=False, visible=True):
         script_dir = os.path.dirname(os.path.abspath(__file__))
         recipe_rel_path = os.path.join(script_dir, ".conan", "recipes", recipe)
         subprocess.run(
@@ -292,4 +317,4 @@ class FPTN(ConanFile):
             ],
             check=True,
         )
-        self.requires(f"{name}/{version}@local/local", override=override, force=force)
+        self.requires(f"{name}/{version}@local/local", override=override, force=force, visible=visible)

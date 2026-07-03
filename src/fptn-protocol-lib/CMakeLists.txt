@@ -4,7 +4,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 include(../../depends/cmake/NtpClient.cmake)
 include(../../depends/cmake/CamouflageTLS.cmake)
-include(../../depends/cmake/FetchYaFF.cmake)
+find_package(YaFF CONFIG REQUIRED)
 if (IOS)
   find_library(SECURITY Security)
   find_library(CFNETWORK CFNetwork)
