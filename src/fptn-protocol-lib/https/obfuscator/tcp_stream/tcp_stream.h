@@ -184,7 +184,8 @@ class TcpStream {
       return stream_.write_some(buffers, ec);
     }
 
-    std::vector<std::uint8_t> plain_data(boost::asio::buffer_size(buffers));
+    const std::size_t plain_size = boost::asio::buffer_size(buffers);
+    std::vector<std::uint8_t> plain_data(plain_size);
     boost::asio::buffer_copy(boost::asio::buffer(plain_data), buffers);
 
     auto obfuscated =
@@ -194,7 +195,12 @@ class TcpStream {
       ec = boost::asio::error::eof;
       return 0;
     }
-    return stream_.write_some(boost::asio::buffer(obfuscated.value()), ec);
+
+    boost::asio::write(stream_, boost::asio::buffer(obfuscated.value()), ec);
+    if (ec) {
+      return 0;
+    }
+    return plain_size;
   }
 
   template <typename ConstBufferSequence, typename WriteHandler>
@@ -222,8 +228,15 @@ class TcpStream {
             handler(boost::system::error_code(boost::asio::error::eof), 0);
             return;
           }
-          stream_.async_write_some(
-              boost::asio::buffer(obfuscated_data.value()), std::move(handler));
+
+          const std::size_t plain_size = plain_data->size();
+          auto record = std::make_shared<std::vector<std::uint8_t>>(
+              std::move(obfuscated_data.value()));
+          boost::asio::async_write(stream_, boost::asio::buffer(*record),
+              [record, plain_size, handler = std::move(handler)](
+                  boost::system::error_code ec, std::size_t) mutable {
+                handler(ec, ec ? 0 : plain_size);
+              });
         });
   }
 

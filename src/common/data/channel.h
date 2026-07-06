@@ -24,9 +24,8 @@ namespace fptn::common::data {
 
 class Channel {
  public:
-  explicit Channel(std::string name, std::size_t max_capacity = 2048)
-      : name_(std::move(name)), max_capacity_(max_capacity) {
-  }
+  explicit Channel(std::string name, std::size_t max_capacity = 4096)
+      : name_(std::move(name)), max_capacity_(max_capacity) {}
 
   bool Push(network::IPPacketPtr pkt) noexcept {
     {
@@ -78,7 +77,7 @@ class Channel {
 
   network::BatchIPPacketPtr WaitForPackets(
       const std::chrono::milliseconds& duration,
-      const std::size_t max_batch_size = 64) noexcept {
+      const std::size_t max_batch_size = 256) noexcept {
     network::BatchIPPacketPtr batch;
 
     std::unique_lock<std::mutex> lock(mutex_);  // mutex

@@ -60,9 +60,6 @@ bool Manager::Start() {
   web_server_->Start();
   network_interface_->Start();
 
-  // for (std::size_t i = 0; i < 1; ++i) {
-  //   read_to_client_threads_.emplace_back(&Manager::RunToClient, this);
-  // }
   for (std::size_t i = 0; i < thread_pool_size_; ++i) {
     read_to_client_threads_.emplace_back(&Manager::RunToClient, this);
   }

@@ -20,6 +20,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include "fptn-protocol-lib/https/api_client/api_client.h"
 #include "fptn-protocol-lib/https/obfuscator/methods/tls2/tls_obfuscator2.h"
+#include "fptn-protocol-lib/protocol/yaff/yaff_serializer.h"
 
 #ifdef __APPLE__
 #include <netinet/tcp.h>
@@ -297,6 +298,7 @@ boost::asio::awaitable<bool> WebsocketClient::RunInternal() {
         strand_, [self]() { return self->RunSender(); }, boost::asio::detached);
 
     SPDLOG_INFO("WebSocket connection established successfully");
+    SPDLOG_INFO("Using serializer: yaff");
 
     if (config_.on_connected_callback) {
       config_.on_connected_callback();
@@ -459,6 +461,7 @@ boost::asio::awaitable<bool> WebsocketClient::Connect() {
     ws_.set_option(boost::beast::websocket::stream_base::decorator(
         [this](boost::beast::websocket::request_type& req) {
           req.set("Authorization", "Bearer " + config_.access_token);
+          req.set("X-Serializer", "yaff");
           req.set("Client-Agent",
               fmt::format("FptnClient({}/{})", FPTN_USER_OS, FPTN_VERSION));
         }));
@@ -510,7 +513,7 @@ boost::asio::awaitable<bool> WebsocketClient::ReceiveIPAssignment() {
       co_return false;
     }
 
-    const auto ip_pair = protobuf::DeserializeIPAssignmentMessage(
+    const auto ip_pair = fptn::protocol::yaff::DeserializeIPAssignmentMessage(
         boost::beast::buffers_to_string(buffer.data()));
 
     if (!ip_pair.has_value()) {
@@ -565,7 +568,7 @@ boost::asio::awaitable<void> WebsocketClient::RunReader() {
       ++inbound_batches;  // [diag]
 
       auto batch_packets =
-          fptn::protocol::protobuf::DeserializeBatchIPPacket(buffer);
+          fptn::protocol::yaff::DeserializeBatchIPPacket(buffer);
       if (!batch_packets.empty()) {
         for (auto& raw_ip_opt : batch_packets) {
           auto packet =
@@ -574,10 +577,8 @@ boost::asio::awaitable<void> WebsocketClient::RunReader() {
             // change IP addresses
             if (packet->IsIPv4()) {
               packet->SetDstIPv4Address(config_.tun_interface_address_ipv4);
-              packet->ComputeCalculateFields();
             } else if (packet->IsIPv6()) {
               packet->SetDstIPv6Address(config_.tun_interface_address_ipv6);
-              packet->ComputeCalculateFields();
             } else {
               continue;
             }
@@ -608,10 +609,8 @@ boost::asio::awaitable<void> WebsocketClient::RunSender() {
         // change addresses
         if (packet->IsIPv4()) {
           packet->SetSrcIPv4Address(assigned_ipv4_);
-          packet->ComputeCalculateFields();
         } else if (packet->IsIPv6()) {
           packet->SetSrcIPv6Address(assigned_ipv6_);
-          packet->ComputeCalculateFields();
         } else {
           continue;
         }
@@ -625,10 +624,8 @@ boost::asio::awaitable<void> WebsocketClient::RunSender() {
                   // change IP addresses
                   if (p->IsIPv4()) {
                     p->SetSrcIPv4Address(assigned_ipv4_);
-                    p->ComputeCalculateFields();
                   } else if (p->IsIPv6()) {
                     p->SetSrcIPv6Address(assigned_ipv6_);
-                    p->ComputeCalculateFields();
                   } else {
                     return;
                   }
@@ -641,7 +638,7 @@ boost::asio::awaitable<void> WebsocketClient::RunSender() {
         }
       }
       if (!packets.empty()) {
-        auto batch_data = fptn::protocol::protobuf::SerializeBatchIPPacket(
+        auto batch_data = fptn::protocol::yaff::SerializeBatchIPPacket(
             std::move(packets));
         if (batch_data.has_value()) {
           co_await ws_.async_write(boost::asio::buffer(batch_data.value()),
