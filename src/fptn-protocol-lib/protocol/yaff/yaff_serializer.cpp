@@ -27,6 +27,17 @@ namespace fptn::protocol::yaff {
 using YaffMessage = protoyaff::fptn::protocol::Message;
 using YaffMessageType = protoyaff::fptn::protocol::MessageType;
 
+namespace {
+bool HasValidYaffRootOffset(const std::uint8_t* data, std::size_t size) {
+  if (size < sizeof(::yaff::Offset)) {
+    return false;
+  }
+  ::yaff::Offset offset;
+  std::memcpy(&offset, data, sizeof(offset));
+  return offset < size;
+}
+}  // namespace
+
 ProtoPayloadOpt SerializeBatchIPPacket(
     common::network::BatchIPPacketPtr packets) {
   if (packets.empty()) {
@@ -105,6 +116,11 @@ BatchProtoPayload DeserializeBatchIPPacket(
   }
 
   const auto* data = static_cast<const std::uint8_t*>(buffer.cdata().data());
+  if (!HasValidYaffRootOffset(data, buffer.size())) {
+    SPDLOG_ERROR("Malformed yaff BatchIPPacket message ({} bytes)",
+        buffer.size());
+    return result;
+  }
   const auto& message = ::yaff::ReadMessage<YaffMessage>(data);
 
   if (message.msg_type() != YaffMessageType::MSG_BATCH_IP_PACKET) {
@@ -115,7 +131,8 @@ BatchProtoPayload DeserializeBatchIPPacket(
   result.reserve(batch.packets().size());
   for (const auto& packet : batch.packets()) {
     const auto raw = packet.AsStringView();
-    if (raw.empty()) {
+    if (!HasValidYaffRootOffset(
+            reinterpret_cast<const std::uint8_t*>(raw.data()), raw.size())) {
       continue;
     }
     const auto& inner = ::yaff::ReadMessage<YaffMessage>(
@@ -152,8 +169,11 @@ std::optional<std::string> SerializeIPAssignmentMessage(
 
 std::optional<std::pair<std::string, std::string>>
 DeserializeIPAssignmentMessage(const std::string& message) {
-  if (message.empty()) {
-    SPDLOG_ERROR("Empty yaff IPAssignment message");
+  if (!HasValidYaffRootOffset(
+          reinterpret_cast<const std::uint8_t*>(message.data()),
+          message.size())) {
+    SPDLOG_ERROR("Malformed yaff IPAssignment message ({} bytes)",
+        message.size());
     return std::nullopt;
   }
 
