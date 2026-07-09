@@ -23,7 +23,14 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "fptn-protocol-lib/protocol/yaff/yaff_serializer.h"
 
 #ifdef __APPLE__
+#include <TargetConditionals.h>
 #include <netinet/tcp.h>
+#elif defined(__linux__) && !defined(__ANDROID__)
+#include <netinet/tcp.h>
+#endif
+
+#ifdef _WIN32
+#include <mstcpip.h>  // NOLINT(build/include_order)
 #endif
 
 namespace fptn::protocol::https {
@@ -358,20 +365,42 @@ boost::asio::awaitable<bool> WebsocketClient::Connect() {
 
     socket.set_option(boost::asio::socket_base::keep_alive(true));
 
-#ifdef __APPLE__
-    // Darwin-specific TCP keepalive fine-tuning.
-    // Kernel probes run during device sleep — no app CPU needed.
+#if defined(__APPLE__) && TARGET_OS_OSX
     {
-        int fd = socket.native_handle();
-        int keepidle = 15;   // idle seconds before first probe
-        int keepintvl = 5;   // seconds between probes
-        int keepcnt  = 3;    // probe count before declaring dead
-        setsockopt(fd, IPPROTO_TCP, TCP_KEEPALIVE, &keepidle,
-                   sizeof(keepidle));
-        setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &keepintvl,
-                   sizeof(keepintvl));
-        setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &keepcnt,
-                   sizeof(keepcnt));
+      int fd = socket.native_handle();
+      int keepidle = 5;
+      int keepintvl = 2;
+      int keepcnt = 3;
+      int rxt_droptime = 10;
+      setsockopt(fd, IPPROTO_TCP, TCP_KEEPALIVE, &keepidle, sizeof(keepidle));
+      setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &keepintvl, sizeof(keepintvl));
+      setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &keepcnt, sizeof(keepcnt));
+      setsockopt(fd, IPPROTO_TCP, TCP_RXT_CONNDROPTIME, &rxt_droptime,
+          sizeof(rxt_droptime));
+    }
+#elif defined(__linux__) && !defined(__ANDROID__)
+    {
+      int fd = socket.native_handle();
+      int keepidle = 5;
+      int keepintvl = 2;
+      int keepcnt = 3;
+      int user_timeout = 10000;
+      setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &keepidle, sizeof(keepidle));
+      setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &keepintvl, sizeof(keepintvl));
+      setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &keepcnt, sizeof(keepcnt));
+      setsockopt(fd, IPPROTO_TCP, TCP_USER_TIMEOUT, &user_timeout,
+          sizeof(user_timeout));
+    }
+#elif defined(_WIN32)
+    {
+      SOCKET s = socket.native_handle();
+      tcp_keepalive ka = {1, 4000, 1000};
+      DWORD bytes = 0;
+      WSAIoctl(s, SIO_KEEPALIVE_VALS, &ka, sizeof(ka), nullptr, 0, &bytes,
+          nullptr, nullptr);
+      DWORD maxrt = 10;
+      setsockopt(s, IPPROTO_TCP, TCP_MAXRT,
+          reinterpret_cast<const char*>(&maxrt), sizeof(maxrt));
     }
 #endif
 

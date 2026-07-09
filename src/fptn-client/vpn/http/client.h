@@ -44,6 +44,7 @@ class Client final {
   bool Send(fptn::common::network::IPPacketPtr packet) const;
   void SetRecvIPPacketCallback(const NewIPPacketCallback& callback) noexcept;
   bool IsStarted() const;
+  bool IsConnected() const;
 
   const std::string& LatestError() const;
 
@@ -51,7 +52,7 @@ class Client final {
   void Run();
 
  private:
-  const int kMaxReconnectionAttempts_ = 35;
+  const int kMaxReconnectionAttempts_ = 3;
 
   std::thread th_;
   mutable std::mutex mutex_;

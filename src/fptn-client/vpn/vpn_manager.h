@@ -6,6 +6,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #pragma once
 
+#include <atomic>
 #include <condition_variable>
 #include <memory>
 #include <mutex>
@@ -44,10 +45,14 @@ class VpnManager final {
   std::size_t GetSendRate();
   std::size_t GetReceiveRate();
   bool IsStarted();
+  bool IsReconnecting() const;
+  int ReconnectAttempt() const;
+  int MaxReconnectAttempts() const;
   [[nodiscard]] std::string GetInterfaceName() const;
 
  protected:
   void ProcessWebSocketPackets();
+  void Supervise();
 
   void HandleOnPacketFromVirtualNetworkInterface(
       fptn::common::network::IPPacketPtr packet);
@@ -56,11 +61,20 @@ class VpnManager final {
  private:
   mutable std::mutex mutex_;
   mutable std::mutex queue_mutex_;
+  static constexpr int kMaxFullRestarts_ = 10;
+
   std::atomic<bool> running_;
+  std::atomic<bool> ever_connected_;
+  std::atomic<bool> gave_up_;
+  std::atomic<bool> reconnecting_;
+  std::atomic<int> reconnect_attempt_;
 
   Config config_;
 
   std::thread thread_;
+  std::thread supervisor_thread_;
+  std::mutex reconnect_mutex_;
+  std::condition_variable reconnect_cv_;
   std::condition_variable ws_queue_cv_;
   std::queue<fptn::common::network::IPPacketPtr> ws_packet_queue_;
 

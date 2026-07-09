@@ -49,6 +49,44 @@ inline bool run(const std::string& command) {
   return false;
 }
 
+inline bool run_batch(const std::vector<std::string>& commands) {
+  constexpr std::size_t kChunkSize = 100;
+#ifdef _WIN32
+  const std::string sep = " & ";
+#else
+  const std::string sep = " ; ";
+#endif
+  bool ok = true;
+  std::string joined;
+  std::size_t count = 0;
+  auto flush = [&]() {
+    if (joined.empty()) {
+      return;
+    }
+#ifdef _WIN32
+    ok = run("cmd /c \"" + joined + "\"") && ok;
+#else
+    ok = run("bash -c \"" + joined + "\"") && ok;
+#endif
+    joined.clear();
+    count = 0;
+  };
+  for (const auto& cmd : commands) {
+    if (cmd.empty()) {
+      continue;
+    }
+    if (!joined.empty()) {
+      joined += sep;
+    }
+    joined += cmd;
+    if (++count >= kChunkSize) {
+      flush();
+    }
+  }
+  flush();
+  return ok;
+}
+
 inline bool run(
     const std::string& command, std::vector<std::string>& std_output) {
   try {

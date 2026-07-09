@@ -39,7 +39,7 @@ class TokenManager {
             .set_type("JWT")
             .set_id("fptn")
             .set_issued_at(now)
-            .set_expires_at(now + std::chrono::seconds{36000})
+            .set_expires_at(now + std::chrono::hours{24 * 30})
             .set_payload_claim("username", username)
             .set_payload_claim("bandwidth_bit", bandwidth_bit)
             .sign(jwt::algorithm::rs256("", server_key_, "", ""));

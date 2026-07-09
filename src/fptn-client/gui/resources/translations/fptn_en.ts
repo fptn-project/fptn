@@ -20,6 +20,10 @@
             <translation>Connecting...</translation>
         </message>
         <message>
+            <source>Reconnecting...</source>
+            <translation>Reconnecting...</translation>
+        </message>
+        <message>
             <source>Disconnecting...</source>
             <translation>Disconnecting...</translation>
         </message>

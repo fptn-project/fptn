@@ -107,6 +107,7 @@ class TrayApp : public QWidget {
   QAction* quit_action_ = nullptr;
   QAction* connecting_label_action_ = nullptr;
   QAction* disconnecting_label_action_ = nullptr;
+  QAction* reconnecting_label_action_ = nullptr;
   QWidgetAction* speed_widget_action_ = nullptr;
   SpeedWidget* speed_widget_ = nullptr;
   QTimer* update_timer_ = nullptr;

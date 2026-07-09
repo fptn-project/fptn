@@ -151,6 +151,13 @@ TrayApp::TrayApp(const SettingsModelPtr& settings, QObject* parent)
   disconnecting_label_action_ =
       new QAction(QObject::tr("Disconnecting..."), this);
 
+  // Show Reconnecting... label
+  reconnecting_label_action_ =
+      new QAction(QObject::tr("Reconnecting..."), this);
+  reconnecting_label_action_->setVisible(false);
+  connect(reconnecting_label_action_, &QAction::triggered, this,
+      &TrayApp::onDisconnectFromServer);
+
   // Disconect
   disconnect_action_ = new QAction(QObject::tr("Disconnect"), this);
 #ifndef __APPLE__
@@ -200,6 +207,7 @@ TrayApp::TrayApp(const SettingsModelPtr& settings, QObject* parent)
   tray_menu_->addAction(disconnect_action_);
   tray_menu_->addAction(connecting_label_action_);
   tray_menu_->addAction(disconnecting_label_action_);
+  tray_menu_->addAction(reconnecting_label_action_);
   tray_menu_->addAction(speed_widget_action_);
   tray_menu_->addSeparator();
   tray_menu_->addAction(settings_action_);
@@ -298,6 +306,10 @@ void TrayApp::UpdateTrayMenu() {
     empty_configuration_action_ = nullptr;
 
     limited_zone_connect_menu_ = nullptr;
+  }
+
+  if (reconnecting_label_action_) {
+    reconnecting_label_action_->setVisible(false);
   }
 
   switch (connection_state_) {
@@ -637,9 +649,32 @@ void TrayApp::handleTimer() {
           last_reconnection_time = now;
           is_disconnected = true;
         }
-      } else if (speed_widget_) {
-        speed_widget_->UpdateSpeed(
-            vpn_client_->GetReceiveRate(), vpn_client_->GetSendRate());
+      } else if (vpn_client_->IsReconnecting()) {
+        if (reconnecting_label_action_) {
+          const int n = vpn_client_->ReconnectAttempt();
+          QString text = QObject::tr("Reconnecting...");
+          if (n > 0) {
+            text += QString(" (%1/%2)")
+                        .arg(n)
+                        .arg(vpn_client_->MaxReconnectAttempts());
+          }
+          reconnecting_label_action_->setText(text);
+          reconnecting_label_action_->setVisible(true);
+        }
+        if (disconnect_action_) {
+          disconnect_action_->setVisible(false);
+        }
+      } else {
+        if (reconnecting_label_action_) {
+          reconnecting_label_action_->setVisible(false);
+        }
+        if (disconnect_action_) {
+          disconnect_action_->setVisible(true);
+        }
+        if (speed_widget_) {
+          speed_widget_->UpdateSpeed(
+              vpn_client_->GetReceiveRate(), vpn_client_->GetSendRate());
+        }
       }
     }
   }

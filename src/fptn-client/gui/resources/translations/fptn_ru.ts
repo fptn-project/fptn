@@ -20,6 +20,10 @@
             <translation>Подключение...</translation>
         </message>
         <message>
+            <source>Reconnecting...</source>
+            <translation>Переподключение...</translation>
+        </message>
+        <message>
             <source>Disconnecting...</source>
             <translation>Отключение...</translation>
         </message>

@@ -1,5 +1,6 @@
 /*=============================================================================
 Copyright (c) 2024-2026 Pavel Shpilev
+Copyright (c) 2024-2026 Stas Skokov
 
 Distributed under the MIT License (https://opensource.org/licenses/MIT)
 =============================================================================*/
@@ -49,7 +50,9 @@ class WinTunDevice {
   WinTunDevice& operator=(const WinTunDevice&) = delete;
 
   bool Open(const std::string& name) {
-    UuidCreate(&guid_);
+    static constexpr GUID kFptnTunGuid = {0x8F1A2B3C, 0x4D5E, 0x6F70,
+        {0x81, 0x92, 0xA3, 0xB4, 0xC5, 0xD6, 0xE7, 0xF8}};
+    guid_ = kFptnTunGuid;
 
     if (!wintun_) {
       return false;

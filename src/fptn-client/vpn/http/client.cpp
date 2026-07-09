@@ -171,14 +171,12 @@ bool Client::Send(fptn::common::network::IPPacketPtr packet) const {
 }
 
 void Client::Run() {
-  // Time window for counting attempts (1 minute)
-  constexpr auto kReconnectionWindow = std::chrono::seconds(120);
   // Delay between reconnection attempts
   constexpr auto kReconnectionDelay = std::chrono::milliseconds(500);
+  constexpr auto kStableConnectionThreshold = std::chrono::seconds(30);
 
   // Current count of reconnection attempts
   reconnection_attempts_ = kMaxReconnectionAttempts_;
-  auto window_start_time = std::chrono::steady_clock::now();
 
   while (running_ && reconnection_attempts_ > 0) {
     {
@@ -190,6 +188,7 @@ void Client::Run() {
       }
     }
 
+    const auto session_start_time = std::chrono::steady_clock::now();
     if (running_ && ws_) {
       ws_->Run();  // Start the WebSocket client
     }
@@ -209,24 +208,15 @@ void Client::Run() {
       }
     }
 
-    // Calculate time since last window start
-    const auto current_time = std::chrono::steady_clock::now();
-    const auto elapsed = current_time - window_start_time;
-
-    // Reconnection attempt counting logic
-    if (elapsed >= kReconnectionWindow) {
-      // Reset counter if we're past the time window
-      SPDLOG_INFO("Reconnection window reset. New attempt window started");
+    if (std::chrono::steady_clock::now() - session_start_time >=
+        kStableConnectionThreshold) {
       reconnection_attempts_ = kMaxReconnectionAttempts_;
-      window_start_time = current_time;
     }
     if (reconnection_attempts_ > 0) {
       --reconnection_attempts_;
     }
     // Log connection failure and wait before retrying
-    SPDLOG_ERROR(
-        "Connection closed (attempt {}/{} in current window). Reconnecting in "
-        "{}ms...",
+    SPDLOG_ERROR("Connection closed (attempt {}/{}). Reconnecting in {}ms...",
         kMaxReconnectionAttempts_ - reconnection_attempts_,
         kMaxReconnectionAttempts_, kReconnectionDelay.count());
 
@@ -277,6 +267,11 @@ bool Client::Stop() {
 
 bool Client::IsStarted() const {
   return running_ && reconnection_attempts_ > 0;
+}
+
+bool Client::IsConnected() const {
+  const std::unique_lock<std::mutex> lock(mutex_);  // mutex
+  return running_ && ws_ && ws_->IsStarted();
 }
 
 const std::string& Client::LatestError() const { return latest_error_; }

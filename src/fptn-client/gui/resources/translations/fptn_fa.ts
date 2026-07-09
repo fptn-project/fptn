@@ -20,6 +20,10 @@
             <translation>در حال اتصال...</translation>
         </message>
         <message>
+            <source>Reconnecting...</source>
+            <translation>در حال اتصال مجدد...</translation>
+        </message>
+        <message>
             <source>Disconnecting...</source>
             <translation>در حال قطع ارتباط...</translation>
         </message>

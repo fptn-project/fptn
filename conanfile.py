@@ -306,11 +306,9 @@ class FPTN(ConanFile):
     def export(self):
         copy(self, f"*", src=self.recipe_folder, dst=self.export_folder)
 
-
     def _use_mimalloc(self):
         # mimalloc causes crashes on other platform
-        return self.settings.arch == "x86_64" or self.settings.os == "Macos"
-
+        return self.settings.os != "Windows" and (self.settings.arch == "x86_64" or self.settings.os == "Macos")
 
     def _register_local_recipe(self, recipe, name, version, override=False, force=False, visible=True):
         script_dir = os.path.dirname(os.path.abspath(__file__))

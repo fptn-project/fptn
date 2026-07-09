@@ -15,9 +15,31 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include <spdlog/spdlog.h>  // NOLINT(build/include_order)
 
+#include "fptn-protocol-lib/time/time_provider.h"
+
+namespace {
+std::chrono::seconds ReconnectBackoff(int full_restart_count) {
+  switch (full_restart_count) {
+    case 1:
+      return std::chrono::seconds(2);
+    case 2:
+      return std::chrono::seconds(5);
+    case 3:
+      return std::chrono::seconds(15);
+    default:
+      return std::chrono::seconds(30);
+  }
+}
+}  // namespace
+
 namespace fptn::vpn {
 VpnManager::VpnManager(Config config)
-    : running_(false), config_(std::move(config)) {}  // NOLINT
+    : running_(false),
+      ever_connected_(false),
+      gave_up_(false),
+      reconnecting_(false),
+      reconnect_attempt_(0),
+      config_(std::move(config)) {}  // NOLINT
 
 VpnManager::~VpnManager() { Stop(); }
 
@@ -28,8 +50,21 @@ bool VpnManager::IsStarted() {
 
   // const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
-  return running_ && config_.http_client && config_.http_client->IsStarted();
+  if (gave_up_) {
+    return false;
+  }
+  if (ever_connected_) {
+    return true;
+  }
+  return config_.http_client && config_.http_client->IsStarted();
 }
+
+bool VpnManager::IsReconnecting() const { return reconnecting_; }
+
+int VpnManager::ReconnectAttempt() const { return reconnect_attempt_; }
+
+// NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+int VpnManager::MaxReconnectAttempts() const { return kMaxFullRestarts_; }
 
 bool VpnManager::Start() {
   if (running_) {
@@ -87,6 +122,8 @@ bool VpnManager::Start() {
   // Start worker
   thread_ = std::thread(&VpnManager::ProcessWebSocketPackets, this);
 
+  supervisor_thread_ = std::thread(&VpnManager::Supervise, this);
+
   return true;
 }
 
@@ -106,6 +143,11 @@ bool VpnManager::Stop() {
   }
 
   ws_queue_cv_.notify_all();
+  reconnect_cv_.notify_all();
+
+  if (supervisor_thread_.joinable()) {
+    supervisor_thread_.join();
+  }
 
   SPDLOG_INFO("Stopping VPN Websocket-workers...");
   if (thread_.joinable()) {
@@ -250,6 +292,62 @@ void VpnManager::ProcessWebSocketPackets() {
         }
       }
     }
+  }
+}
+
+void VpnManager::Supervise() {
+  int full_restart_count = 0;
+  while (running_) {
+    {
+      std::unique_lock<std::mutex> lock(reconnect_mutex_);
+      reconnect_cv_.wait_for(lock, std::chrono::milliseconds(500),
+          [this]() { return !running_ || !config_.http_client->IsStarted(); });
+    }
+    if (!running_) {
+      break;
+    }
+    if (config_.http_client->IsConnected()) {
+      ever_connected_ = true;
+      full_restart_count = 0;
+      reconnecting_ = false;
+      reconnect_attempt_ = 0;
+      continue;
+    }
+    if (ever_connected_) {
+      reconnecting_ = true;
+    }
+    if (config_.http_client->IsStarted()) {
+      continue;
+    }
+
+    if (full_restart_count >= kMaxFullRestarts_) {
+      SPDLOG_ERROR("VPN reconnection failed after {} full restarts. Giving up.",
+          kMaxFullRestarts_);
+      config_.route_manager->Clean();
+      reconnecting_ = false;
+      gave_up_ = true;
+      break;
+    }
+    ++full_restart_count;
+    reconnect_attempt_ = full_restart_count;
+    SPDLOG_WARN(
+        "Full VPN restart {}/{}", full_restart_count, kMaxFullRestarts_);
+
+    config_.http_client->Stop();
+    config_.route_manager->Clean();
+    fptn::time::TimeProvider::Instance()->SyncWithNtp();
+
+    {
+      std::unique_lock<std::mutex> lock(reconnect_mutex_);
+      reconnect_cv_.wait_for(lock, ReconnectBackoff(full_restart_count),
+          [this]() { return !running_.load(); });
+    }
+    if (!running_) {
+      break;
+    }
+
+    config_.route_manager->Apply(config_.virtual_net_interface->Name());
+    config_.http_client->Start();
   }
 }
 
