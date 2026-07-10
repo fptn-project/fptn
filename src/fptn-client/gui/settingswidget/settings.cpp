@@ -806,7 +806,13 @@ void SettingsWidget::SetupUi() {
       "  - ББ<br>"
       "  - huko<br>"
       "  - @UNBREAKABLE189<br>"
-      "  - TheChosenOne<br>";
+      "  - TheChosenOne<br>"
+      "  - Noragami9779<br>"
+      "  - NightFox<br>"
+      "  - puffffik<br>"
+      "  - draserg1<br>"
+      "  - Artem Kushner<br>"
+      "  - AgNeSYUT<br>";
 
   sponsors_names_label_ = new QLabel(sponsors_list, this);
   sponsors_names_label_->setAlignment(Qt::AlignLeft);
