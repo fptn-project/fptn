@@ -313,20 +313,21 @@ bool RouteManager::Apply(std::string tun_name) {
 
   tun_interface_name_ = std::move(tun_name);
   running_ = true;
-#if defined(__APPLE__) || defined(__linux__)
-  detected_out_interface_name_ =
-      (config_.out_interface_name.empty() ? GetDefaultNetworkInterfaceName()
-                                          : config_.out_interface_name);
-#endif
-  detected_out_interface_name_ =
-      (config_.out_interface_name.empty() ? GetDefaultNetworkInterfaceName()
-                                          : config_.out_interface_name);
-  detected_gateway_ipv4_ = config_.gateway_ipv4.IsEmpty()
-                               ? GetDefaultGatewayIPAddress()
-                               : config_.gateway_ipv4;
-  detected_gateway_ipv6_ = config_.gateway_ipv6.IsEmpty()
-                               ? GetDefaultGatewayIPv6Address()
-                               : config_.gateway_ipv6;
+  if (!config_.out_interface_name.empty()) {
+    detected_out_interface_name_ = config_.out_interface_name;
+  } else if (detected_out_interface_name_.empty()) {
+    detected_out_interface_name_ = GetDefaultNetworkInterfaceName();
+  }
+  if (!config_.gateway_ipv4.IsEmpty()) {
+    detected_gateway_ipv4_ = config_.gateway_ipv4;
+  } else if (detected_gateway_ipv4_.IsEmpty()) {
+    detected_gateway_ipv4_ = GetDefaultGatewayIPAddress();
+  }
+  if (!config_.gateway_ipv6.IsEmpty()) {
+    detected_gateway_ipv6_ = config_.gateway_ipv6;
+  } else if (detected_gateway_ipv6_.IsEmpty()) {
+    detected_gateway_ipv6_ = GetDefaultGatewayIPv6Address();
+  }
 
   SPDLOG_INFO("=== Setting up routing ===");
   SPDLOG_INFO(
@@ -1175,10 +1176,16 @@ fptn::common::network::IPv4Address ResolveDomain(const std::string& domain) {
 fptn::common::network::IPv4Address GetDefaultGatewayIPAddress() {
   try {
 #ifdef __linux__
-    const std::string command = "ip route get 8.8.8.8 | awk '{print $3; exit}'";
+    const std::string command =
+        "for ip in 8.8.8.8 8.8.4.4 77.88.8.8; do r=$(ip route get $ip "
+        "2>/dev/null | awk '{print $3; exit}'); [ -n \"$r\" ] && echo \"$r\" "
+        "&& "
+        "break; done";
 #elif __APPLE__
     const std::string command =
-        "route get 8.8.8.8 | grep gateway | awk '{print $2}' ";
+        "for ip in 8.8.8.8 8.8.4.4 77.88.8.8; do r=$(route get $ip 2>/dev/null "
+        "| grep gateway | awk '{print $2}'); [ -n \"$r\" ] && echo \"$r\" && "
+        "break; done";
 #elif _WIN32
     const std::string command =
         R"(cmd.exe /c FOR /f "tokens=3" %i in ('route print ^| find "0.0.0.0"') do @echo %i)";
@@ -1245,10 +1252,15 @@ std::string GetDefaultNetworkInterfaceName() {
   try {
 #ifdef __linux__
     const std::string command =
-        "ip route get 8.8.8.8 | awk '{print $5; exit}' ";
+        "for ip in 8.8.8.8 8.8.4.4 77.88.8.8; do r=$(ip route get $ip "
+        "2>/dev/null | awk '{print $5; exit}'); [ -n \"$r\" ] && echo \"$r\" "
+        "&& "
+        "break; done";
 #elif __APPLE__
     const std::string command =
-        "route get 8.8.8.8 | grep interface | awk '{print $2}' ";
+        "for ip in 8.8.8.8 8.8.4.4 77.88.8.8; do r=$(route get $ip 2>/dev/null "
+        "| grep interface | awk '{print $2}'); [ -n \"$r\" ] && echo \"$r\" && "
+        "break; done";
 #elif _WIN32
     const std::string command =
         R"(powershell -Command "(Get-NetRoute -DestinationPrefix '0.0.0.0/0' | Where-Object {$_.NextHop -ne '0.0.0.0'} | Select-Object -First 1).InterfaceAlias")";
