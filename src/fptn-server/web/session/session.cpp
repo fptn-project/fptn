@@ -7,11 +7,13 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "web/session/session.h"
 
 #include <atomic>
+#include <chrono>
 #include <memory>
 #include <string>
 #include <tuple>
 #include <unordered_set>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include <boost/algorithm/string/replace.hpp>
@@ -34,8 +36,8 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "fptn-protocol-lib/https/obfuscator/methods/tls2/tls_obfuscator2.h"
 #include "fptn-protocol-lib/https/utils/tls/tls.h"
 #include "fptn-protocol-lib/protocol/protobuf/protobuf_serializer.h"
-#include "fptn-protocol-lib/time/time_provider.h"
 #include "fptn-protocol-lib/protocol/yaff/yaff_serializer.h"
+#include "fptn-protocol-lib/time/time_provider.h"
 
 namespace {
 std::atomic<fptn::ClientID> client_id_counter = 0;
@@ -73,12 +75,30 @@ void SetSocketTimeouts(boost::asio::ip::tcp::socket& socket, int timeout_sec) {
       reinterpret_cast<const char*>(&tv), sizeof(tv));
 }
 
+boost::asio::awaitable<std::size_t> PeekWithTimeout(
+    boost::asio::ip::tcp::socket& socket,
+    const boost::asio::mutable_buffer& buffer,
+    const std::chrono::seconds& timeout,
+    boost::system::error_code& ec) {
+  using boost::asio::experimental::awaitable_operators::operator||;
+  boost::asio::steady_timer timer(
+      co_await boost::asio::this_coro::executor, timeout);
+  const auto result = co_await(
+      socket.async_receive(buffer, boost::asio::socket_base::message_peek,
+          boost::asio::redirect_error(boost::asio::use_awaitable, ec)) ||
+      timer.async_wait(boost::asio::use_awaitable));
+  if (result.index() == 1) {
+    ec = boost::asio::error::timed_out;
+    co_return 0;
+  }
+  co_return std::get<0>(result);
+}
+
 }  // namespace
 
 namespace fptn::web {
 
-Session::Session(std::uint16_t port,
-    bool enable_detect_probing,
+Session::Session(bool enable_detect_probing,
     std::string default_proxy_domain,
     std::vector<std::string> allowed_sni_list,
     std::string server_external_ips,
@@ -89,8 +109,7 @@ Session::Session(std::uint16_t port,
     WebSocketOpenConnectionCallback ws_open_callback,
     WebSocketNewIPPacketCallback ws_new_ippacket_callback,
     WebSocketCloseConnectionCallback ws_close_callback)
-    : port_(port),
-      enable_detect_probing_(enable_detect_probing),
+    : enable_detect_probing_(enable_detect_probing),
       default_proxy_domain_(std::move(default_proxy_domain)),
       allowed_sni_list_(std::move(allowed_sni_list)),
       server_external_ips_(std::move(server_external_ips)),
@@ -180,8 +199,8 @@ boost::asio::awaitable<void> Session::Run() {
       SPDLOG_WARN(
           "Probing detected. Redirecting to proxy (client_id={}, SNI={}, "
           "port={})",
-          client_id_, probing_result.sni, port_);
-      co_await HandleProxy(probing_result.sni, port_);
+          client_id_, probing_result.sni, 443);
+      co_await HandleProxy(probing_result.sni, 443);
       Close();
       co_return;
     }
@@ -214,7 +233,7 @@ boost::asio::awaitable<void> Session::Run() {
       // Prevent recursive proxy attempts for Reality Mode
       const auto self_proxy = co_await IsSniSelfProxyAttempt(result.sni);
       if (self_proxy) {
-        co_await HandleProxy(default_proxy_domain_, port_);
+        co_await HandleProxy(default_proxy_domain_, 443);
         Close();
         co_return;
       }
@@ -300,11 +319,9 @@ boost::asio::awaitable<Session::ProbingResult> Session::DetectProbing() {
     // This allows inspection without affecting subsequent reads!!!
     std::array<std::uint8_t, 16384> buffer;
 
-    // Set socket timeout for peek
     boost::system::error_code ec;
-    const std::size_t bytes_read = co_await tcp_socket.async_receive(
-        boost::asio::buffer(buffer), boost::asio::socket_base::message_peek,
-        boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+    const std::size_t bytes_read = co_await PeekWithTimeout(
+        tcp_socket, boost::asio::buffer(buffer), std::chrono::seconds(3), ec);
 
     if (ec || !bytes_read) {
       SPDLOG_ERROR("Peeked zero bytes from socket (client_id={})", client_id_);
@@ -432,15 +449,26 @@ boost::asio::awaitable<bool> Session::IsSniSelfProxyAttempt(
     boost::asio::ip::tcp::resolver resolver(
         co_await boost::asio::this_coro::executor);
     boost::system::error_code resolve_ec;
-    const auto resolve_results = co_await resolver.async_resolve(sni, "",
-        boost::asio::redirect_error(boost::asio::use_awaitable, resolve_ec));
+    using boost::asio::experimental::awaitable_operators::operator||;
+    boost::asio::steady_timer timer(
+        co_await boost::asio::this_coro::executor, std::chrono::seconds(5));
+    const auto race =
+        co_await(resolver.async_resolve(sni, "",
+                     boost::asio::redirect_error(
+                         boost::asio::use_awaitable, resolve_ec)) ||
+                 timer.async_wait(boost::asio::use_awaitable));
+    if (race.index() == 1) {
+      SPDLOG_WARN("DNS resolution timed out for {}", sni);
+      co_return false;
+    }
     if (resolve_ec) {
       SPDLOG_WARN(
           "DNS resolution failed for {}: {}", sni, resolve_ec.message());
+      co_return false;
     }
 
     // Iterate through resolved endpoints
-    for (const auto& endpoint : resolve_results) {
+    for (const auto& endpoint : std::get<0>(race)) {
       const auto ip = endpoint.endpoint().address().to_string();
       if (ip.empty()) {
         continue;
@@ -455,7 +483,7 @@ boost::asio::awaitable<bool> Session::IsSniSelfProxyAttempt(
     }
   } catch (const std::exception& e) {
     SPDLOG_WARN("Exception during DNS resolution for {}: {}", sni, e.what());
-    co_return true;
+    co_return false;
   }
 
   co_return false;
@@ -467,11 +495,11 @@ boost::asio::awaitable<Session::RealityResult> Session::IsRealityHandshake() {
 
     // Peek data without consuming it
     std::array<std::uint8_t, 16384> buffer{};
-    const std::size_t bytes_read =
-        co_await tcp_socket.async_receive(boost::asio::buffer(buffer),
-            boost::asio::socket_base::message_peek, boost::asio::use_awaitable);
+    boost::system::error_code ec;
+    const std::size_t bytes_read = co_await PeekWithTimeout(
+        tcp_socket, boost::asio::buffer(buffer), std::chrono::seconds(3), ec);
 
-    if (!bytes_read) {
+    if (ec || !bytes_read) {
       co_return RealityResult{.is_reality_mode = false,
           .is_reality_mode2 = false,
           .sni = "",
@@ -656,9 +684,19 @@ boost::asio::awaitable<bool> Session::HandleProxy(
       try {
         boost::system::error_code ec;
         std::array<std::uint8_t, 16384> buf{};
+        using boost::asio::experimental::awaitable_operators::operator||;
         while (self->running_) {
-          const auto n = co_await from.async_read_some(boost::asio::buffer(buf),
-              boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+          boost::asio::steady_timer idle(
+              co_await boost::asio::this_coro::executor,
+              std::chrono::seconds(60));
+          const auto r = co_await(from.async_read_some(boost::asio::buffer(buf),
+                                      boost::asio::redirect_error(
+                                          boost::asio::use_awaitable, ec)) ||
+                                  idle.async_wait(boost::asio::use_awaitable));
+          if (r.index() == 1) {
+            break;
+          }
+          const auto n = std::get<0>(r);
           if (ec || n == 0) {
             break;
           }
@@ -1191,9 +1229,8 @@ boost::asio::awaitable<IObfuscator> Session::DetectObfuscator() {
     // Peek data without consuming it from the socket buffer
     // This allows inspection without affecting subsequent reads
     std::array<std::uint8_t, 16384> buffer{};
-    const std::size_t bytes_read = co_await tcp_socket.async_receive(
-        boost::asio::buffer(buffer), boost::asio::socket_base::message_peek,
-        boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+    const std::size_t bytes_read = co_await PeekWithTimeout(
+        tcp_socket, boost::asio::buffer(buffer), std::chrono::seconds(3), ec);
 
     if (ec || !bytes_read) {
       co_return std::nullopt;

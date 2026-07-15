@@ -45,7 +45,6 @@ class Listener final {
       const ApiHandle& handle);
 
  protected:
-  const std::uint16_t port_;
   const bool enable_detect_probing_;
   const std::string default_proxy_domain_;
   const std::vector<std::string> allowed_sni_list_;

@@ -35,8 +35,7 @@ using IObfuscator = std::optional<protocol::https::obfuscator::IObfuscatorSPtr>;
 
 class Session : public std::enable_shared_from_this<Session> {
  public:
-  explicit Session(std::uint16_t port,
-      bool enable_detect_probing,
+  explicit Session(bool enable_detect_probing,
       std::string default_proxy_domain,
       std::vector<std::string> allowed_sni_list,
       std::string server_external_ips,
@@ -111,7 +110,6 @@ class Session : public std::enable_shared_from_this<Session> {
 
   fptn::ClientID client_id_ = MAX_CLIENT_ID;
 
-  const std::uint16_t port_;
   const bool enable_detect_probing_;
   const std::string default_proxy_domain_;
   const std::vector<std::string> allowed_sni_list_;

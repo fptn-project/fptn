@@ -11,6 +11,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <shared_mutex>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "common/network/ip_address.h"
 #include "common/network/ipv4_generator.h"
@@ -63,18 +64,16 @@ class Table final {
 
   std::size_t GetNumberActiveSessionByUsername(const std::string& username);
 
- protected:
-  fptn::common::network::IPv4Address GetUniqueIPv4Address();
-  fptn::common::network::IPv6Address GetUniqueIPv6Address();
-
  private:
   mutable std::shared_mutex mutex_;
-  std::uint32_t client_number_;
 
   Config config_;
 
   fptn::common::network::IPv4AddressGenerator ipv4_generator_;
   fptn::common::network::IPv6AddressGenerator ipv6_generator_;
+
+  std::vector<fptn::common::network::IPv4Address> free_ipv4_;
+  std::vector<fptn::common::network::IPv6Address> free_ipv6_;
 
   std::unordered_map<IPv4INT, fptn::client::SessionSPtr>
       ipv4_to_sessions_;  // ipv4

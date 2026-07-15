@@ -721,10 +721,14 @@ boost::asio::awaitable<bool> WebsocketClient::PerformFakeHandshake2() {
       co_return false;
     }
 
-    /* Wait for server answer */
+    /* Wait for server answer. On a handshake-cache miss the server fetches the
+     * real ServerHello from the decoy domain (up to 5s) and falls back to the
+     * default domain (5s more), so the client must outwait that worst case —
+     * with 1.5s here every cold-cache connection died before the server could
+     * possibly answer. */
     const auto server_hello =
         co_await common::network::WaitForServerTlsHelloAsync(
-            tcp_socket, std::chrono::milliseconds(1500));
+            tcp_socket, std::chrono::seconds(12));
     if (!server_hello.has_value()) {
       SPDLOG_ERROR("Failed to receive ServerHello from {}", config_.sni);
       co_return false;

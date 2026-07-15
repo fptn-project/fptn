@@ -34,8 +34,7 @@ Listener::Listener(std::uint16_t port,
     WebSocketOpenConnectionCallback ws_open_callback,
     WebSocketNewIPPacketCallback ws_new_ippacket_callback,
     WebSocketCloseConnectionCallback ws_close_callback)
-    : port_(port),
-      enable_detect_probing_(enable_detect_probing),
+    : enable_detect_probing_(enable_detect_probing),
       default_proxy_domain_(std::move(default_proxy_domain)),
       allowed_sni_list_(std::move(allowed_sni_list)),
       ioc_(ioc),
@@ -103,7 +102,7 @@ boost::asio::awaitable<void> Listener::Run() {
         socket.set_option(
             boost::asio::socket_base::send_buffer_size(kBufferSize));
 
-        auto session = std::make_shared<Session>(port_,
+        auto session = std::make_shared<Session>(
             // probing settings
             enable_detect_probing_, default_proxy_domain_, allowed_sni_list_,
             server_external_ips_, std::move(socket), ctx_,

@@ -14,10 +14,28 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 namespace fptn::nat {
 Table::Table(Config config)
-    : client_number_(0),
-      config_(std::move(config)),
+    : config_(std::move(config)),
       ipv4_generator_(config_.tun_ipv4_network, config_.tun_network_ipv4_mask),
       ipv6_generator_(config_.tun_ipv6_network, config_.tun_network_ipv6_mask) {
+  const std::uint32_t ipv4_available = ipv4_generator_.NumAvailableAddresses();
+  const auto ipv6_available = ipv6_generator_.NumAvailableAddresses();
+  const std::uint32_t capacity = (ipv6_available > ipv4_available)
+      ? ipv4_available
+      : static_cast<std::uint32_t>(ipv6_available);
+  free_ipv4_.reserve(capacity);
+  free_ipv6_.reserve(capacity);
+  for (std::uint32_t i = 0; i < capacity; ++i) {
+    const auto ip = ipv4_generator_.GetNextAddress();
+    if (ip != config_.tun_ipv4) {
+      free_ipv4_.push_back(ip);
+    }
+  }
+  for (std::uint32_t i = 0; i < capacity; ++i) {
+    const auto ip = ipv6_generator_.GetNextAddress();
+    if (ip != config_.tun_ipv6) {
+      free_ipv6_.push_back(ip);
+    }
+  }
 }
 
 fptn::client::SessionSPtr Table::CreateClientSession(ClientID client_id,
@@ -29,16 +47,15 @@ fptn::client::SessionSPtr Table::CreateClientSession(ClientID client_id,
   const std::unique_lock<std::shared_mutex> lock(mutex_);  // mutex
 
   if (!client_id_to_sessions_.contains(client_id)) {
-    if (client_number_ >= ipv4_generator_.NumAvailableAddresses()) {
-      /* ||  client_number_ >= client_ipv6.NumAvailableAddresses() */
+    if (free_ipv4_.empty() || free_ipv6_.empty()) {
       SPDLOG_INFO("Client limit was exceeded");
       return nullptr;
     }
-    client_number_ += 1;
+    const auto fake_ipv4 = free_ipv4_.back();
+    free_ipv4_.pop_back();
+    const auto fake_ipv6 = free_ipv6_.back();
+    free_ipv6_.pop_back();
     try {
-      const auto fake_ipv4 = GetUniqueIPv4Address();
-      const auto fake_ipv6 = GetUniqueIPv6Address();
-
       auto session = std::make_shared<fptn::client::Session>(
           fptn::client::Session::Config{.client_id = client_id,
               .user_name = user_name,
@@ -62,6 +79,8 @@ fptn::client::SessionSPtr Table::CreateClientSession(ClientID client_id,
     } catch (...) {
       SPDLOG_ERROR("An unknown error occurred while creating client session.");
     }
+    free_ipv4_.push_back(fake_ipv4);
+    free_ipv6_.push_back(fake_ipv6);
   }
   return nullptr;
 }
@@ -73,15 +92,17 @@ fptn::client::SessionSPtr Table::CreateClientSession2(ClientID client_id,
   const std::unique_lock<std::shared_mutex> lock(mutex_);  // mutex
 
   if (!client_id_to_sessions_.contains(client_id)) {
-    if (client_number_ >= ipv4_generator_.NumAvailableAddresses()) {
-      /* ||  client_number_ >= client_ipv6.NumAvailableAddresses() */
+    if (free_ipv4_.empty() || free_ipv6_.empty()) {
       SPDLOG_INFO("Client limit was exceeded");
       return nullptr;
     }
-    client_number_ += 1;
+    const auto fake_ipv4 = free_ipv4_.back();
+    free_ipv4_.pop_back();
+
+    const auto fake_ipv6 = free_ipv6_.back();
+    free_ipv6_.pop_back();
+
     try {
-      const auto fake_ipv4 = GetUniqueIPv4Address();
-      const auto fake_ipv6 = GetUniqueIPv6Address();
       auto session = std::make_shared<fptn::client::Session>(
           fptn::client::Session::Config{.client_id = client_id,
               .user_name = user_name,
@@ -106,6 +127,8 @@ fptn::client::SessionSPtr Table::CreateClientSession2(ClientID client_id,
     } catch (...) {
       SPDLOG_ERROR("An unknown error occurred while creating client session.");
     }
+    free_ipv4_.push_back(fake_ipv4);
+    free_ipv6_.push_back(fake_ipv6);
   }
   return nullptr;
 }
@@ -118,13 +141,14 @@ bool Table::DelClientSession(ClientID client_id) {
 
     auto it = client_id_to_sessions_.find(client_id);
     if (it != client_id_to_sessions_.end()) {
-      const IPv4INT ipv4_int = it->second->FakeClientIPv4().ToInt();
-      const std::string ipv6_str = it->second->FakeClientIPv6().ToString();
-      client_id_to_sessions_.erase(it);
+      const auto& fake_ipv4 = it->second->FakeClientIPv4();
+      const auto& fake_ipv6 = it->second->FakeClientIPv6();
+      free_ipv4_.push_back(fake_ipv4);
+      free_ipv6_.push_back(fake_ipv6);
 
       // delete ipv4 -> session
       {
-        auto it_ipv4 = ipv4_to_sessions_.find(ipv4_int);
+        auto it_ipv4 = ipv4_to_sessions_.find(fake_ipv4.ToInt());
         if (it_ipv4 != ipv4_to_sessions_.end()) {
           ipv4_session = std::move(it_ipv4->second);
           ipv4_to_sessions_.erase(it_ipv4);
@@ -132,12 +156,13 @@ bool Table::DelClientSession(ClientID client_id) {
       }
       // delete ipv6 -> session
       {
-        auto it_ipv6 = ipv6_to_sessions_.find(ipv6_str);
+        auto it_ipv6 = ipv6_to_sessions_.find(fake_ipv6.ToString());
         if (it_ipv6 != ipv6_to_sessions_.end()) {
           ipv6_session = std::move(it_ipv6->second);
           ipv6_to_sessions_.erase(it_ipv6);
         }
       }
+      client_id_to_sessions_.erase(it);
     }
   }
   return ipv4_session != nullptr && ipv6_session != nullptr;
@@ -184,26 +209,6 @@ std::size_t Table::GetNumberActiveSessionByUsername(
       ipv4_to_sessions_, [&username](const auto& pair) {
         return pair.second->UserName() == username;
       });
-}
-
-fptn::common::network::IPv4Address Table::GetUniqueIPv4Address() {
-  for (std::uint32_t i = 0; i < ipv4_generator_.NumAvailableAddresses(); i++) {
-    const auto ip = ipv4_generator_.GetNextAddress();
-    if (ip != config_.tun_ipv4 && !ipv4_to_sessions_.contains(ip.ToInt())) {
-      return ip;
-    }
-  }
-  throw std::runtime_error("No available address");
-}
-
-fptn::common::network::IPv6Address Table::GetUniqueIPv6Address() {
-  for (int i = 0; i < ipv6_generator_.NumAvailableAddresses(); i++) {
-    const auto ip = ipv6_generator_.GetNextAddress();
-    if (ip != config_.tun_ipv6 && !ipv6_to_sessions_.contains(ip.ToString())) {
-      return ip;
-    }
-  }
-  throw std::runtime_error("No available address");
 }
 
 void Table::UpdateStatistic(const fptn::statistic::MetricsSPtr& prometheus) {

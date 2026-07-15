@@ -267,19 +267,12 @@ fptn::client::SessionSPtr Server::HandleWsOpenConnection(
     return nullptr;
   }
 
-  const std::unique_lock<std::shared_mutex> lock(mutex_);  // mutex
-
   const auto active_sessions =
       nat_table_->GetNumberActiveSessionByUsername(username);
 
   if (active_sessions > max_active_sessions_per_user_) {
     SPDLOG_WARN("Session limit exceeded for user '{}': {} active (limit: {})",
         username, active_sessions, max_active_sessions_per_user_);
-    return nullptr;
-  }
-
-  if (sessions_.contains(client_id)) {
-    SPDLOG_WARN("Client with same ID already exists!");
     return nullptr;
   }
 
@@ -300,6 +293,12 @@ fptn::client::SessionSPtr Server::HandleWsOpenConnection(
         client_id, username, shaper_to_client, shaper_from_client);
   }
 
+  if (nat_session == nullptr) {
+    SPDLOG_WARN("Failed to allocate NAT session for user '{}' (client_id={})",
+        username, client_id);
+    return nullptr;
+  }
+
   SPDLOG_INFO(
       "NEW SESSION! Username={} client_id={} Bandwidth={} ClientIP={} "
       "VPN_IPv4={} VPN_IPv6={} URL={}",
@@ -307,11 +306,13 @@ fptn::client::SessionSPtr Server::HandleWsOpenConnection(
       nat_session->FakeClientIPv4().ToString(),
       nat_session->FakeClientIPv6().ToString(), url);
 
-  if (running_) {
-    sessions_.insert({client_id, session});
-    return nat_session;
+  const std::unique_lock<std::shared_mutex> lock(mutex_);  // mutex
+  if (!running_ || sessions_.contains(client_id)) {
+    nat_table_->DelClientSession(client_id);
+    return nullptr;
   }
-  return nullptr;
+  sessions_.insert({client_id, session});
+  return nat_session;
 }
 
 void Server::HandleWsNewIPPacket(
