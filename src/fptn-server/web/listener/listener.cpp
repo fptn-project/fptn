@@ -109,9 +109,9 @@ boost::asio::awaitable<void> Listener::Run() {
             // handlers
             api_handles_, handshake_cache_manager_, ws_open_callback_,
             ws_new_ippacket_callback_, ws_close_callback_);
-        // run coroutine
+        // run coroutine on the session's own strand
         boost::asio::co_spawn(
-            ioc_,
+            session->GetExecutor(),
             [session]() mutable -> boost::asio::awaitable<void> {
               co_await session->Run();
             },

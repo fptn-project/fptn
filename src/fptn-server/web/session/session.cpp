@@ -167,6 +167,11 @@ Session::Session(bool enable_detect_probing,
 
 Session::~Session() { Close(); }
 
+boost::asio::strand<boost::asio::any_io_executor> Session::GetExecutor()
+    const noexcept {
+  return strand_;
+}
+
 boost::asio::awaitable<void> Session::Run() {
   boost::system::error_code ec;
 

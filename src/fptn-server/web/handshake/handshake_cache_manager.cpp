@@ -66,7 +66,7 @@ boost::asio::awaitable<fptn::web::HandshakeResponse> FetchRealHandshake(
 
     boost::asio::steady_timer deadline(executor, timeout);
     using boost::asio::experimental::awaitable_operators::operator||;
-    const auto race = co_await (
+    const auto race = co_await(  // NOLINT(whitespace/parens)
         fetch() || deadline.async_wait(boost::asio::use_awaitable));
     if (race.index() == 1) {
       SPDLOG_WARN("Timeout fetching handshake from {}", sni);
@@ -79,6 +79,7 @@ boost::asio::awaitable<fptn::web::HandshakeResponse> FetchRealHandshake(
   boost::system::error_code close_ec;
   target_socket.close(close_ec);
 
+  // cppcheck-suppress knownConditionTrueFalse
   if (full_response->empty()) {
     co_return nullptr;
   }

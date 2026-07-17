@@ -31,7 +31,7 @@ class YaffConan(ConanFile):
     def source(self):
         get(
             self,
-            "https://github.com/yandex/yaff/archive/refs/heads/main.zip",
+            "https://github.com/fptn-project/yaff/archive/refs/heads/main.zip",
             strip_root=True,
         )
         replace_in_file(

@@ -52,6 +52,9 @@ class Session : public std::enable_shared_from_this<Session> {
   void Send(common::network::IPPacketPtr pkt);
   void SendBatch(common::network::BatchIPPacketPtr pkts);
 
+  boost::asio::strand<boost::asio::any_io_executor> GetExecutor()
+      const noexcept;
+
   // async
   boost::asio::awaitable<void> Run();
 
