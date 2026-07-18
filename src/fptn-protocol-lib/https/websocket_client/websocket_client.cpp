@@ -35,8 +35,10 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 namespace fptn::protocol::https {
 
-WebsocketClient::WebsocketClient(Config config, int thread_number)
-    : ioc_(thread_number),
+WebsocketClient::WebsocketClient(std::string jwt_access_token,
+    ConnectionConfig config,
+    boost::asio::io_context& ioc)
+    : ioc_(ioc),
       ctx_(https::utils::CreateNewSslCtx()),
       resolver_(boost::asio::make_strand(ioc_)),
       strand_(boost::asio::make_strand(ioc_)),
@@ -45,15 +47,17 @@ WebsocketClient::WebsocketClient(Config config, int thread_number)
           obfuscator_socket_type(boost::asio::make_strand(ioc_), nullptr),
           ctx_)),
       write_channel_(strand_, kMaxSizeOutQueue_),
+      jwt_access_token_(std::move(jwt_access_token)),
       config_(std::move(config)) {
   auto* ssl = ws_.next_layer().native_handle();
-  https::utils::SetHandshakeSni(ssl, config_.sni);
+  https::utils::SetHandshakeSni(ssl, config_.common.sni);
   https::utils::SetHandshakeSessionID(ssl);
 
   // Set SSL buffer sizes
   SSL_set_mode(ssl, SSL_MODE_RELEASE_BUFFERS);
 
-  if (config_.censorship_strategy == CensorshipStrategy::kTlsObfuscator) {
+  if (config_.common.censorship_strategy ==
+      CensorshipStrategy::kTlsObfuscator) {
     obfuscator_ =
         std::make_shared<fptn::protocol::https::obfuscator::TlsObfuscator2>();
     ws_.next_layer().next_layer().set_obfuscator(obfuscator_);
@@ -61,14 +65,14 @@ WebsocketClient::WebsocketClient(Config config, int thread_number)
 
   https::utils::AttachCertificateVerificationCallback(
       ssl, [this](const std::string& md5_fingerprint) mutable {
-        if (config_.expected_md5_fingerprint.empty()) {
+        if (config_.common.md5_fingerprint.empty()) {
           return true;
         }
-        if (md5_fingerprint == config_.expected_md5_fingerprint) {
+        if (md5_fingerprint == config_.common.md5_fingerprint) {
           return true;
         }
         SPDLOG_ERROR("Certificate MD5 mismatch. Expected: {}, got: {}.",
-            config_.expected_md5_fingerprint, md5_fingerprint);
+            config_.common.md5_fingerprint, md5_fingerprint);
         return false;
       });
 
@@ -86,18 +90,8 @@ WebsocketClient::~WebsocketClient() {
   } catch (...) {
     SPDLOG_WARN("Unknown error in ~WebsocketClient");
   }
-
-  // Stop io_context
-  try {
-    if (!ioc_.stopped()) {
-      SPDLOG_INFO("Stopping io_context...");
-      ioc_.stop();
-    }
-  } catch (const boost::system::system_error& err) {
-    SPDLOG_ERROR("Exception while stopping io_context: {}", err.what());
-  } catch (...) {
-    SPDLOG_ERROR("Unknown exception while stopping io_context");
-  }
+  // NOTE: io_context is owned externally (by the connection strategy) and
+  // shared across pooled clients, so it must NOT be stopped here.
   SPDLOG_INFO("WebsocketClient removed");
 }
 
@@ -107,9 +101,12 @@ void WebsocketClient::Run() {
     return;
   }
 
-  SPDLOG_INFO("Connecting to {}:{} [strategy={}]", config_.server_ip.ToString(),
-      config_.server_port, ToString(config_.censorship_strategy));
+  SPDLOG_INFO("Connecting to {}:{} [strategy={}]",
+      config_.common.server_ip.ToString(), config_.common.server_port,
+      ToString(config_.common.censorship_strategy));
 
+  // The io_context is owned and driven by the connection strategy, so we only
+  // schedule the connection coroutine here and return immediately.
   auto self = weak_from_this();
   boost::asio::co_spawn(
       ioc_,
@@ -122,16 +119,6 @@ void WebsocketClient::Run() {
         }
       },
       boost::asio::detached);
-  try {
-    while (running_ || !was_stopped_) {
-      const std::size_t processed = ioc_.poll_one();
-      if (processed == 0) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-      }
-    }
-  } catch (...) {
-    SPDLOG_WARN("Exception while running");
-  }
 }
 
 bool WebsocketClient::Stop() {
@@ -269,6 +256,8 @@ bool WebsocketClient::Send(fptn::common::network::IPPacketPtr packet) {
 
 bool WebsocketClient::IsStarted() const { return running_ && was_connected_; }
 
+bool WebsocketClient::IsStopped() const { return was_stopped_; }
+
 boost::asio::awaitable<bool> WebsocketClient::RunInternal() {
   try {
     const bool connected = co_await Connect();
@@ -307,8 +296,8 @@ boost::asio::awaitable<bool> WebsocketClient::RunInternal() {
     SPDLOG_INFO("WebSocket connection established successfully");
     SPDLOG_INFO("Using serializer: yaff");
 
-    if (config_.on_connected_callback) {
-      config_.on_connected_callback();
+    if (config_.common.on_connected_callback) {
+      config_.common.on_connected_callback();
     }
 
     co_return true;
@@ -326,9 +315,9 @@ boost::asio::awaitable<bool> WebsocketClient::Connect() {
 
     // DNS resolution
     boost::beast::get_lowest_layer(ws_).expires_after(std::chrono::seconds(5));
-    const auto server_port_str = std::to_string(config_.server_port);
+    const auto server_port_str = std::to_string(config_.common.server_port);
     const auto results = co_await resolver_.async_resolve(
-        config_.server_ip.ToString(), server_port_str,
+        config_.common.server_ip.ToString(), server_port_str,
         boost::asio::redirect_error(boost::asio::use_awaitable, ec));
     if (ec) {
       SPDLOG_ERROR("Resolve error: {}", ec.message());
@@ -420,7 +409,7 @@ boost::asio::awaitable<bool> WebsocketClient::Connect() {
     // packet inspection Then resets the connection state and activates
     // obfuscation for the real encrypted tunnel This dual-handshake approach
     // makes traffic analysis significantly more difficult
-    if (IsRealityModeWithFakeHandshake(config_.censorship_strategy)) {
+    if (IsRealityModeWithFakeHandshake(config_.common.censorship_strategy)) {
       const bool status = co_await PerformFakeHandshake2();
       if (!status) {
         co_return false;
@@ -489,13 +478,26 @@ boost::asio::awaitable<bool> WebsocketClient::Connect() {
     // WebSocket handshake
     ws_.set_option(boost::beast::websocket::stream_base::decorator(
         [this](boost::beast::websocket::request_type& req) {
-          req.set("Authorization", "Bearer " + config_.access_token);
+          req.set("Authorization", "Bearer " + jwt_access_token_);
           req.set("X-Serializer", "yaff");
           req.set("Client-Agent",
               fmt::format("FptnClient({}/{})", FPTN_USER_OS, FPTN_VERSION));
+          // Present only for pooled connections; groups them server-side.
+          if (!config_.common.session_id.empty()) {
+            req.set("SessionID", config_.common.session_id);
+          }
+          // Pool scheduling: tells the server this connection's send window and
+          // lifetime so it can route downstream to receivers and expire it.
+          if (config_.common.send_duration_ms > 0) {
+            req.set("X-Send-Duration",
+                std::to_string(config_.common.send_duration_ms));
+          }
+          if (config_.common.ttl_ms > 0) {
+            req.set("X-Ttl", std::to_string(config_.common.ttl_ms));
+          }
         }));
     // Websocket handshake
-    co_await ws_.async_handshake(config_.server_ip.ToString(),
+    co_await ws_.async_handshake(config_.common.server_ip.ToString(),
         common::api::kApiWebSocketUrl,
         boost::asio::redirect_error(boost::asio::use_awaitable, ec));
     if (ec) {
@@ -602,16 +604,18 @@ boost::asio::awaitable<void> WebsocketClient::RunReader() {
         for (auto& raw_ip_opt : batch_packets) {
           auto packet =
               fptn::common::network::IPPacket::Parse(std::move(raw_ip_opt));
-          if (running_ && packet && config_.new_ip_pkt_callback) {
+          if (running_ && packet && config_.common.recv_ip_packet_callback) {
             // change IP addresses
             if (packet->IsIPv4()) {
-              packet->SetDstIPv4Address(config_.tun_interface_address_ipv4);
+              packet->SetDstIPv4Address(
+                  config_.common.tun_interface_address_ipv4);
             } else if (packet->IsIPv6()) {
-              packet->SetDstIPv6Address(config_.tun_interface_address_ipv6);
+              packet->SetDstIPv6Address(
+                  config_.common.tun_interface_address_ipv6);
             } else {
               continue;
             }
-            config_.new_ip_pkt_callback(std::move(packet));
+            config_.common.recv_ip_packet_callback(std::move(packet));
           }
         }
       }
@@ -667,8 +671,8 @@ boost::asio::awaitable<void> WebsocketClient::RunSender() {
         }
       }
       if (!packets.empty()) {
-        auto batch_data = fptn::protocol::yaff::SerializeBatchIPPacket(
-            std::move(packets));
+        auto batch_data =
+            fptn::protocol::yaff::SerializeBatchIPPacket(std::move(packets));
         if (batch_data.has_value()) {
           co_await ws_.async_write(boost::asio::buffer(batch_data.value()),
               boost::asio::redirect_error(boost::asio::use_awaitable, ec));
@@ -698,12 +702,13 @@ boost::asio::awaitable<bool> WebsocketClient::PerformFakeHandshake2() {
     auto& tcp_layer = boost::beast::get_lowest_layer(ws_);
     auto& tcp_socket = tcp_layer.socket();
 
-    SPDLOG_INFO("Fake TLS handshake started for SNI: {}", config_.sni);
+    SPDLOG_INFO("Fake TLS handshake started for SNI: {}", config_.common.sni);
 
     /* Send client hello */
     const auto client_hello = GenerateHandshakePacket();
     if (client_hello.empty()) {
-      SPDLOG_WARN("Failed to generate ClientHello for SNI: {}", config_.sni);
+      SPDLOG_WARN(
+          "Failed to generate ClientHello for SNI: {}", config_.common.sni);
       co_return false;
     }
     const std::size_t client_hello_bytes_size =
@@ -711,8 +716,8 @@ boost::asio::awaitable<bool> WebsocketClient::PerformFakeHandshake2() {
             boost::asio::buffer(client_hello),
             boost::asio::redirect_error(boost::asio::use_awaitable, ec));
     if (ec) {
-      SPDLOG_ERROR(
-          "Failed to send ClientHello to {}: {}", config_.sni, ec.message());
+      SPDLOG_ERROR("Failed to send ClientHello to {}: {}", config_.common.sni,
+          ec.message());
       co_return false;
     }
     if (client_hello_bytes_size != client_hello.size()) {
@@ -730,7 +735,7 @@ boost::asio::awaitable<bool> WebsocketClient::PerformFakeHandshake2() {
         co_await common::network::WaitForServerTlsHelloAsync(
             tcp_socket, std::chrono::seconds(2));
     if (!server_hello.has_value()) {
-      SPDLOG_ERROR("Failed to receive ServerHello from {}", config_.sni);
+      SPDLOG_ERROR("Failed to receive ServerHello from {}", config_.common.sni);
       co_return false;
     }
 
@@ -742,8 +747,8 @@ boost::asio::awaitable<bool> WebsocketClient::PerformFakeHandshake2() {
             boost::asio::buffer(change_cipher_spec),
             boost::asio::redirect_error(boost::asio::use_awaitable, ec));
     if (ec) {
-      SPDLOG_ERROR(
-          "Failed to send ClientHello to {}: {}", config_.sni, ec.message());
+      SPDLOG_ERROR("Failed to send ClientHello to {}: {}", config_.common.sni,
+          ec.message());
       co_return false;
     }
     if (change_cipher_spec_size != change_cipher_spec.size()) {
@@ -759,11 +764,11 @@ boost::asio::awaitable<bool> WebsocketClient::PerformFakeHandshake2() {
 
     SPDLOG_INFO(
         "Fake TLS handshake completed for {}, received {} bytes from server",
-        config_.sni, server_hello.value().size());
+        config_.common.sni, server_hello.value().size());
     co_return true;
   } catch (const std::exception& e) {
-    SPDLOG_ERROR(
-        "Fake TLS handshake exception for {}: {}", config_.sni, e.what());
+    SPDLOG_ERROR("Fake TLS handshake exception for {}: {}", config_.common.sni,
+        e.what());
   }
   co_return false;
 }
@@ -796,7 +801,7 @@ void WebsocketClient::StartWatchdog() {
 
 std::vector<std::uint8_t> WebsocketClient::GenerateHandshakePacket() const {
   auto builder = camouflage::tls::Builder::Create();
-  switch (config_.censorship_strategy) {
+  switch (config_.common.censorship_strategy) {
     /* Chrome */
     case CensorshipStrategy::kSniRealityModeChrome149:
       SPDLOG_INFO("Selected strategy: Chrome 149");
@@ -867,25 +872,27 @@ std::vector<std::uint8_t> WebsocketClient::GenerateHandshakePacket() const {
           camouflage::tls::yandex_browser::Version::kV_24_12_0_1772);
       break;
     default:
-      SPDLOG_DEBUG("Using fallback handshake generator for SNI: {}", sni_);
-      return utils::GenerateDecoyTlsHandshake(config_.sni);
+      SPDLOG_DEBUG(
+          "Using fallback handshake generator for SNI: {}", config_.common.sni);
+      return utils::GenerateDecoyTlsHandshake(config_.common.sni);
   }
 
   const auto session_id = utils::GenerateDecoyTlsSessionId2();
   if (!session_id.has_value()) {
     SPDLOG_WARN("Session ID generation failed");
-    return utils::GenerateDecoyTlsHandshake(config_.sni);
+    return utils::GenerateDecoyTlsHandshake(config_.common.sni);
   }
 
-  const auto handshake =
-      builder.SetSNI(config_.sni).SetSessionId(session_id.value()).Generate();
+  const auto handshake = builder.SetSNI(config_.common.sni)
+                             .SetSessionId(session_id.value())
+                             .Generate();
   if (!handshake.has_value()) {
-    SPDLOG_WARN(
-        "Handshake generation failed for SNI: {}, using fallback", config_.sni);
-    return utils::GenerateDecoyTlsHandshake(config_.sni);
+    SPDLOG_WARN("Handshake generation failed for SNI: {}, using fallback",
+        config_.common.sni);
+    return utils::GenerateDecoyTlsHandshake(config_.common.sni);
   }
 
-  SPDLOG_INFO("Handshake generated: SNI={}, size={} bytes", config_.sni,
+  SPDLOG_INFO("Handshake generated: SNI={}, size={} bytes", config_.common.sni,
       handshake->handshake_packet_size);
 
   return std::vector<std::uint8_t>(handshake->handshake_packet,

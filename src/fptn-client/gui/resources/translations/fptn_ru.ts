@@ -289,6 +289,22 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>Маскировка трафика (Обфускация)</translation>
         </message>
         <message>
+            <source>Connection strategy</source>
+            <translation>Стратегия подключения</translation>
+        </message>
+        <message>
+            <source>Persistent connection</source>
+            <translation>Постоянное соединение</translation>
+        </message>
+        <message>
+            <source>Double connection</source>
+            <translation>Двойное соединение</translation>
+        </message>
+        <message>
+            <source>Browser mimicry</source>
+            <translation>Имитация браузера</translation>
+        </message>
+        <message>
             <source>SNI-REALITY (Generic)</source>
             <translation>Подмена домена (по умолчанию)</translation>
         </message>

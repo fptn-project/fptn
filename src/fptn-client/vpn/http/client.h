@@ -8,22 +8,24 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include <functional>
 #include <memory>
-#include <mutex>
 #include <string>
-#include <thread>
 #include <utility>
 
 #include "common/network/ip_address.h"
 #include "common/network/ip_packet.h"
 
-#include "fptn-protocol-lib/https/censorship_strategy.h"
-#include "fptn-protocol-lib/https/websocket_client/websocket_client.h"
+#include "fptn-protocol-lib/connection/connection_manager/connection_manager.h"
+#include "fptn-protocol-lib/connection/strategies/base_strategy_connection.h"
+#include "fptn-protocol-lib/https/connection_config.h"
 
 namespace fptn::vpn::http {
 
 using IPv4Address = fptn::common::network::IPv4Address;
 using IPv6Address = fptn::common::network::IPv6Address;
 
+// Thin adapter over ConnectionManager: keeps the historical Client API used by
+// the desktop CLI/GUI while delegating auth, DNS, connect and reconnect logic
+// (and its logging) to the unified ConnectionManager.
 class Client final {
  public:
   using NewIPPacketCallback =
@@ -32,7 +34,10 @@ class Client final {
       std::function<void(const IPv4Address& ip_v4, const IPv6Address& ip_v6)>;
 
  public:
-  explicit Client(fptn::protocol::https::WebsocketClient::Config config);
+  explicit Client(fptn::protocol::https::ConnectionConfig config,
+      fptn::protocol::connection::strategies::ConnectionStrategy strategy =
+          fptn::protocol::connection::strategies::ConnectionStrategy::
+              kPersistentConnection);
   ~Client();
   void SetAccessToken(const std::string& token);
   bool Login(const std::string& username,
@@ -48,25 +53,8 @@ class Client final {
 
   const std::string& LatestError() const;
 
- protected:
-  void Run();
-
  private:
-  const int kMaxReconnectionAttempts_ = 3;
-
-  std::thread th_;
-  mutable std::mutex mutex_;
-  std::atomic<bool> running_;
-
-  std::string latest_error_;
-  std::atomic<int> reconnection_attempts_;
-
-  fptn::protocol::https::WebsocketClientSPtr ws_;
-
-  fptn::protocol::https::WebsocketClient::Config config_;
-
-  IPv4Address dns_ipv4_;
-  IPv6Address dns_ipv6_;
+  fptn::protocol::connection::ConnectionManager manager_;
 };
 
 using ClientPtr = std::unique_ptr<Client>;

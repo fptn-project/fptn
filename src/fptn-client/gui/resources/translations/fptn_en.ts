@@ -288,6 +288,22 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>Traffic masking (obfuscation)</translation>
         </message>
         <message>
+            <source>Connection strategy</source>
+            <translation>Connection strategy</translation>
+        </message>
+        <message>
+            <source>Persistent connection</source>
+            <translation>Persistent connection</translation>
+        </message>
+        <message>
+            <source>Double connection</source>
+            <translation>Double connection</translation>
+        </message>
+        <message>
+            <source>Browser mimicry</source>
+            <translation>Browser mimicry</translation>
+        </message>
+        <message>
             <source>SNI-REALITY (Generic)</source>
             <translation>Domain spoofing (default)</translation>
         </message>

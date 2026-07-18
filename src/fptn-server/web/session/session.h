@@ -99,7 +99,9 @@ class Session : public std::enable_shared_from_this<Session> {
       const boost::beast::http::request<boost::beast::http::string_body>&
           request);
 
-  // deprecated
+  // deprecated (kept for backward compatibility with old-protocol clients):
+  // every such connection gets its own unique session id (a standalone 1:1
+  // logical client), unlike the new pooled path.
   boost::asio::awaitable<bool> HandleWebSocket(
       const boost::beast::http::request<boost::beast::http::string_body>&
           request);

@@ -6,7 +6,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #pragma once
 
-#include <chrono>
+#include <cstdint>
 #include <memory>
 #include <shared_mutex>
 #include <string>
@@ -17,7 +17,8 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "common/network/ipv4_generator.h"
 #include "common/network/ipv6_generator.h"
 
-#include "client/session.h"
+#include "nat/connect_params.h"
+#include "nat/connection_multiplexer/connection_multiplexer.h"
 #include "statistic/metrics.h"
 #include "traffic_shaper/leaky_bucket.h"
 
@@ -39,28 +40,29 @@ class Table final {
  public:
   explicit Table(Config config);
 
-  // deprecated
-  fptn::client::SessionSPtr CreateClientSession(ClientID client_id,
-      const std::string& user_name,
-      const fptn::common::network::IPv4Address& client_ipv4,
-      const fptn::common::network::IPv6Address& client_ipv6,
+  // Registers a physical connection. Connections sharing params.request
+  // .session_id are grouped into the same multiplexer (one fake IP pair). The
+  // shapers are used only when a brand new multiplexer is created. Returns the
+  // multiplexer the connection belongs to, or nullptr on failure.
+  ConnectionMultiplexerSPtr AddConnection(const ConnectParams& params,
       const fptn::traffic_shaper::LeakyBucketSPtr& to_client,
       const fptn::traffic_shaper::LeakyBucketSPtr& from_client);
 
-  fptn::client::SessionSPtr CreateClientSession2(ClientID client_id,
-      const std::string& user_name,
-      const fptn::traffic_shaper::LeakyBucketSPtr& to_client,
-      const fptn::traffic_shaper::LeakyBucketSPtr& from_client);
-
-  bool DelClientSession(ClientID client_id);
+  bool DelConnectionByClientId(ClientID client_id);
   void UpdateStatistic(const fptn::statistic::MetricsSPtr& prometheus);
 
+  // Re-sorts the connections of every session by their current role and returns
+  // the client ids that outlived their ttl (their transports must be closed).
+  // Called periodically by the vpn manager.
+  std::vector<ClientID> UpdateConnectionsStatus();
+
  public:
-  fptn::client::SessionSPtr GetSessionByFakeIPv4(
+  ConnectionMultiplexerSPtr GetMultiplexerByFakeIPv4(
       const fptn::common::network::IPv4Address& ip) noexcept;
-  fptn::client::SessionSPtr GetSessionByFakeIPv6(
+  ConnectionMultiplexerSPtr GetMultiplexerByFakeIPv6(
       const fptn::common::network::IPv6Address& ip) noexcept;
-  fptn::client::SessionSPtr GetSessionByClientId(ClientID clientId) noexcept;
+  ConnectionMultiplexerSPtr GetMultiplexerByClientId(
+      ClientID client_id) noexcept;
 
   std::size_t GetNumberActiveSessionByUsername(const std::string& username);
 
@@ -75,14 +77,12 @@ class Table final {
   std::vector<fptn::common::network::IPv4Address> free_ipv4_;
   std::vector<fptn::common::network::IPv6Address> free_ipv6_;
 
-  std::unordered_map<IPv4INT, fptn::client::SessionSPtr>
-      ipv4_to_sessions_;  // ipv4
-  std::unordered_map<std::string, fptn::client::SessionSPtr>
-      ipv6_to_sessions_;  // ipv6
-  std::unordered_map<ClientID, fptn::client::SessionSPtr>
-      client_id_to_sessions_;
+  std::unordered_map<std::string, ConnectionMultiplexerSPtr> session_to_mplx_;
+  std::unordered_map<IPv4INT, ConnectionMultiplexerSPtr> ipv4_to_mplx_;
+  std::unordered_map<std::string, ConnectionMultiplexerSPtr> ipv6_to_mplx_;
+  std::unordered_map<ClientID, ConnectionMultiplexerSPtr> client_to_mplx_;
 };
 
-typedef std::shared_ptr<Table> TableSPtr;
+using TableSPtr = std::shared_ptr<Table>;
 
 }  // namespace fptn::nat

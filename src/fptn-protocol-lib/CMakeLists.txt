@@ -103,6 +103,17 @@ set(FPTN_CLIENT_PROTOCOL_SOURCES
     ${PROTO_SRCS}
     ${PROTO_HDRS}
     ${YAFF_SRCS}
+    connection/connection_manager/connection_manager.h
+    connection/connection_manager/connection_manager.cpp
+    connection/strategies/base_strategy_connection.h
+    connection/strategies/base_strategy_connection.cpp
+    connection/strategies/persistent_connection/persistent_connection.h
+    connection/strategies/persistent_connection/persistent_connection.cpp
+    connection/strategies/double_connection/double_connection.h
+    connection/strategies/double_connection/double_connection.cpp
+    connection/strategies/browser_mimicry/browser_mimicry.h
+    connection/strategies/browser_mimicry/browser_mimicry.cpp
+    https/connection_config.h
     https/api_client/api_client.h
     https/api_client/api_client.cpp
     https/obfuscator/methods/tls/tls_obfuscator.cpp

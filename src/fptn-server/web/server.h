@@ -69,13 +69,8 @@ class Server final {
 
  protected:
   // websocket
-  fptn::client::SessionSPtr HandleWsOpenConnection(fptn::ClientID client_id,
-      const fptn::common::network::IPv4Address& client_ip,
-      const fptn::common::network::IPv4Address& client_vpn_ipv4,
-      const fptn::common::network::IPv6Address& client_vpn_ipv6,
-      const SessionSPtr& session,
-      const std::string& url,
-      const std::string& access_token);
+  fptn::nat::ConnectionMultiplexerSPtr HandleWsOpenConnection(
+      const fptn::nat::ConnectParams& params, const SessionSPtr& session);
   void HandleWsNewIPPacket(fptn::common::network::IPPacketPtr packet) noexcept;
   void HandleWsCloseConnection(fptn::ClientID client_id) noexcept;
 

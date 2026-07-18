@@ -288,6 +288,22 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>پنهان‌سازی ترافیک (obfuscation)</translation>
         </message>
         <message>
+            <source>Connection strategy</source>
+            <translation>راهبرد اتصال</translation>
+        </message>
+        <message>
+            <source>Persistent connection</source>
+            <translation>اتصال دائمی</translation>
+        </message>
+        <message>
+            <source>Double connection</source>
+            <translation>اتصال دوگانه</translation>
+        </message>
+        <message>
+            <source>Browser mimicry</source>
+            <translation>تقلید مرورگر</translation>
+        </message>
+        <message>
             <source>SNI-REALITY (Generic)</source>
             <translation>جعل دامنه (پیش‌فرض)</translation>
         </message>

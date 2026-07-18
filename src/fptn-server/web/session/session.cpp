@@ -30,6 +30,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "common/api/handle.h"
 #include "common/network/resolv.h"
 #include "common/network/utils.h"
+#include "common/utils/utils.h"
 
 #include "fptn-protocol-lib/https/obfuscator/methods/detector.h"
 #include "fptn-protocol-lib/https/obfuscator/methods/tls/tls_obfuscator.h"
@@ -73,6 +74,36 @@ void SetSocketTimeouts(boost::asio::ip::tcp::socket& socket, int timeout_sec) {
       reinterpret_cast<const char*>(&tv), sizeof(tv));
   ::setsockopt(socket_fd, SOL_SOCKET, SO_SNDTIMEO,
       reinterpret_cast<const char*>(&tv), sizeof(tv));
+}
+
+std::uint64_t ParseRequestUint(
+    const boost::beast::http::request<boost::beast::http::string_body>& request,
+    const std::string& param_name,
+    const std::uint64_t default_value) {
+  if (!request.contains(param_name)) {
+    return default_value;
+  }
+  try {
+    const std::string value_str = request[param_name];
+    std::size_t pos = 0;
+    const std::uint64_t value = std::stoull(value_str, &pos, 10);
+    if (pos != value_str.size()) {
+      return default_value;
+    }
+    return value;
+  } catch (const std::exception&) {
+    return default_value;
+  }
+}
+
+std::string ParseRequestStr(
+    const boost::beast::http::request<boost::beast::http::string_body>& request,
+    const std::string& param_name,
+    const std::string& default_value) {
+  if (request.contains(param_name)) {
+    return request[param_name];
+  }
+  return default_value;
 }
 
 boost::asio::awaitable<std::size_t> PeekWithTimeout(
@@ -888,7 +919,7 @@ boost::asio::awaitable<bool> Session::ProcessRequest() {
 
     if (boost::beast::websocket::is_upgrade(request)) {
       if (request.target() == common::api::kApiWebSocketUrlOld) {
-        // deprecated
+        // deprecated old protocol (single connection, its own session)
         status = co_await HandleWebSocket(request);
       } else if (request.target() == common::api::kApiWebSocketUrl) {
         status = co_await HandleWebSocket2(request);
@@ -972,7 +1003,7 @@ boost::asio::awaitable<bool> Session::HandleHttp(
   co_return false;
 }
 
-// deprecated
+// deprecated (kept for backward compatibility with old-protocol clients)
 boost::asio::awaitable<bool> Session::HandleWebSocket(
     const boost::beast::http::request<boost::beast::http::string_body>&
         request) {
@@ -981,8 +1012,6 @@ boost::asio::awaitable<bool> Session::HandleWebSocket(
   if (request.contains("Authorization") && request.contains("ClientIP")) {
     std::string token = request["Authorization"];
     boost::replace_first(token, "Bearer ", "");
-
-    const std::string client_vpn_ipv4_str = request["ClientIP"];
 
     boost::system::error_code ec;
     const std::string client_ip_str = boost::beast::get_lowest_layer(ws_)
@@ -996,18 +1025,30 @@ boost::asio::awaitable<bool> Session::HandleWebSocket(
     }
 
     try {
-      const common::network::IPv4Address client_ip(client_ip_str);
-      const common::network::IPv4Address client_vpn_ipv4(client_vpn_ipv4_str);
-
+      const std::string client_vpn_ipv4_str = request["ClientIP"];
       const std::string client_vpn_ipv6_str =
           (request.contains("ClientIPv6") ? request["ClientIPv6"]
                                           : FPTN_CLIENT_DEFAULT_ADDRESS_IP6);
-      const common::network::IPv6Address client_vpn_ipv6(client_vpn_ipv6_str);
 
-      const auto nat_session =
-          ws_open_callback_(client_id_, client_ip, client_vpn_ipv4,
-              client_vpn_ipv6, shared_from_this(), request.target(), token);
+      fptn::nat::ConnectParams params;
+      params.client_id = client_id_;
+      params.request.url = request.target();
+      params.request.jwt_auth_token = token;
+      // Old protocol carries no SessionID: each connection is its own unique
+      // logical session (1:1), never pooled.
+      params.request.session_id = common::utils::GenerateRandomString(32);
+      params.request.connection_weight = 1;
+      params.request.client_ipv4 = common::network::IPv4Address(client_ip_str);
+      params.request.client_tun_vpn_ipv4 =
+          common::network::IPv4Address(client_vpn_ipv4_str);
+      params.request.client_tun_vpn_ipv6 =
+          common::network::IPv6Address(client_vpn_ipv6_str);
+
+      const auto nat_session = ws_open_callback_(params, shared_from_this());
       ws_session_was_opened_ = nat_session != nullptr;
+      // Old protocol: single-packet protobuf and server-side NAT (checksum
+      // recalculation stays enabled, i.e. DisableChecksumCalculation is NOT
+      // called).
       support_batch_sending_ = false;
       if (ws_session_was_opened_) {
         co_await ws_.async_accept(request,
@@ -1050,10 +1091,33 @@ boost::asio::awaitable<bool> Session::HandleWebSocket2(
     }
     const common::network::IPv4Address client_ip(client_ip_str);
     try {
-      const auto nat_session = ws_open_callback_(client_id_, client_ip,
-          fptn::common::network::IPv4Address(),
-          fptn::common::network::IPv6Address(), shared_from_this(),
-          request.target(), token);
+      fptn::nat::ConnectParams params;
+      params.client_id = client_id_;
+      params.request.url = request.target();
+      params.request.jwt_auth_token = token;
+      // No SessionID -> a fresh unique id, so a lone connection behaves exactly
+      // like today (its own logical session). Pooled clients send a shared id.
+      params.request.session_id = ParseRequestStr(
+          request, "SessionID", common::utils::GenerateRandomString(32));
+      params.request.connection_weight =
+          ParseRequestUint(request, "ConnectionWeight", 1);
+      params.request.client_ipv4 = client_ip;
+      if (request.contains("ClientIP")) {
+        params.request.client_tun_vpn_ipv4 =
+            common::network::IPv4Address(std::string(request["ClientIP"]));
+      }
+      if (request.contains("ClientIPv6")) {
+        params.request.client_tun_vpn_ipv6 =
+            common::network::IPv6Address(std::string(request["ClientIPv6"]));
+      }
+      // Durations (ms) that drive the connection's SENDING -> RECEIVING ->
+      // CLOSING lifecycle; absent (0) means a plain always-receiving link.
+      params.request.send_duration_ms =
+          ParseRequestUint(request, "X-Send-Duration", 0);
+      params.request.ttl_ms = ParseRequestUint(request, "X-Ttl", 0);
+
+      const auto nat_session =
+          ws_open_callback_(params, shared_from_this());
 
       if (nat_session == nullptr) {
         co_return false;
@@ -1067,13 +1131,11 @@ boost::asio::awaitable<bool> Session::HandleWebSocket2(
       SPDLOG_INFO("Session serializer: {} (client_id={})",
           use_yaff_serializer_ ? "yaff" : "protobuf", client_id_);
 
-      if (nat_session) {
-        co_await ws_.async_accept(request,
-            boost::asio::redirect_error(boost::asio::use_awaitable, ec));
-        if (ec) {
-          SPDLOG_WARN("Failed to connect to client: {}", ec.message());
-          co_return false;
-        }
+      co_await ws_.async_accept(
+          request, boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+      if (ec) {
+        SPDLOG_WARN("Failed to connect to client: {}", ec.message());
+        co_return false;
       }
       SPDLOG_INFO("Successfully connected to {}", client_ip.ToString());
 

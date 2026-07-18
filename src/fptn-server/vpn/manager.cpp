@@ -52,6 +52,10 @@ bool Manager::Stop() {
   if (collect_statistics_.joinable()) {
     collect_statistics_.join();
   }
+
+  if (connections_status_updater_.joinable()) {
+    connections_status_updater_.join();
+  }
   return true;
 }
 
@@ -69,8 +73,10 @@ bool Manager::Start() {
   }
 
   collect_statistics_ = std::thread(&Manager::RunCollectStatistics, this);
-  const bool collect_statistic_status = collect_statistics_.joinable();
-  return collect_statistic_status;
+  connections_status_updater_ =
+      std::thread(&Manager::RunUpdateConnectionsStatus, this);
+  return collect_statistics_.joinable() &&
+         connections_status_updater_.joinable();
 }
 
 void Manager::RunToClient() const {
@@ -88,11 +94,13 @@ void Manager::RunToClient() const {
         continue;
       }
 
-      fptn::client::SessionSPtr nat_session = nullptr;
+      fptn::nat::ConnectionMultiplexerSPtr nat_session = nullptr;
       if (packet->IsIPv4()) {
-        nat_session = nat_->GetSessionByFakeIPv4(packet->GetDstIPv4Address());
+        nat_session =
+            nat_->GetMultiplexerByFakeIPv4(packet->GetDstIPv4Address());
       } else if (packet->IsIPv6()) {
-        nat_session = nat_->GetSessionByFakeIPv6(packet->GetDstIPv6Address());
+        nat_session =
+            nat_->GetMultiplexerByFakeIPv6(packet->GetDstIPv6Address());
       }
 
       if (!nat_session) {
@@ -104,13 +112,18 @@ void Manager::RunToClient() const {
         continue;
       }
 
-      packet = nat_session->ChangeIPAddressToClientIP(std::move(packet));
+      const auto client_id = nat_session->NextReceiverClientId();
+      if (!client_id) {
+        continue;
+      }
+
+      packet = nat_session->ChangeIPAddressToClientIP(
+          std::move(packet), *client_id);
       if (!packet) {
         continue;
       }
 
-      const auto client_id = packet->ClientId();
-      batches[client_id].push_back(std::move(packet));
+      batches[*client_id].push_back(std::move(packet));
     }
     for (auto& [client_id, batch] : batches) {
       auto web_session = web_server_->GetSessionById(client_id);
@@ -139,7 +152,7 @@ void Manager::RunFromClient() const {
       }
 
       // get session
-      const auto session = nat_->GetSessionByClientId(packet->ClientId());
+      const auto session = nat_->GetMultiplexerByClientId(packet->ClientId());
       if (!session) {
         continue;
       }
@@ -179,5 +192,18 @@ void Manager::RunCollectStatistics() {
       last_collection_time = now;
     }
     std::this_thread::sleep_for(kTimeout);
+  }
+}
+
+void Manager::RunUpdateConnectionsStatus() {
+  constexpr std::chrono::milliseconds kInterval{300};
+  while (running_) {
+    const auto expired = nat_->UpdateConnectionsStatus();
+    for (const auto client_id : expired) {
+      if (const auto session = web_server_->GetSessionById(client_id)) {
+        session->Close();  // triggers the close callback -> NAT/table cleanup
+      }
+    }
+    std::this_thread::sleep_for(kInterval);
   }
 }

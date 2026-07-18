@@ -59,14 +59,10 @@ inline ApiHandle GetApiHandle(const ApiHandleMap& m,
 
 class Session;
 
-using WebSocketOpenConnectionCallback = std::function<fptn::client::SessionSPtr(
-  fptn::ClientID client_id,
-  const fptn::common::network::IPv4Address& client_ip,
-  const fptn::common::network::IPv4Address& client_vpn_ipv4,
-  const fptn::common::network::IPv6Address& client_vpn_ipv6,
-  const std::shared_ptr<Session>& session,
-  const std::string& url,
-  const std::string& access_token)>;
+using WebSocketOpenConnectionCallback =
+std::function<fptn::nat::ConnectionMultiplexerSPtr(
+        const fptn::nat::ConnectParams& params,
+        const std::shared_ptr<Session>& session)>;
 
 using WebSocketNewIPPacketCallback = std::function<void(
   fptn::common::network::IPPacketPtr packet)>;

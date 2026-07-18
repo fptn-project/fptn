@@ -24,7 +24,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "common/network/ip_address.h"
 #include "common/network/ip_packet.h"
 
-#include "fptn-protocol-lib/https/censorship_strategy.h"
+#include "fptn-protocol-lib/https/connection_config.h"
 #include "fptn-protocol-lib/https/obfuscator/tcp_stream/tcp_stream.h"
 #include "fptn-protocol-lib/https/utils/tls/tls.h"
 #include "fptn-protocol-lib/protocol/protobuf/protobuf_serializer.h"
@@ -35,31 +35,14 @@ using fptn::common::network::IPPacketPtr;
 using fptn::common::network::IPv4Address;
 using fptn::common::network::IPv6Address;
 
-using OnIPRecvPacketCallback = std::function<void(IPPacketPtr packet)>;
-
-using OnConnectedCallback = std::function<void()>;
-
 using OnIPAssignedCallback =
 std::function<void(const IPv4Address& ipv4, const IPv6Address& ipv6)>;
 
 class WebsocketClient : public std::enable_shared_from_this<WebsocketClient> {
  public:
-  struct Config {
-    IPv4Address server_ip;
-    int server_port;
-
-    IPv4Address tun_interface_address_ipv4;
-    IPv6Address tun_interface_address_ipv6;
-
-    std::string sni;
-    std::string access_token;
-    std::string expected_md5_fingerprint;
-    CensorshipStrategy censorship_strategy;
-    OnConnectedCallback on_connected_callback;
-    OnIPRecvPacketCallback new_ip_pkt_callback;
-  };
-
-  explicit WebsocketClient(Config config, int thread_number = 4);
+  explicit WebsocketClient(std::string jwt_access_token,
+      ConnectionConfig config,
+      boost::asio::io_context& ioc);
 
   virtual ~WebsocketClient();
 
@@ -72,6 +55,10 @@ class WebsocketClient : public std::enable_shared_from_this<WebsocketClient> {
   bool Stop();
   bool Send(fptn::common::network::IPPacketPtr packet);
   bool IsStarted() const;
+  // True once the client has reached a terminal state (connection dropped or
+  // failed to establish). Used by strategies driving the shared io_context to
+  // know when to stop their event loop and let the manager reconnect.
+  bool IsStopped() const;
 
  protected:
   boost::asio::awaitable<bool> RunInternal();
@@ -96,7 +83,7 @@ class WebsocketClient : public std::enable_shared_from_this<WebsocketClient> {
   std::atomic<bool> was_connected_{false};
   std::atomic<bool> ip_assigned_{false};
 
-  boost::asio::io_context ioc_;
+  boost::asio::io_context& ioc_;
   boost::asio::ssl::context ctx_;
   boost::asio::ip::tcp::resolver resolver_;
 
@@ -118,7 +105,8 @@ class WebsocketClient : public std::enable_shared_from_this<WebsocketClient> {
   boost::asio::cancellation_signal cancel_signal_;
   obfuscator::IObfuscatorSPtr obfuscator_;
 
-  const Config config_;
+  const std::string jwt_access_token_;
+  const ConnectionConfig config_;
 
   IPv4Address assigned_ipv4_;
   IPv6Address assigned_ipv6_;

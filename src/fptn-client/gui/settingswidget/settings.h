@@ -80,6 +80,9 @@ class SettingsWidget : public QDialog {
   QCheckBox* gateway_auto_checkbox_ = nullptr;
   QLabel* gateway_label_ = nullptr;
 
+  QLabel* connection_strategy_label_ = nullptr;
+  QComboBox* connection_strategy_combo_box_ = nullptr;
+
   QLabel* bypass_method_label_ = nullptr;
   QComboBox* bypass_method_combo_box_ = nullptr;
 

@@ -159,6 +159,34 @@ void SettingsWidget::SetupUi() {
   grid_layout_->addWidget(gateway_label_, 3, 0, Qt::AlignLeft);
   grid_layout_->addLayout(gateway_layout, 3, 1);
 
+  connection_strategy_label_ =
+      new QLabel(QObject::tr("Connection strategy"), this);
+  connection_strategy_combo_box_ = new QComboBox(this);
+  connection_strategy_combo_box_->addItem(QObject::tr("Persistent connection"),
+      SettingsModel::kConnectionStrategyLongTerm);
+  connection_strategy_combo_box_->addItem(QObject::tr("Double connection"),
+      SettingsModel::kConnectionStrategyDouble);
+  connection_strategy_combo_box_->addItem(
+      QObject::tr("Browser mimicry"), SettingsModel::kConnectionStrategyPool);
+  connection_strategy_combo_box_->setSizePolicy(
+      QSizePolicy::Expanding, QSizePolicy::Fixed);
+  connection_strategy_combo_box_->setMinimumWidth(200);
+
+  const int connection_strategy_index =
+      connection_strategy_combo_box_->findData(settings_->ConnectionStrategy());
+  if (connection_strategy_index >= 0) {
+    connection_strategy_combo_box_->setCurrentIndex(connection_strategy_index);
+  }
+
+  connect(connection_strategy_combo_box_, &QComboBox::currentIndexChanged, this,
+      [this](int) {
+        settings_->SetConnectionStrategy(
+            connection_strategy_combo_box_->currentData().toString());
+      });
+
+  grid_layout_->addWidget(connection_strategy_label_, 4, 0, Qt::AlignLeft);
+  grid_layout_->addWidget(connection_strategy_combo_box_, 4, 1);
+
   bypass_method_label_ =
       new QLabel(QObject::tr("Bypass blocking method"), this);
   bypass_method_combo_box_ = new QComboBox(this);
@@ -264,8 +292,8 @@ void SettingsWidget::SetupUi() {
   connect(bypass_method_combo_box_, &QComboBox::currentTextChanged, this,
       &SettingsWidget::onBypassMethodChanged);
 
-  grid_layout_->addWidget(bypass_method_label_, 4, 0, Qt::AlignLeft);
-  grid_layout_->addWidget(bypass_method_combo_box_, 4, 1);
+  grid_layout_->addWidget(bypass_method_label_, 5, 0, Qt::AlignLeft);
+  grid_layout_->addWidget(bypass_method_combo_box_, 5, 1);
 
   sni_label_ = new QLabel(this);
   if (settings_->BypassMethod() == SettingsModel::kBypassMethodSniReality) {
@@ -293,8 +321,8 @@ void SettingsWidget::SetupUi() {
         settings_->SetSNI(normalized);
       });
 
-  grid_layout_->addWidget(sni_label_, 5, 0, Qt::AlignLeft | Qt::AlignVCenter);
-  grid_layout_->addWidget(sni_line_edit_, 5, 1);
+  grid_layout_->addWidget(sni_label_, 6, 0, Qt::AlignLeft | Qt::AlignVCenter);
+  grid_layout_->addWidget(sni_line_edit_, 6, 1);
 
   sni_files_list_widget_ = new QListWidget(this);
   sni_files_list_widget_->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
@@ -1472,8 +1500,8 @@ void SettingsWidget::onBypassMethodChanged(const QString& method) {
   sni_import_button_->setVisible(is_reality_mode);
 
   if (is_reality_mode) {
-    grid_layout_->addWidget(sni_label_, 5, 0, Qt::AlignLeft | Qt::AlignVCenter);
-    grid_layout_->addWidget(sni_line_edit_, 5, 1, 1, 2);
+    grid_layout_->addWidget(sni_label_, 6, 0, Qt::AlignLeft | Qt::AlignVCenter);
+    grid_layout_->addWidget(sni_line_edit_, 6, 1, 1, 2);
     grid_layout_->addLayout(sni_buttons_layout_, 7, 0);
     grid_layout_->addWidget(sni_files_list_widget_, 7, 1, 1, 2);
   } else {

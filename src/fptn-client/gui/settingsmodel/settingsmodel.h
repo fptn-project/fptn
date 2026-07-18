@@ -151,6 +151,10 @@ class SettingsModel : public QObject {
   static constexpr const char* kBypassMethodSniRealitySafari26_4 =
       "SNI-REALITY-SAFARI-26-4";
 
+  static constexpr const char* kConnectionStrategyLongTerm = "long-term";
+  static constexpr const char* kConnectionStrategyDouble = "double";
+  static constexpr const char* kConnectionStrategyPool = "pool";
+
  public:
   explicit SettingsModel(const QMap<QString, QString>& languages,
       const QString& default_language = "en",
@@ -203,6 +207,9 @@ class SettingsModel : public QObject {
 
   QString BypassMethod() const;
   void SetBypassMethod(const QString& method);
+
+  QString ConnectionStrategy() const;
+  void SetConnectionStrategy(const QString& strategy);
 
   SNIManagerSPtr SniManager() const;
 
@@ -260,6 +267,7 @@ class SettingsModel : public QObject {
   bool client_autostart_;
 
   QString bypass_method_;
+  QString connection_strategy_;
 
   QString blacklist_domains_;
   QString exclude_tunnel_networks_;

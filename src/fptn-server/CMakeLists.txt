@@ -36,6 +36,11 @@ add_executable(
   fptn-server.cpp
   nat/table.h
   nat/table.cpp
+  nat/connect_params.h
+  nat/client_connection/client_connection.h
+  nat/client_connection/client_connection.cpp
+  nat/connection_multiplexer/connection_multiplexer.h
+  nat/connection_multiplexer/connection_multiplexer.cpp
   client/session.h
   client/session.cpp
   network/virtual_interface.h

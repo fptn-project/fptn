@@ -904,18 +904,29 @@ bool TrayApp::startVpn(QString& err_msg) {
     return false;
   }
 
+  using fptn::protocol::connection::strategies::ConnectionStrategy;
+  const auto strategy_name = settings_->ConnectionStrategy();
+  auto connection_strategy = ConnectionStrategy::kPersistentConnection;
+  if (strategy_name == SettingsModel::kConnectionStrategyPool) {
+    connection_strategy = ConnectionStrategy::kBrowserMimicry;
+  } else if (strategy_name == SettingsModel::kConnectionStrategyDouble) {
+    connection_strategy = ConnectionStrategy::kDoubleConnection;
+  }
+
   auto http_client = std::make_unique<fptn::vpn::http::Client>(
-      fptn::protocol::https::WebsocketClient::Config{.server_ip = server_ip,
-          .server_port = selected_server_.port,
-          .tun_interface_address_ipv4 =
-              common::network::IPv4Address(FPTN_CLIENT_DEFAULT_ADDRESS_IP4),
-          .tun_interface_address_ipv6 =
-              common::network::IPv6Address(FPTN_CLIENT_DEFAULT_ADDRESS_IP6),
-          .sni = sni,
-          .expected_md5_fingerprint = selected_server_.md5_fingerprint,
-          .censorship_strategy = censorship_strategy,
-          .on_connected_callback = nullptr,
-          .new_ip_pkt_callback = nullptr});
+      fptn::protocol::https::ConnectionConfig{
+          .common = {
+              .server_ip = server_ip,
+              .server_port = static_cast<std::uint16_t>(selected_server_.port),
+              .sni = sni,
+              .md5_fingerprint = selected_server_.md5_fingerprint,
+              .censorship_strategy = censorship_strategy,
+              .tun_interface_address_ipv4 =
+                  common::network::IPv4Address(FPTN_CLIENT_DEFAULT_ADDRESS_IP4),
+              .tun_interface_address_ipv6 =
+                  common::network::IPv6Address(FPTN_CLIENT_DEFAULT_ADDRESS_IP6),
+          }},
+      connection_strategy);
 
   if (!pre_obtained_token_.empty()) {
     http_client->SetAccessToken(pre_obtained_token_);

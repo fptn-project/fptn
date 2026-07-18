@@ -33,6 +33,7 @@ class Manager final {
   void RunToClient() const;
   void RunFromClient() const;
   void RunCollectStatistics();
+  void RunUpdateConnectionsStatus();
 
  private:
   std::atomic<bool> running_ = false;
@@ -47,6 +48,7 @@ class Manager final {
   std::vector<std::thread> read_to_client_threads_;
   std::vector<std::thread> read_from_client_threads_;
   std::thread collect_statistics_;
+  std::thread connections_status_updater_;
 };
 
 using UserManagerSPtr = std::shared_ptr<fptn::user::UserManager>;
