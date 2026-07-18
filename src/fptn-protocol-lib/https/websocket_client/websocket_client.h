@@ -97,6 +97,8 @@ class WebsocketClient : public std::enable_shared_from_this<WebsocketClient> {
   std::atomic<bool> ip_assigned_{false};
 
   boost::asio::io_context ioc_;
+  boost::asio::executor_work_guard<boost::asio::io_context::executor_type>
+      work_guard_;
   boost::asio::ssl::context ctx_;
   boost::asio::ip::tcp::resolver resolver_;
 
