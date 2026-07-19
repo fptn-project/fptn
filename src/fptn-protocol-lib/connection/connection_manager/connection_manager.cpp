@@ -18,7 +18,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <spdlog/spdlog.h>  // NOLINT(build/include_order)
 
 #include "fptn-protocol-lib/connection/strategies/browser_mimicry/browser_mimicry.h"
-#include "fptn-protocol-lib/connection/strategies/double_connection/double_connection.h"
+#include "fptn-protocol-lib/connection/strategies/parallel_connections/parallel_connections.h"
 #include "fptn-protocol-lib/connection/strategies/persistent_connection/persistent_connection.h"
 #include "fptn-protocol-lib/https/api_client/api_client.h"
 #include "fptn-protocol-lib/https/connection_config.h"
@@ -252,11 +252,21 @@ void ConnectionManager::Run() {
                      strategies::ConnectionStrategy::kBrowserMimicry) {
         strategy_connection_ =
             strategies::BrowserMimicry::Create(jwt_access_token_, config_);
-      } else if (running_ &&
-                 connection_strategy_type_ ==
-                     strategies::ConnectionStrategy::kDoubleConnection) {
+      } else if (running_ && connection_strategy_type_ ==
+                                 strategies::ConnectionStrategy::
+                                     kParallelDoubleConnection) {
         strategy_connection_ =
             strategies::DoubleConnection::Create(jwt_access_token_, config_);
+      } else if (running_ && connection_strategy_type_ ==
+                                 strategies::ConnectionStrategy::
+                                     kParallelTripleConnection) {
+        strategy_connection_ =
+            strategies::TripleConnection::Create(jwt_access_token_, config_);
+      } else if (running_ &&
+                 connection_strategy_type_ ==
+                     strategies::ConnectionStrategy::kParallelQuadConnection) {
+        strategy_connection_ =
+            strategies::QuadConnection::Create(jwt_access_token_, config_);
       }
     }
 

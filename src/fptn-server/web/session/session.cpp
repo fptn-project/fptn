@@ -1036,7 +1036,7 @@ boost::asio::awaitable<bool> Session::HandleWebSocket(
       params.request.jwt_auth_token = token;
       // Old protocol carries no SessionID: each connection is its own unique
       // logical session (1:1), never pooled.
-      params.request.session_id = common::utils::GenerateRandomString(32);
+      params.request.session_id = common::utils::GenerateRandomString(64);
       params.request.connection_weight = 1;
       params.request.client_ipv4 = common::network::IPv4Address(client_ip_str);
       params.request.client_tun_vpn_ipv4 =
@@ -1098,7 +1098,7 @@ boost::asio::awaitable<bool> Session::HandleWebSocket2(
       // No SessionID -> a fresh unique id, so a lone connection behaves exactly
       // like today (its own logical session). Pooled clients send a shared id.
       params.request.session_id = ParseRequestStr(
-          request, "SessionID", common::utils::GenerateRandomString(32));
+          request, "SessionID", common::utils::GenerateRandomString(64));
       params.request.connection_weight =
           ParseRequestUint(request, "ConnectionWeight", 1);
       params.request.client_ipv4 = client_ip;

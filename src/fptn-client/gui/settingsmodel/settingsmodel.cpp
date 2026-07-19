@@ -263,10 +263,12 @@ void SettingsModel::Load(bool dont_load_server) {
   if (service_obj.contains("connection_strategy")) {
     connection_strategy_ = service_obj["connection_strategy"].toString();
   }
-  if (connection_strategy_ != kConnectionStrategyLongTerm &&
-      connection_strategy_ != kConnectionStrategyDouble &&
-      connection_strategy_ != kConnectionStrategyPool) {
-    connection_strategy_ = kConnectionStrategyLongTerm;
+  if (connection_strategy_ != kConnectionStrategyPersistent &&
+      connection_strategy_ != kConnectionStrategyParallelDouble &&
+      connection_strategy_ != kConnectionStrategyParallelTriple &&
+      connection_strategy_ != kConnectionStrategyParallelQuad &&
+      connection_strategy_ != kConnectionStrategyBrowserMimicry) {
+    connection_strategy_ = kConnectionStrategyPersistent;
   }
 
   if (service_obj.contains("blacklist_domains")) {
@@ -558,7 +560,7 @@ void SettingsModel::SetBypassMethod(const QString& method) {
 }
 
 QString SettingsModel::ConnectionStrategy() const {
-  return connection_strategy_.isEmpty() ? kConnectionStrategyLongTerm
+  return connection_strategy_.isEmpty() ? kConnectionStrategyPersistent
                                         : connection_strategy_;
 }
 

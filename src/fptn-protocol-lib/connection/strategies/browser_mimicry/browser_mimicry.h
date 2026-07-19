@@ -81,13 +81,15 @@ struct PoolSettings {
 
   struct {
     int min_seconds = 8;
-    int max_seconds = 40;
+    int max_seconds = 60;
   } connection_ttl_range;
 
   struct {
     int min_seconds = 5;
-    int max_seconds = 15;
+    int max_seconds = 30;
   } sending_mode_range;
+
+  int min_sending_seconds = 1;
 };
 
 using ConnectionList = std::vector<std::shared_ptr<ConnectionContext>>;
@@ -116,8 +118,6 @@ class BrowserMimicry : public BaseStrategyConnection {
 
   boost::asio::awaitable<void> CreateMissingConnections();
 
-  // Fires the on_connected callback exactly once, when the first connection is
-  // actually up (not merely when the manager loop first runs).
   void NotifyConnectedOnce();
 
  private:

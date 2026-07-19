@@ -151,9 +151,14 @@ class SettingsModel : public QObject {
   static constexpr const char* kBypassMethodSniRealitySafari26_4 =
       "SNI-REALITY-SAFARI-26-4";
 
-  static constexpr const char* kConnectionStrategyLongTerm = "long-term";
-  static constexpr const char* kConnectionStrategyDouble = "double";
-  static constexpr const char* kConnectionStrategyPool = "pool";
+  static constexpr const char* kConnectionStrategyPersistent = "persistent";
+  static constexpr const char* kConnectionStrategyParallelDouble =
+      "parallel-double";
+  static constexpr const char* kConnectionStrategyParallelTriple =
+      "parallel-triple";
+  static constexpr const char* kConnectionStrategyParallelQuad =
+      "parallel-quad";
+  static constexpr const char* kConnectionStrategyBrowserMimicry = "browser";
 
  public:
   explicit SettingsModel(const QMap<QString, QString>& languages,

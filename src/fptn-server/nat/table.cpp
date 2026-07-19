@@ -50,6 +50,12 @@ ConnectionMultiplexerSPtr Table::AddConnection(const ConnectParams& params,
   if (const auto it = session_to_mplx_.find(params.request.session_id);
       it != session_to_mplx_.end()) {
     auto& mplx = it->second;
+    if (mplx->UserName() != params.user.username) {
+      SPDLOG_WARN(
+          "Session belongs to another user, rejecting client_id={} user='{}'",
+          params.client_id, params.user.username);
+      return nullptr;
+    }
     if (!mplx->AddClientConnection(params)) {
       SPDLOG_WARN("Connection with client_id={} already exists in session",
           params.client_id);
@@ -97,17 +103,22 @@ bool Table::DelConnectionByClientId(ClientID client_id) {
   client_to_mplx_.erase(it);
   mplx->DelConnectionByClientId(client_id);
 
-  // The logical session is torn down once its last connection is gone.
-  if (mplx->Empty()) {
-    const auto& fake_ipv4 = mplx->FakeClientIPv4();
-    const auto& fake_ipv6 = mplx->FakeClientIPv6();
-    free_ipv4_.push_back(fake_ipv4);
-    free_ipv6_.push_back(fake_ipv6);
-    ipv4_to_mplx_.erase(fake_ipv4.ToInt());
-    ipv6_to_mplx_.erase(fake_ipv6.ToString());
-    session_to_mplx_.erase(mplx->SessionId());
-  }
+  ReleaseSessionIfEmpty(mplx);
   return true;
+}
+
+// The logical session is torn down once its last connection is gone.
+void Table::ReleaseSessionIfEmpty(const ConnectionMultiplexerSPtr& mplx) {
+  if (!mplx->Empty()) {
+    return;
+  }
+  const auto& fake_ipv4 = mplx->FakeClientIPv4();
+  const auto& fake_ipv6 = mplx->FakeClientIPv6();
+  free_ipv4_.push_back(fake_ipv4);
+  free_ipv6_.push_back(fake_ipv6);
+  ipv4_to_mplx_.erase(fake_ipv4.ToInt());
+  ipv6_to_mplx_.erase(fake_ipv6.ToString());
+  session_to_mplx_.erase(mplx->SessionId());
 }
 
 ConnectionMultiplexerSPtr Table::GetMultiplexerByFakeIPv4(
@@ -153,12 +164,22 @@ std::size_t Table::GetNumberActiveSessionByUsername(
 }
 
 std::vector<ClientID> Table::UpdateConnectionsStatus() {
-  const std::shared_lock<std::shared_mutex> lock(mutex_);  // mutex
+  const std::unique_lock<std::shared_mutex> lock(mutex_);  // mutex
 
   std::vector<ClientID> expired;
+  std::vector<ConnectionMultiplexerSPtr> emptied;
   for (const auto& mplx : session_to_mplx_ | std::views::values) {
     auto ids = mplx->UpdateConnectionsStatus();
+    for (const auto client_id : ids) {
+      client_to_mplx_.erase(client_id);
+    }
     expired.insert(expired.end(), ids.begin(), ids.end());
+    if (mplx->Empty()) {
+      emptied.push_back(mplx);
+    }
+  }
+  for (const auto& mplx : emptied) {
+    ReleaseSessionIfEmpty(mplx);
   }
   return expired;
 }

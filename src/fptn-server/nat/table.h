@@ -67,6 +67,10 @@ class Table final {
   std::size_t GetNumberActiveSessionByUsername(const std::string& username);
 
  private:
+  // Must be called with mutex_ held.
+  void ReleaseSessionIfEmpty(const ConnectionMultiplexerSPtr& mplx);
+
+ private:
   mutable std::shared_mutex mutex_;
 
   Config config_;

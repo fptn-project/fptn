@@ -109,8 +109,7 @@ set(FPTN_CLIENT_PROTOCOL_SOURCES
     connection/strategies/base_strategy_connection.cpp
     connection/strategies/persistent_connection/persistent_connection.h
     connection/strategies/persistent_connection/persistent_connection.cpp
-    connection/strategies/double_connection/double_connection.h
-    connection/strategies/double_connection/double_connection.cpp
+    connection/strategies/parallel_connections/parallel_connections.h
     connection/strategies/browser_mimicry/browser_mimicry.h
     connection/strategies/browser_mimicry/browser_mimicry.cpp
     https/connection_config.h

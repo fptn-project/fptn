@@ -40,7 +40,7 @@ BrowserMimicry::BrowserMimicry(std::string jwt_access_token,
     fptn::protocol::https::ConnectionConfig config)
     : BaseStrategyConnection(std::move(jwt_access_token), std::move(config)),
       random_generator_(std::random_device{}()),                     // NOLINT
-      session_id_(fptn::common::utils::GenerateRandomString(32)) {}  // NOLINT
+      session_id_(fptn::common::utils::GenerateRandomString(64)) {}  // NOLINT
 
 BrowserMimicry::~BrowserMimicry() {
   BrowserMimicry::Stop();  // NOLINT
@@ -304,41 +304,26 @@ boost::asio::awaitable<void> BrowserMimicry::CreateMissingConnections() {
   const int target_per_type =
       std::max(1, static_cast<int>(settings_.min_connections / 2));
 
-  if (sending_count < target_per_type) {
-    const int need = target_per_type - sending_count;
-    for (int i = 0; i < need; i++) {
-      if (all_connections_.size() >= settings_.max_connections) {
-        break;
-      }
-      const int send_time =
-          GetRandomInt(settings_.sending_mode_range.min_seconds,
-              settings_.sending_mode_range.max_seconds);
-      const int ttl = GetRandomInt(settings_.connection_ttl_range.min_seconds,
-          settings_.connection_ttl_range.max_seconds);
-      auto connection = co_await CreateNewConnection(send_time, ttl);
-      if (connection) {
-        const std::unique_lock lock(mutex_);  // mutex
+  const int need_sending = std::max(0, target_per_type - sending_count);
+  const int need_receiving = std::max(0, target_per_type - receiving_count);
 
-        all_connections_.push_back(std::move(connection));
-      }
+  for (int i = 0; i < need_sending + need_receiving; i++) {
+    if (all_connections_.size() >= settings_.max_connections) {
+      break;
     }
-  }
+    const bool refills_sending = (i < need_sending);
+    const int send_time =
+        refills_sending ? GetRandomInt(settings_.sending_mode_range.min_seconds,
+                              settings_.sending_mode_range.max_seconds)
+                        : settings_.min_sending_seconds;
+    const int ttl = GetRandomInt(settings_.connection_ttl_range.min_seconds,
+        settings_.connection_ttl_range.max_seconds);
 
-  if (receiving_count < target_per_type) {
-    const int need = target_per_type - receiving_count;
-    for (int i = 0; i < need; i++) {
-      if (all_connections_.size() >= settings_.max_connections) {
-        break;
-      }
-      const int ttl = GetRandomInt(settings_.connection_ttl_range.min_seconds,
-          settings_.connection_ttl_range.max_seconds);
+    auto connection = co_await CreateNewConnection(send_time, ttl);
+    if (connection) {
+      const std::unique_lock lock(mutex_);  // mutex
 
-      auto connection = co_await CreateNewConnection(0, ttl);
-      if (connection) {
-        const std::unique_lock lock(mutex_);  // mutex
-
-        all_connections_.push_back(std::move(connection));
-      }
+      all_connections_.push_back(std::move(connection));
     }
   }
   co_return;

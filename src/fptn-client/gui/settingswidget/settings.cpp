@@ -163,11 +163,15 @@ void SettingsWidget::SetupUi() {
       new QLabel(QObject::tr("Connection strategy"), this);
   connection_strategy_combo_box_ = new QComboBox(this);
   connection_strategy_combo_box_->addItem(QObject::tr("Persistent connection"),
-      SettingsModel::kConnectionStrategyLongTerm);
+      SettingsModel::kConnectionStrategyPersistent);
   connection_strategy_combo_box_->addItem(QObject::tr("Double connection"),
-      SettingsModel::kConnectionStrategyDouble);
-  connection_strategy_combo_box_->addItem(
-      QObject::tr("Browser mimicry"), SettingsModel::kConnectionStrategyPool);
+      SettingsModel::kConnectionStrategyParallelDouble);
+  connection_strategy_combo_box_->addItem(QObject::tr("Triple connection"),
+      SettingsModel::kConnectionStrategyParallelTriple);
+  connection_strategy_combo_box_->addItem(QObject::tr("Quadruple connection"),
+      SettingsModel::kConnectionStrategyParallelQuad);
+  connection_strategy_combo_box_->addItem(QObject::tr("Browser mimicry"),
+      SettingsModel::kConnectionStrategyBrowserMimicry);
   connection_strategy_combo_box_->setSizePolicy(
       QSizePolicy::Expanding, QSizePolicy::Fixed);
   connection_strategy_combo_box_->setMinimumWidth(200);

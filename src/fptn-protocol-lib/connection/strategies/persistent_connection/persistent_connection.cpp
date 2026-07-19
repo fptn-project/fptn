@@ -19,7 +19,7 @@ namespace fptn::protocol::connection::strategies {
 PersistentConnection::PersistentConnection(std::string jwt_access_token,
     fptn::protocol::https::ConnectionConfig config)
     : BaseStrategyConnection(std::move(jwt_access_token), std::move(config)),
-      session_id_(fptn::common::utils::GenerateRandomString(32)) {}  // NOLINT
+      session_id_(fptn::common::utils::GenerateRandomString(64)) {}  // NOLINT
 
 PersistentConnection::~PersistentConnection() {
   PersistentConnection::Stop();  // NOLINT

@@ -145,16 +145,21 @@ int main(int argc, char* argv[]) {
         .default_value("persistent")
         .help(
             "Connection strategy:\n"
-            "  persistent - a single long-lived connection\n"
-            "  double     - two long-lived connections rotated over time\n"
-            "  browser    - many short connections mimicking a browser\n")
+            "  persistent      - a single long-lived connection\n"
+            "  parallel-double - two long-lived connections rotated over time\n"
+            "  parallel-triple - three long-lived connections rotated over "
+            "time\n"
+            "  parallel-quad   - four long-lived connections rotated over "
+            "time\n"
+            "  browser         - many short connections mimicking a browser\n")
         .action([](const std::string& v) {
-          if (v != "persistent" && v != "double" && v != "browser" &&
-              v != "long-term" && v != "pool") {
-            throw std::runtime_error(
-                fmt::format("Invalid connection strategy '{}'. Choose from: "
-                            "persistent, double, browser",
-                    v));
+          if (v != "persistent" && v != "parallel-double" &&
+              v != "parallel-triple" && v != "parallel-quad" &&
+              v != "browser") {
+            throw std::runtime_error(fmt::format(
+                "Invalid connection strategy '{}'. Choose from: persistent, "
+                "parallel-double, parallel-triple, parallel-quad, browser",
+                v));
           }
           return v;
         });
@@ -336,11 +341,14 @@ int main(int argc, char* argv[]) {
         args.get<std::string>("--connection-strategy");
     ConnectionStrategy connection_strategy =
         ConnectionStrategy::kPersistentConnection;
-    if (connection_strategy_name == "browser" ||
-        connection_strategy_name == "pool") {
+    if (connection_strategy_name == "browser") {
       connection_strategy = ConnectionStrategy::kBrowserMimicry;
-    } else if (connection_strategy_name == "double") {
-      connection_strategy = ConnectionStrategy::kDoubleConnection;
+    } else if (connection_strategy_name == "parallel-double") {
+      connection_strategy = ConnectionStrategy::kParallelDoubleConnection;
+    } else if (connection_strategy_name == "parallel-triple") {
+      connection_strategy = ConnectionStrategy::kParallelTripleConnection;
+    } else if (connection_strategy_name == "parallel-quad") {
+      connection_strategy = ConnectionStrategy::kParallelQuadConnection;
     }
 
     /* parse network lists */

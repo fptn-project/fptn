@@ -300,6 +300,14 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>اتصال دوگانه</translation>
         </message>
         <message>
+            <source>Triple connection</source>
+            <translation>اتصال سه‌گانه</translation>
+        </message>
+        <message>
+            <source>Quadruple connection</source>
+            <translation>اتصال چهارگانه</translation>
+        </message>
+        <message>
             <source>Browser mimicry</source>
             <translation>تقلید مرورگر</translation>
         </message>

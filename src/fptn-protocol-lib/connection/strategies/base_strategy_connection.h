@@ -19,7 +19,9 @@ namespace fptn::protocol::connection::strategies {
 enum class ConnectionStrategy : int {
   kPersistentConnection = 0,
   kBrowserMimicry = 1,
-  kDoubleConnection = 2
+  kParallelDoubleConnection = 2,
+  kParallelTripleConnection = 3,
+  kParallelQuadConnection = 4
 };
 
 using IPv4Address = fptn::common::network::IPv4Address;

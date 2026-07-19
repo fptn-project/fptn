@@ -301,6 +301,14 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>Двойное соединение</translation>
         </message>
         <message>
+            <source>Triple connection</source>
+            <translation>Тройное соединение</translation>
+        </message>
+        <message>
+            <source>Quadruple connection</source>
+            <translation>Четверное соединение</translation>
+        </message>
+        <message>
             <source>Browser mimicry</source>
             <translation>Имитация браузера</translation>
         </message>
