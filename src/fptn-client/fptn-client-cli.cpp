@@ -142,21 +142,24 @@ int main(int argc, char* argv[]) {
           return v;
         });
     args.add_argument("--connection-strategy")
-        .default_value("persistent")
+        .default_value("persistent-tunnel")
         .help(
             "Connection strategy:\n"
-            "  persistent - a single long-lived tunnel\n"
-            "  rolling    - a single tunnel renewed every 10 minutes\n"
-            "  dual       - two rolling tunnels in parallel\n"
-            "  triple     - three rolling tunnels in parallel\n"
-            "  browser    - many short connections mimicking a browser "
-            "(experimental)\n")
+            "  persistent-tunnel     - a single long-lived tunnel\n"
+            "  rolling-tunnel        - a single tunnel renewed every 10 "
+            "minutes\n"
+            "  dual-rolling-tunnel   - two rolling tunnels in parallel\n"
+            "  triple-rolling-tunnel - three rolling tunnels in parallel\n"
+            "  browser-mimicry       - many short connections mimicking a "
+            "browser (experimental)\n")
         .action([](const std::string& v) {
-          if (v != "persistent" && v != "rolling" && v != "dual" &&
-              v != "triple" && v != "browser") {
+          if (v != "persistent-tunnel" && v != "rolling-tunnel" &&
+              v != "dual-rolling-tunnel" && v != "triple-rolling-tunnel" &&
+              v != "browser-mimicry") {
             throw std::runtime_error(fmt::format(
-                "Invalid connection strategy '{}'. Choose from: persistent, "
-                "rolling, dual, triple, browser",
+                "Invalid connection strategy '{}'. Choose from: "
+                "persistent-tunnel, rolling-tunnel, dual-rolling-tunnel, "
+                "triple-rolling-tunnel, browser-mimicry",
                 v));
           }
           return v;
@@ -339,13 +342,13 @@ int main(int argc, char* argv[]) {
         args.get<std::string>("--connection-strategy");
     ConnectionStrategy connection_strategy =
         ConnectionStrategy::kPersistentTunnel;
-    if (connection_strategy_name == "browser") {
+    if (connection_strategy_name == "browser-mimicry") {
       connection_strategy = ConnectionStrategy::kBrowserMimicry;
-    } else if (connection_strategy_name == "dual") {
+    } else if (connection_strategy_name == "dual-rolling-tunnel") {
       connection_strategy = ConnectionStrategy::kDualTunnel;
-    } else if (connection_strategy_name == "triple") {
+    } else if (connection_strategy_name == "triple-rolling-tunnel") {
       connection_strategy = ConnectionStrategy::kTripleTunnel;
-    } else if (connection_strategy_name == "rolling") {
+    } else if (connection_strategy_name == "rolling-tunnel") {
       connection_strategy = ConnectionStrategy::kRollingTunnel;
     }
 
