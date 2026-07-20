@@ -15,19 +15,19 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 namespace fptn::protocol::connection::strategies {
 
-class PersistentConnection : public BaseStrategyConnection {
+class PersistentTunnel : public BaseStrategyConnection {
  public:
-  static std::unique_ptr<PersistentConnection> Create(
+  static std::unique_ptr<PersistentTunnel> Create(
       std::string jwt_access_token,
       fptn::protocol::https::ConnectionConfig config) {
-    return std::make_unique<PersistentConnection>(
+    return std::make_unique<PersistentTunnel>(
         std::move(jwt_access_token), std::move(config));
   }
 
-  explicit PersistentConnection(std::string jwt_access_token,
+  explicit PersistentTunnel(std::string jwt_access_token,
       fptn::protocol::https::ConnectionConfig config);
 
-  ~PersistentConnection() override;
+  ~PersistentTunnel() override;
 
  public:
   void Start() override;

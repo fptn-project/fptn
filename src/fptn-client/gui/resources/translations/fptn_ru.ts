@@ -293,24 +293,24 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>Стратегия подключения</translation>
         </message>
         <message>
-            <source>Persistent connection</source>
-            <translation>Постоянное соединение</translation>
+            <source>Persistent tunnel</source>
+            <translation>Постоянный туннель</translation>
         </message>
         <message>
-            <source>Double connection</source>
-            <translation>Двойное соединение</translation>
+            <source>Rolling tunnel</source>
+            <translation>Скользящий туннель</translation>
         </message>
         <message>
-            <source>Triple connection</source>
-            <translation>Тройное соединение</translation>
+            <source>Dual rolling tunnel</source>
+            <translation>Двойной скользящий туннель</translation>
         </message>
         <message>
-            <source>Quadruple connection</source>
-            <translation>Четверное соединение</translation>
+            <source>Triple rolling tunnel</source>
+            <translation>Тройной скользящий туннель</translation>
         </message>
         <message>
-            <source>Browser mimicry</source>
-            <translation>Имитация браузера</translation>
+            <source>Browser mimicry (experimental)</source>
+            <translation>Имитация браузера (экспериментально)</translation>
         </message>
         <message>
             <source>SNI-REALITY (Generic)</source>

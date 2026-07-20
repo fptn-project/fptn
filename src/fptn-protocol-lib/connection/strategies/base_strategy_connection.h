@@ -17,11 +17,11 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 namespace fptn::protocol::connection::strategies {
 
 enum class ConnectionStrategy : int {
-  kPersistentConnection = 0,
+  kPersistentTunnel = 0,
   kBrowserMimicry = 1,
-  kParallelDoubleConnection = 2,
-  kParallelTripleConnection = 3,
-  kParallelQuadConnection = 4
+  kDualTunnel = 2,
+  kTripleTunnel = 3,
+  kRollingTunnel = 4
 };
 
 using IPv4Address = fptn::common::network::IPv4Address;

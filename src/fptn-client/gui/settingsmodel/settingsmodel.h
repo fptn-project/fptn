@@ -152,12 +152,11 @@ class SettingsModel : public QObject {
       "SNI-REALITY-SAFARI-26-4";
 
   static constexpr const char* kConnectionStrategyPersistent = "persistent";
-  static constexpr const char* kConnectionStrategyParallelDouble =
-      "parallel-double";
-  static constexpr const char* kConnectionStrategyParallelTriple =
-      "parallel-triple";
-  static constexpr const char* kConnectionStrategyParallelQuad =
-      "parallel-quad";
+  static constexpr const char* kConnectionStrategyRolling = "rolling";
+  static constexpr const char* kConnectionStrategyDual =
+      "dual";
+  static constexpr const char* kConnectionStrategyTriple =
+      "triple";
   static constexpr const char* kConnectionStrategyBrowserMimicry = "browser";
 
  public:

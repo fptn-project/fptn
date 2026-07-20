@@ -4,7 +4,7 @@ Copyright (c) 2024-2026 Stas Skokov
 Distributed under the MIT License (https://opensource.org/licenses/MIT)
 =============================================================================*/
 
-#include "fptn-protocol-lib/connection/strategies/persistent_connection/persistent_connection.h"
+#include "fptn-protocol-lib/connection/strategies/persistent_tunnel/persistent_tunnel.h"
 
 #include <chrono>
 #include <memory>
@@ -16,16 +16,16 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 namespace fptn::protocol::connection::strategies {
 
-PersistentConnection::PersistentConnection(std::string jwt_access_token,
+PersistentTunnel::PersistentTunnel(std::string jwt_access_token,
     fptn::protocol::https::ConnectionConfig config)
     : BaseStrategyConnection(std::move(jwt_access_token), std::move(config)),
       session_id_(fptn::common::utils::GenerateRandomString(64)) {}  // NOLINT
 
-PersistentConnection::~PersistentConnection() {
-  PersistentConnection::Stop();  // NOLINT
+PersistentTunnel::~PersistentTunnel() {
+  PersistentTunnel::Stop();  // NOLINT
 }
 
-void PersistentConnection::Start() {
+void PersistentTunnel::Start() {
   auto config = Config();
   config.common.session_id = session_id_;
   {
@@ -53,7 +53,7 @@ void PersistentConnection::Start() {
   }
 }
 
-void PersistentConnection::Stop() {
+void PersistentTunnel::Stop() {
   const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
   SetRunningStatus(false);
@@ -63,7 +63,7 @@ void PersistentConnection::Stop() {
   }
 }
 
-bool PersistentConnection::Send(fptn::common::network::IPPacketPtr packet) {
+bool PersistentTunnel::Send(fptn::common::network::IPPacketPtr packet) {
   if (websocket_client_) {
     const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
@@ -75,9 +75,9 @@ bool PersistentConnection::Send(fptn::common::network::IPPacketPtr packet) {
   return false;
 }
 
-bool PersistentConnection::IsStarted() { return RunningStatus(); }
+bool PersistentTunnel::IsStarted() { return RunningStatus(); }
 
-bool PersistentConnection::IsConnected() {
+bool PersistentTunnel::IsConnected() {
   const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
   return websocket_client_ && websocket_client_->IsStarted();

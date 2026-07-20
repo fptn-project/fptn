@@ -18,8 +18,9 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <spdlog/spdlog.h>  // NOLINT(build/include_order)
 
 #include "fptn-protocol-lib/connection/strategies/browser_mimicry/browser_mimicry.h"
-#include "fptn-protocol-lib/connection/strategies/parallel_connections/parallel_connections.h"
-#include "fptn-protocol-lib/connection/strategies/persistent_connection/persistent_connection.h"
+#include "fptn-protocol-lib/connection/strategies/parallel_tunnels/parallel_tunnels.h"
+#include "fptn-protocol-lib/connection/strategies/persistent_tunnel/persistent_tunnel.h"
+#include "fptn-protocol-lib/connection/strategies/rolling_tunnel/rolling_tunnel.h"
 #include "fptn-protocol-lib/https/api_client/api_client.h"
 #include "fptn-protocol-lib/https/connection_config.h"
 
@@ -244,8 +245,8 @@ void ConnectionManager::Run() {
       // cppcheck-suppress identicalInnerCondition
       if (running_ &&
           connection_strategy_type_ ==
-              strategies::ConnectionStrategy::kPersistentConnection) {
-        strategy_connection_ = strategies::PersistentConnection::Create(
+              strategies::ConnectionStrategy::kPersistentTunnel) {
+        strategy_connection_ = strategies::PersistentTunnel::Create(
             jwt_access_token_, config_);
       } else if (running_ &&
                  connection_strategy_type_ ==
@@ -254,19 +255,19 @@ void ConnectionManager::Run() {
             strategies::BrowserMimicry::Create(jwt_access_token_, config_);
       } else if (running_ && connection_strategy_type_ ==
                                  strategies::ConnectionStrategy::
-                                     kParallelDoubleConnection) {
+                                     kDualTunnel) {
         strategy_connection_ =
-            strategies::DoubleConnection::Create(jwt_access_token_, config_);
+            strategies::DualTunnel::Create(jwt_access_token_, config_);
       } else if (running_ && connection_strategy_type_ ==
                                  strategies::ConnectionStrategy::
-                                     kParallelTripleConnection) {
+                                     kTripleTunnel) {
         strategy_connection_ =
-            strategies::TripleConnection::Create(jwt_access_token_, config_);
+            strategies::TripleTunnel::Create(jwt_access_token_, config_);
       } else if (running_ &&
                  connection_strategy_type_ ==
-                     strategies::ConnectionStrategy::kParallelQuadConnection) {
-        strategy_connection_ =
-            strategies::QuadConnection::Create(jwt_access_token_, config_);
+                     strategies::ConnectionStrategy::kRollingTunnel) {
+        strategy_connection_ = strategies::RollingTunnel::Create(
+            jwt_access_token_, config_);
       }
     }
 

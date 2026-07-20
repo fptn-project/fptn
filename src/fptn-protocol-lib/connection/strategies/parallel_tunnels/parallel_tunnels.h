@@ -34,9 +34,9 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 namespace fptn::protocol::connection::strategies {
 
 template <std::size_t ConnectionCount, int LifetimeSeconds>
-class ParallelConnections : public BaseStrategyConnection {
+class ParallelTunnels : public BaseStrategyConnection {
   static_assert(
-      ConnectionCount >= 2, "ParallelConnections needs at least 2 connections");
+      ConnectionCount >= 2, "ParallelTunnels needs at least 2 connections");
   static_assert(LifetimeSeconds > 0, "Socket lifetime must be positive");
 
  private:
@@ -50,20 +50,20 @@ class ParallelConnections : public BaseStrategyConnection {
   static constexpr std::size_t kMaxConnections = ConnectionCount + 1;
 
  public:
-  static std::unique_ptr<ParallelConnections> Create(
+  static std::unique_ptr<ParallelTunnels> Create(
       std::string jwt_access_token,
       fptn::protocol::https::ConnectionConfig config) {
-    return std::make_unique<ParallelConnections>(
+    return std::make_unique<ParallelTunnels>(
         std::move(jwt_access_token), std::move(config));
   }
 
-  explicit ParallelConnections(std::string jwt_access_token,
+  explicit ParallelTunnels(std::string jwt_access_token,
       fptn::protocol::https::ConnectionConfig config)
       : BaseStrategyConnection(std::move(jwt_access_token), std::move(config)),
         session_id_(fptn::common::utils::GenerateRandomString(64)) {}
 
-  ~ParallelConnections() override {
-    ParallelConnections::Stop();  // NOLINT
+  ~ParallelTunnels() override {
+    ParallelTunnels::Stop();  // NOLINT
   }
 
  public:
@@ -126,6 +126,12 @@ class ParallelConnections : public BaseStrategyConnection {
     });
   }
 
+  bool IsPoolEmpty() const {
+    const std::shared_lock lock(mutex_);  // read-only lock
+
+    return connections_.empty();
+  }
+
  protected:
   boost::asio::awaitable<void> ManageCoroutine() {
     boost::asio::steady_timer timer(GetIOContext());
@@ -136,6 +142,12 @@ class ParallelConnections : public BaseStrategyConnection {
         co_await RemoveClosedConnections();
 
         co_await CreateMissingConnections();
+
+        if (IsPoolEmpty()) {
+          SPDLOG_ERROR("All connections are lost. Reconnecting");
+          SetRunningStatus(false);
+          break;
+        }
 
         NotifyConnectedOnce();
       } catch (const std::exception& e) {
@@ -174,6 +186,9 @@ class ParallelConnections : public BaseStrategyConnection {
           SPDLOG_INFO("Connection #{} READY (lifetime {}s)",
               channel->connection_id, lifetime_seconds);
           co_return channel;
+        }
+        if (channel->client->IsStopped()) {
+          break;
         }
         timer.expires_after(std::chrono::milliseconds(500));
         co_await timer.async_wait(boost::asio::use_awaitable);
@@ -249,28 +264,61 @@ class ParallelConnections : public BaseStrategyConnection {
         }
       }
 
-      std::size_t initial_index = 0;
-      {
-        const std::shared_lock lock(mutex_);  // read-only lock
-        if (initial_connections_created_ < ConnectionCount) {
-          initial_index = initial_connections_created_ + 1;
-        }
+      auto channel = co_await CreateNewConnection(NextLifetimeSeconds());
+      if (!channel) {
+        break;
       }
-      const int lifetime_seconds =
-          initial_index > 0 ? static_cast<int>(LifetimeSeconds * initial_index /
-                                               ConnectionCount)
-                            : LifetimeSeconds;
-
-      auto channel = co_await CreateNewConnection(lifetime_seconds);
-      if (channel) {
+      {
         const std::unique_lock lock(mutex_);  // mutex
         connections_.push_back(std::move(channel));
-        if (initial_index > 0) {
-          ++initial_connections_created_;
-        }
       }
     }
     co_return;
+  }
+
+  // Places the new connection one slot away from the ones already scheduled, so
+  // the pool keeps closing its sockets one at a time instead of all at once.
+  int NextLifetimeSeconds() const {
+    constexpr int kSlotSeconds =
+        LifetimeSeconds / static_cast<int>(ConnectionCount);
+
+    std::vector<int> remaining;
+    {
+      const std::shared_lock lock(mutex_);  // read-only lock
+
+      const auto now = std::chrono::system_clock::now();
+      for (const auto& channel : connections_) {
+        if (!channel) {
+          continue;
+        }
+        const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(
+            channel->close_at - now)
+                                 .count();
+        if (seconds > 0 && seconds <= LifetimeSeconds) {
+          remaining.push_back(static_cast<int>(seconds));
+        }
+      }
+    }
+    if (remaining.empty()) {
+      return kSlotSeconds;
+    }
+    std::ranges::sort(remaining);
+
+    const int appended = remaining.back() + kSlotSeconds;
+    if (appended <= LifetimeSeconds) {
+      return appended;
+    }
+
+    int widest_gap = remaining.front();
+    int lifetime_seconds = widest_gap / 2;
+    for (std::size_t i = 1; i < remaining.size(); i++) {
+      const int gap = remaining[i] - remaining[i - 1];
+      if (gap > widest_gap) {
+        widest_gap = gap;
+        lifetime_seconds = remaining[i - 1] + gap / 2;
+      }
+    }
+    return lifetime_seconds;
   }
 
   void NotifyConnectedOnce() {
@@ -303,15 +351,12 @@ class ParallelConnections : public BaseStrategyConnection {
   std::atomic<std::uint64_t> connection_id_counter_{0};
   std::atomic<std::size_t> round_robin_cursor_{0};
 
-  std::size_t initial_connections_created_ = 0;
-
   const std::string session_id_;
 
   std::vector<std::shared_ptr<Channel>> connections_;
 };
 
-using DoubleConnection = ParallelConnections<2, 600>;
-using TripleConnection = ParallelConnections<3, 600>;
-using QuadConnection = ParallelConnections<4, 600>;
+using DualTunnel = ParallelTunnels<2, 600>;
+using TripleTunnel = ParallelTunnels<3, 600>;
 
 }  // namespace fptn::protocol::connection::strategies

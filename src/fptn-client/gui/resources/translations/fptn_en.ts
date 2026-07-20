@@ -292,24 +292,24 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>Connection strategy</translation>
         </message>
         <message>
-            <source>Persistent connection</source>
-            <translation>Persistent connection</translation>
+            <source>Persistent tunnel</source>
+            <translation>Persistent tunnel</translation>
         </message>
         <message>
-            <source>Double connection</source>
-            <translation>Double connection</translation>
+            <source>Rolling tunnel</source>
+            <translation>Rolling tunnel</translation>
         </message>
         <message>
-            <source>Triple connection</source>
-            <translation>Triple connection</translation>
+            <source>Dual rolling tunnel</source>
+            <translation>Dual rolling tunnel</translation>
         </message>
         <message>
-            <source>Quadruple connection</source>
-            <translation>Quadruple connection</translation>
+            <source>Triple rolling tunnel</source>
+            <translation>Triple rolling tunnel</translation>
         </message>
         <message>
-            <source>Browser mimicry</source>
-            <translation>Browser mimicry</translation>
+            <source>Browser mimicry (experimental)</source>
+            <translation>Browser mimicry (experimental)</translation>
         </message>
         <message>
             <source>SNI-REALITY (Generic)</source>

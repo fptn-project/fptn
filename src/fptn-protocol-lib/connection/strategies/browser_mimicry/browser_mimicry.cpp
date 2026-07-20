@@ -105,6 +105,12 @@ bool BrowserMimicry::IsConnected() {
   });
 }
 
+bool BrowserMimicry::IsPoolEmpty() const {
+  const std::shared_lock lock(mutex_);  // read-only lock
+
+  return all_connections_.empty();
+}
+
 boost::asio::awaitable<void> BrowserMimicry::ManagePoolCoroutine() {
   boost::asio::steady_timer timer(GetIOContext());
   while (IsStarted()) {
@@ -116,6 +122,12 @@ boost::asio::awaitable<void> BrowserMimicry::ManagePoolCoroutine() {
       co_await UpdateConnectionsStatus();
 
       co_await CreateMissingConnections();
+
+      if (IsPoolEmpty()) {
+        SPDLOG_ERROR("All connections are lost. Reconnecting");
+        SetRunningStatus(false);
+        break;
+      }
 
       NotifyConnectedOnce();
     } catch (const std::exception& e) {
@@ -179,6 +191,9 @@ BrowserMimicry::CreateNewConnection(int sending_mode_seconds, int ttl_seconds) {
         connection->status = ConnectionStatus::kCreating;
         SPDLOG_INFO("Connection #{} READY", connection->connection_id);
         co_return connection;
+      }
+      if (connection->client->IsStopped()) {
+        break;
       }
 
       timer.expires_after(std::chrono::milliseconds(500));
@@ -320,7 +335,10 @@ boost::asio::awaitable<void> BrowserMimicry::CreateMissingConnections() {
         settings_.connection_ttl_range.max_seconds);
 
     auto connection = co_await CreateNewConnection(send_time, ttl);
-    if (connection) {
+    if (!connection) {
+      break;
+    }
+    {
       const std::unique_lock lock(mutex_);  // mutex
 
       all_connections_.push_back(std::move(connection));

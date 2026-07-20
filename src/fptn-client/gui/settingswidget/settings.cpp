@@ -162,15 +162,16 @@ void SettingsWidget::SetupUi() {
   connection_strategy_label_ =
       new QLabel(QObject::tr("Connection strategy"), this);
   connection_strategy_combo_box_ = new QComboBox(this);
-  connection_strategy_combo_box_->addItem(QObject::tr("Persistent connection"),
+  connection_strategy_combo_box_->addItem(QObject::tr("Persistent tunnel"),
       SettingsModel::kConnectionStrategyPersistent);
-  connection_strategy_combo_box_->addItem(QObject::tr("Double connection"),
-      SettingsModel::kConnectionStrategyParallelDouble);
-  connection_strategy_combo_box_->addItem(QObject::tr("Triple connection"),
-      SettingsModel::kConnectionStrategyParallelTriple);
-  connection_strategy_combo_box_->addItem(QObject::tr("Quadruple connection"),
-      SettingsModel::kConnectionStrategyParallelQuad);
-  connection_strategy_combo_box_->addItem(QObject::tr("Browser mimicry"),
+  connection_strategy_combo_box_->addItem(
+      QObject::tr("Rolling tunnel"), SettingsModel::kConnectionStrategyRolling);
+  connection_strategy_combo_box_->addItem(QObject::tr("Dual rolling tunnel"),
+      SettingsModel::kConnectionStrategyDual);
+  connection_strategy_combo_box_->addItem(QObject::tr("Triple rolling tunnel"),
+      SettingsModel::kConnectionStrategyTriple);
+  connection_strategy_combo_box_->addItem(
+      QObject::tr("Browser mimicry (experimental)"),
       SettingsModel::kConnectionStrategyBrowserMimicry);
   connection_strategy_combo_box_->setSizePolicy(
       QSizePolicy::Expanding, QSizePolicy::Fixed);

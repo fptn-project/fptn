@@ -134,6 +134,8 @@ class BrowserMimicry : public BaseStrategyConnection {
 
   bool IsConnected() override;
 
+  bool IsPoolEmpty() const;
+
  private:
   mutable std::shared_mutex mutex_;
   mutable std::mutex random_mutex_;

@@ -264,9 +264,9 @@ void SettingsModel::Load(bool dont_load_server) {
     connection_strategy_ = service_obj["connection_strategy"].toString();
   }
   if (connection_strategy_ != kConnectionStrategyPersistent &&
-      connection_strategy_ != kConnectionStrategyParallelDouble &&
-      connection_strategy_ != kConnectionStrategyParallelTriple &&
-      connection_strategy_ != kConnectionStrategyParallelQuad &&
+      connection_strategy_ != kConnectionStrategyRolling &&
+      connection_strategy_ != kConnectionStrategyDual &&
+      connection_strategy_ != kConnectionStrategyTriple &&
       connection_strategy_ != kConnectionStrategyBrowserMimicry) {
     connection_strategy_ = kConnectionStrategyPersistent;
   }

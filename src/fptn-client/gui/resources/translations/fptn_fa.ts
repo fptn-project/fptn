@@ -292,24 +292,24 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>راهبرد اتصال</translation>
         </message>
         <message>
-            <source>Persistent connection</source>
-            <translation>اتصال دائمی</translation>
+            <source>Persistent tunnel</source>
+            <translation>تونل دائمی</translation>
         </message>
         <message>
-            <source>Double connection</source>
-            <translation>اتصال دوگانه</translation>
+            <source>Rolling tunnel</source>
+            <translation>تونل چرخشی</translation>
         </message>
         <message>
-            <source>Triple connection</source>
-            <translation>اتصال سه‌گانه</translation>
+            <source>Dual rolling tunnel</source>
+            <translation>تونل چرخشی دوگانه</translation>
         </message>
         <message>
-            <source>Quadruple connection</source>
-            <translation>اتصال چهارگانه</translation>
+            <source>Triple rolling tunnel</source>
+            <translation>تونل چرخشی سه‌گانه</translation>
         </message>
         <message>
-            <source>Browser mimicry</source>
-            <translation>تقلید مرورگر</translation>
+            <source>Browser mimicry (experimental)</source>
+            <translation>تقلید مرورگر (آزمایشی)</translation>
         </message>
         <message>
             <source>SNI-REALITY (Generic)</source>
