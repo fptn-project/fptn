@@ -361,6 +361,7 @@ void TrayApp::UpdateTrayMenu() {
                 cfg_server.password = service.password.toStdString();
                 cfg_server.md5_fingerprint =
                     server.md5_fingerprint.toStdString();
+                cfg_server.session_key = service.session_key.toStdString();
               }
               selected_server_ = cfg_server;
               onConnectToServer();
@@ -396,6 +397,8 @@ void TrayApp::UpdateTrayMenu() {
                     cfg_server.password = service.password.toStdString();
                     cfg_server.md5_fingerprint =
                         server.md5_fingerprint.toStdString();
+                    cfg_server.session_key =
+                        service.session_key.toStdString();
                   }
                   selected_server_ = cfg_server;
                   onConnectToServer();
@@ -879,6 +882,7 @@ bool TrayApp::startVpn(QString& err_msg) {
           cfg_server.username = service.username.toStdString();
           cfg_server.password = service.password.toStdString();
           cfg_server.md5_fingerprint = s.md5_fingerprint.toStdString();
+          cfg_server.session_key = service.session_key.toStdString();
         }
         config.AddServer(cfg_server);
       }
@@ -913,6 +917,7 @@ bool TrayApp::startVpn(QString& err_msg) {
               common::network::IPv6Address(FPTN_CLIENT_DEFAULT_ADDRESS_IP6),
           .sni = sni,
           .expected_md5_fingerprint = selected_server_.md5_fingerprint,
+          .session_key = selected_server_.session_key,
           .censorship_strategy = censorship_strategy,
           .on_connected_callback = nullptr,
           .new_ip_pkt_callback = nullptr});

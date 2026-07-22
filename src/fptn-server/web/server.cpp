@@ -33,6 +33,8 @@ Server::Server(std::uint16_t port,
     std::vector<std::string> allowed_sni_list,
     std::size_t max_active_sessions_per_user,
     std::string server_external_ips,
+    std::vector<std::string> session_keys,
+    bool session_id_accept_legacy,
     int thread_number)
     : running_(false),
       port_(port),
@@ -48,6 +50,8 @@ Server::Server(std::uint16_t port,
       allowed_sni_list_(std::move(allowed_sni_list)),
       max_active_sessions_per_user_(max_active_sessions_per_user),
       server_external_ips_(std::move(server_external_ips)),
+      session_keys_(std::move(session_keys)),
+      session_id_accept_legacy_(session_id_accept_legacy),
       thread_number_(std::max<std::size_t>(1, thread_number)),
       ioc_(thread_number),
       from_client_("packets_from_websockets", 1024 * 16) {
@@ -67,6 +71,8 @@ Server::Server(std::uint16_t port,
       enable_detect_probing_, default_proxy_domain_, allowed_sni_list_,
       // ioc
       ioc_, token_manager, handshake_cache_manager_, server_external_ips_,
+      // keyed session-id marker
+      session_keys_, session_id_accept_legacy_,
       // NOLINTNEXTLINE(modernize-avoid-bind)
       std::bind(
           &Server::HandleWsOpenConnection, this, _1, _2, _3, _4, _5, _6, _7),

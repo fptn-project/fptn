@@ -314,11 +314,13 @@ ApiClient::ApiClient(std::string host,
     int port,
     std::string sni,
     std::string md5_fingerprint,
+    std::string session_key,
     CensorshipStrategy censorship_strategy)
     : host_(std::move(host)),
       port_(port),
       sni_(std::move(sni)),
       expected_md5_fingerprint_(std::move(md5_fingerprint)),
+      session_key_(std::move(session_key)),
       censorship_strategy_(censorship_strategy) {}  // NOLINT
 
 Response ApiClient::Get(const std::string& handle, int timeout) const {
@@ -402,7 +404,7 @@ boost::asio::awaitable<Response> ApiClient::AsyncPost(const std::string& handle,
       co_return Response{"", 600, ec.message()};
     }
 
-    utils::SetHandshakeSessionID(stream.native_handle());
+    utils::SetHandshakeSessionID(stream.native_handle(), session_key_);
     utils::SetHandshakeSni(stream.native_handle(), sni_);
     ctx.set_verify_mode(boost::asio::ssl::verify_none);
 
@@ -489,8 +491,8 @@ bool ApiClient::TestHandshake(int timeout) const {
 }
 
 ApiClient ApiClient::Clone() const {
-  ApiClient temp_client(
-      host_, port_, sni_, expected_md5_fingerprint_, censorship_strategy_);
+  ApiClient temp_client(host_, port_, sni_, expected_md5_fingerprint_,
+      session_key_, censorship_strategy_);
   return temp_client;
 }
 
@@ -614,7 +616,7 @@ Response ApiClient::GetImpl(const std::string& handle, int timeout) const {
             std::make_shared<protocol::https::obfuscator::TlsObfuscator2>());
       }
 
-      utils::SetHandshakeSessionID(stream.native_handle());
+      utils::SetHandshakeSessionID(stream.native_handle(), session_key_);
       utils::SetHandshakeSni(stream.native_handle(), sni_);
       if (!expected_md5_fingerprint_.empty()) {
         ssl = stream.native_handle();
@@ -782,7 +784,7 @@ Response ApiClient::PostImpl(const std::string& handle,
             std::make_shared<protocol::https::obfuscator::TlsObfuscator2>());
       }
 
-      utils::SetHandshakeSessionID(stream.native_handle());
+      utils::SetHandshakeSessionID(stream.native_handle(), session_key_);
       utils::SetHandshakeSni(stream.native_handle(), sni_);
       if (!expected_md5_fingerprint_.empty()) {
         ssl = stream.native_handle();
@@ -955,7 +957,7 @@ bool ApiClient::TestHandshakeImpl(int timeout) const {
             "handshake");
       }
     }
-    utils::SetHandshakeSessionID(stream.native_handle());
+    utils::SetHandshakeSessionID(stream.native_handle(), session_key_);
     utils::SetHandshakeSni(stream.native_handle(), sni_);
 
     if (!expected_md5_fingerprint_.empty()) {
@@ -1132,15 +1134,15 @@ std::vector<std::uint8_t> ApiClient::GenerateHandshakePacket() const {
       break;
     default:
       SPDLOG_DEBUG("Using fallback handshake generator for SNI: {}", sni_);
-      return utils::GenerateDecoyTlsHandshake(sni_);
+      return utils::GenerateDecoyTlsHandshake(sni_, session_key_);
   }
 
   SPDLOG_INFO("Generating handshake for SNI: {}", sni_);
 
-  const auto session_id = utils::GenerateDecoyTlsSessionId2();
+  const auto session_id = utils::GenerateDecoyTlsSessionId2(session_key_);
   if (!session_id.has_value()) {
     SPDLOG_WARN("Session ID generation failed for handshake, using fallback");
-    return utils::GenerateDecoyTlsHandshake(sni_);
+    return utils::GenerateDecoyTlsHandshake(sni_, session_key_);
   }
 
   const auto handshake =
@@ -1148,7 +1150,7 @@ std::vector<std::uint8_t> ApiClient::GenerateHandshakePacket() const {
   if (!handshake.has_value()) {
     SPDLOG_WARN(
         "Handshake generation failed for SNI: {}, using fallback", sni_);
-    return utils::GenerateDecoyTlsHandshake(sni_);
+    return utils::GenerateDecoyTlsHandshake(sni_, session_key_);
   }
 
   SPDLOG_INFO("Handshake generated: SNI={}, size={} bytes", sni_,

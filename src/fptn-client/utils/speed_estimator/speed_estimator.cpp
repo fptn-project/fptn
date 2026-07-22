@@ -39,8 +39,8 @@ std::uint64_t GetDownloadTimeMs(const ServerInfo& server,
     fptn::protocol::https::CensorshipStrategy censorship_strategy) {
   try {
     auto const start = std::chrono::high_resolution_clock::now();
-    ApiClient cli(
-        server.host, server.port, sni, md5_fingerprint, censorship_strategy);
+    ApiClient cli(server.host, server.port, sni, md5_fingerprint,
+        server.session_key, censorship_strategy);
     auto const resp = cli.Get(common::api::kApiTestFileBinUrl, timeout);
     if (resp.code == 200) {
       auto const end = std::chrono::high_resolution_clock::now();
@@ -144,7 +144,7 @@ std::optional<LoginResult> FindServerByLogin(const std::string& sni,
             fmt::format(R"({{ "username": "{}", "password": "{}" }})",
                 server.username, server.password);
         ApiClient cli(server.host, server.port, sni, server.md5_fingerprint,
-            censorship_strategy);
+            server.session_key, censorship_strategy);
         const auto resp = cli.Post(
             common::api::kApiLoginUrl, body, "application/json", timeout_sec);
         if (resp.code == 200) {

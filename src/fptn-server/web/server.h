@@ -42,6 +42,8 @@ class Server final {
       std::vector<std::string> allowed_sni_list,
       std::size_t max_active_sessions_per_user,
       std::string server_external_ips,
+      std::vector<std::string> session_keys,
+      bool session_id_accept_legacy,
       int thread_number = 16);
   ~Server();
   bool Start();
@@ -97,6 +99,8 @@ class Server final {
 
   const std::size_t max_active_sessions_per_user_;
   const std::string server_external_ips_;
+  const std::vector<std::string> session_keys_;
+  const bool session_id_accept_legacy_;
   const std::size_t thread_number_;
 
   boost::asio::io_context ioc_;

@@ -110,7 +110,9 @@ int main(int argc, char* argv[]) {
         /* sessions */
         config->MaxActiveSessionsPerUser(),
         /* External IPs */
-        config->ServerExternalIPs());
+        config->ServerExternalIPs(),
+        /* keyed session-id marker */
+        config->SessionKeys(), config->SessionIdAcceptLegacy());
 
     /* init packet filter */
     auto filter_manager = std::make_shared<fptn::filter::Manager>();
@@ -136,6 +138,7 @@ int main(int argc, char* argv[]) {
         "DETECT_PROBING:    {}\n"
         "DEFAULT_PROXY_DOMAIN: {}\n"
         "ALLOWED_SNI_LIST:     {}\n"
+        "SESSION_ID_MARKER:    {}\n"
         "MAX_ACTIVE_SESSIONS_PER_USER: {}\n",
         FPTN_VERSION,
         // Network settings
@@ -147,6 +150,11 @@ int main(int argc, char* argv[]) {
         config->EnableDetectProbing() ? "YES" : "NO",
         config->DefaultProxyDomain(),
         fmt::format("[{}]", fmt::join(config->AllowedSniList(), ", ")),
+        // Session-id marker mode
+        config->SessionKeys().empty()
+            ? "legacy (unkeyed)"
+            : (config->SessionIdAcceptLegacy() ? "keyed + legacy (migration)"
+                                               : "keyed only"),
         // max session
         config->MaxActiveSessionsPerUser());
 

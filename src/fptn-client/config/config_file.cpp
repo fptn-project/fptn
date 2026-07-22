@@ -84,10 +84,14 @@ bool ConfigFile::Parse() {
     service_name_ = config.at("service_name").get<std::string>();
     username_ = config.at("username").get<std::string>();
     password_ = config.at("password").get<std::string>();
+    // Optional: shared secret for the keyed session-id marker. Absent in older
+    // tokens -> stays empty -> client keeps the legacy marker.
+    session_key_ = config.value("session_key", std::string{});
     for (const auto& server : config.at("servers")) {
       ServerInfo s(server.at("name").get<std::string>(),
           server.at("host").get<std::string>(), server.at("port").get<int>(),
           server.at("md5_fingerprint").get<std::string>());
+      s.session_key = session_key_;
       servers_.push_back(s);
     }
     if (servers_.empty()) {
@@ -140,6 +144,10 @@ const std::string& ConfigFile::GetUsername() const noexcept {
 
 const std::string& ConfigFile::GetPassword() const noexcept {
   return password_;
+}
+
+const std::string& ConfigFile::GetSessionKey() const noexcept {
+  return session_key_;
 }
 
 const std::vector<ServerInfo>& ConfigFile::GetServers() const noexcept {

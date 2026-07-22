@@ -22,6 +22,12 @@ struct ServerInfo {
   std::string password;
   std::string service_name;
 
+  // Deployment-wide shared secret S for the keyed TLS session-id marker.
+  // Empty keeps the legacy (unkeyed) marker. Carried per-server so it reaches
+  // every ApiClient/WebsocketClient the same way md5_fingerprint does; the
+  // value itself is service-level (see ConfigFile::Parse).
+  std::string session_key;
+
   ServerInfo() : port(0), is_using(false) {}
 
   ServerInfo(std::string _name,

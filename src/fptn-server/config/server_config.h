@@ -51,6 +51,12 @@ class ServerConfig {
 
   [[nodiscard]] bool EnableDetectProbing() const;
 
+  // Shared secret(s) S for the keyed TLS session-id marker. Empty = keep the
+  // legacy time-only marker. More than one key allows rotation.
+  [[nodiscard]] std::vector<std::string> SessionKeys() const;
+  // Whether to keep accepting the legacy (unkeyed) marker during migration.
+  [[nodiscard]] bool SessionIdAcceptLegacy() const;
+
   [[nodiscard]] std::string DefaultProxyDomain() const;
   [[nodiscard]] std::vector<std::string> AllowedSniList() const;
 

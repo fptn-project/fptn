@@ -31,6 +31,8 @@ Listener::Listener(std::uint16_t port,
     fptn::common::jwt_token::TokenManagerSPtr token_manager,
     HandshakeCacheManagerSPtr handshake_cache_manager,
     std::string server_external_ips,
+    std::vector<std::string> session_keys,
+    bool session_id_accept_legacy,
     WebSocketOpenConnectionCallback ws_open_callback,
     WebSocketNewIPPacketCallback ws_new_ippacket_callback,
     WebSocketCloseConnectionCallback ws_close_callback)
@@ -43,6 +45,8 @@ Listener::Listener(std::uint16_t port,
       token_manager_(std::move(token_manager)),
       handshake_cache_manager_(std::move(handshake_cache_manager)),
       server_external_ips_(std::move(server_external_ips)),
+      session_keys_(std::move(session_keys)),
+      session_id_accept_legacy_(session_id_accept_legacy),
       ws_open_callback_(std::move(ws_open_callback)),
       ws_new_ippacket_callback_(std::move(ws_new_ippacket_callback)),
       ws_close_callback_(std::move(ws_close_callback)),
@@ -105,7 +109,8 @@ boost::asio::awaitable<void> Listener::Run() {
         auto session = std::make_shared<Session>(
             // probing settings
             enable_detect_probing_, default_proxy_domain_, allowed_sni_list_,
-            server_external_ips_, std::move(socket), ctx_,
+            server_external_ips_, session_keys_, session_id_accept_legacy_,
+            std::move(socket), ctx_,
             // handlers
             api_handles_, handshake_cache_manager_, ws_open_callback_,
             ws_new_ippacket_callback_, ws_close_callback_);

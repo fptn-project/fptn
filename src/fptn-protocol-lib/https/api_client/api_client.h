@@ -61,6 +61,7 @@ class ApiClient {
       int port,
       std::string sni,
       std::string md5_fingerprint,
+      std::string session_key,
       CensorshipStrategy censorship_strategy);
 
   Response Get(const std::string& handle, int timeout = 5) const;
@@ -98,6 +99,7 @@ class ApiClient {
   const int port_;
   const std::string sni_;
   const std::string expected_md5_fingerprint_;
+  const std::string session_key_;
   const CensorshipStrategy censorship_strategy_;
 };
 
