@@ -112,6 +112,10 @@ void Table::ReleaseSessionIfEmpty(const ConnectionMultiplexerSPtr& mplx) {
   if (!mplx->Empty()) {
     return;
   }
+  const auto it = session_to_mplx_.find(mplx->SessionId());
+  if (it == session_to_mplx_.end() || it->second != mplx) {
+    return;  // already released
+  }
   const auto& fake_ipv4 = mplx->FakeClientIPv4();
   const auto& fake_ipv6 = mplx->FakeClientIPv6();
   free_ipv4_.push_back(fake_ipv4);
@@ -164,19 +168,27 @@ std::size_t Table::GetNumberActiveSessionByUsername(
 }
 
 std::vector<ClientID> Table::UpdateConnectionsStatus() {
-  const std::unique_lock<std::shared_mutex> lock(mutex_);  // mutex
-
   std::vector<ClientID> expired;
   std::vector<ConnectionMultiplexerSPtr> emptied;
-  for (const auto& mplx : session_to_mplx_ | std::views::values) {
-    auto ids = mplx->UpdateConnectionsStatus();
-    for (const auto client_id : ids) {
-      client_to_mplx_.erase(client_id);
+  {
+    const std::shared_lock<std::shared_mutex> lock(mutex_);  // mutex
+
+    for (const auto& mplx : session_to_mplx_ | std::views::values) {
+      auto ids = mplx->UpdateConnectionsStatus();
+      expired.insert(expired.end(), ids.begin(), ids.end());
+      if (mplx->Empty()) {
+        emptied.push_back(mplx);
+      }
     }
-    expired.insert(expired.end(), ids.begin(), ids.end());
-    if (mplx->Empty()) {
-      emptied.push_back(mplx);
-    }
+  }
+  if (expired.empty() && emptied.empty()) {
+    return expired;
+  }
+
+  const std::unique_lock<std::shared_mutex> lock(mutex_);  // mutex
+
+  for (const auto client_id : expired) {
+    client_to_mplx_.erase(client_id);
   }
   for (const auto& mplx : emptied) {
     ReleaseSessionIfEmpty(mplx);

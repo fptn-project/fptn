@@ -113,7 +113,15 @@ boost::asio::awaitable<void> Listener::Run() {
         boost::asio::co_spawn(
             session->GetExecutor(),
             [session]() mutable -> boost::asio::awaitable<void> {
-              co_await session->Run();
+              try {
+                co_await session->Run();
+              } catch (const std::exception& e) {
+                SPDLOG_ERROR("Session::Run exception: {}", e.what());
+                session->Close();
+              } catch (...) {
+                SPDLOG_ERROR("Session::Run unknown exception");
+                session->Close();
+              }
             },
             boost::asio::detached);
       } else if (running_) {

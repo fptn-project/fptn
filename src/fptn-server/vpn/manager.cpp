@@ -196,7 +196,7 @@ void Manager::RunCollectStatistics() {
 }
 
 void Manager::RunUpdateConnectionsStatus() {
-  constexpr std::chrono::milliseconds kInterval{300};
+  constexpr std::chrono::milliseconds kInterval{1000};
   while (running_) {
     const auto expired = nat_->UpdateConnectionsStatus();
     for (const auto client_id : expired) {

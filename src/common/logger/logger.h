@@ -26,6 +26,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <windows.h>
 #endif
 
+#include <spdlog/async.h>                     // NOLINT(build/include_order)
 #include <spdlog/sinks/rotating_file_sink.h>  // NOLINT(build/include_order)
 #include <spdlog/sinks/stdout_color_sinks.h>  // NOLINT(build/include_order)
 #include <spdlog/spdlog.h>                    // NOLINT(build/include_order)
@@ -84,9 +85,11 @@ inline bool init(const std::string& app_name) {
     auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
     auto file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
         log_file.string(), 12 * 1024 * 1024, 3, true);
-    auto logger = std::make_shared<spdlog::logger>(
-        app_name, spdlog::sinks_init_list{console_sink, file_sink});
-    logger->flush_on(spdlog::level::debug);
+    constexpr std::size_t kLogQueueSize = 32768;
+    spdlog::init_thread_pool(kLogQueueSize, 1);
+    auto logger = std::make_shared<spdlog::async_logger>(app_name,
+        spdlog::sinks_init_list{console_sink, file_sink},
+        spdlog::thread_pool(), spdlog::async_overflow_policy::overrun_oldest);
     spdlog::flush_every(std::chrono::seconds(3));
 #endif
 

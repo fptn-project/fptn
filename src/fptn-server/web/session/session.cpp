@@ -7,10 +7,14 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "web/session/session.h"
 
 #include <atomic>
+#include <cctype>
 #include <chrono>
 #include <memory>
+#include <mutex>
+#include <optional>
 #include <string>
 #include <tuple>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <variant>
@@ -65,6 +69,71 @@ std::vector<std::string> GetServerIpAddresses(
   return server_ips;
 }
 
+std::string NormalizeSni(std::string sni) {
+  std::ranges::transform(sni, sni.begin(),
+      [](const unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  return sni;
+}
+
+std::string ApplyAllowedSniList(std::string sni,
+    const std::vector<std::string>& allowed_sni_list,
+    const std::string& default_domain,
+    fptn::ClientID client_id) {
+  if (allowed_sni_list.empty() || sni == default_domain) {
+    return sni;
+  }
+
+  const bool sni_allowed = std::ranges::any_of(
+      allowed_sni_list, [&sni](const std::string& entry) {
+        const std::string allowed_sni = NormalizeSni(entry);
+        if (sni == allowed_sni) {
+          return true;
+        }
+        // check subdomains
+        if (sni.size() > allowed_sni.size() + 1) {
+          return sni.ends_with("." + allowed_sni);
+        }
+        return false;
+      });
+  if (sni_allowed) {
+    return sni;
+  }
+
+  SPDLOG_WARN(
+      "SNI '{}' (len={}) not in allowed list, using default domain: {} "
+      "(client_id={})",
+      sni, sni.size(), default_domain, client_id);
+  return default_domain;
+}
+
+constexpr auto kSelfProxyCacheTtl = std::chrono::hours(1);
+
+using SelfProxyEntry = std::pair<bool, std::chrono::steady_clock::time_point>;
+
+std::mutex self_proxy_mutex;
+std::unordered_map<std::string, SelfProxyEntry> self_proxy_cache;
+
+std::optional<bool> GetCachedSelfProxyVerdict(const std::string& sni) {
+  const std::scoped_lock lock(self_proxy_mutex);  // mutex
+
+  const auto it = self_proxy_cache.find(sni);
+  if (it == self_proxy_cache.end()) {
+    return std::nullopt;
+  }
+  if (std::chrono::steady_clock::now() - it->second.second >=
+      kSelfProxyCacheTtl) {
+    self_proxy_cache.erase(it);
+    return std::nullopt;
+  }
+  return it->second.first;
+}
+
+void CacheSelfProxyVerdict(const std::string& sni, bool is_self_proxy) {
+  const std::scoped_lock lock(self_proxy_mutex);  // mutex
+
+  self_proxy_cache[sni] = {is_self_proxy, std::chrono::steady_clock::now()};
+}
+
 void SetSocketTimeouts(boost::asio::ip::tcp::socket& socket, int timeout_sec) {
   timeval tv = {};
   tv.tv_sec = timeout_sec;
@@ -109,7 +178,7 @@ std::string ParseRequestStr(
 boost::asio::awaitable<std::size_t> PeekWithTimeout(
     boost::asio::ip::tcp::socket& socket,
     const boost::asio::mutable_buffer& buffer,
-    const std::chrono::seconds& timeout,
+    const std::chrono::milliseconds& timeout,
     boost::system::error_code& ec) {
   using boost::asio::experimental::awaitable_operators::operator||;
   boost::asio::steady_timer timer(
@@ -123,6 +192,57 @@ boost::asio::awaitable<std::size_t> PeekWithTimeout(
     co_return 0;
   }
   co_return std::get<0>(result);
+}
+
+boost::asio::awaitable<std::size_t> PeekClientHelloWithTimeout(
+    boost::asio::ip::tcp::socket& socket,
+    const boost::asio::mutable_buffer& buffer,
+    const std::chrono::milliseconds& timeout,
+    boost::system::error_code& ec) {
+  constexpr auto kPollInterval = std::chrono::milliseconds(20);
+
+  const auto deadline = std::chrono::steady_clock::now() + timeout;
+  const auto* data = static_cast<const std::uint8_t*>(buffer.data());
+
+  std::size_t bytes_read = 0;
+  for (;;) {
+    const auto now = std::chrono::steady_clock::now();
+    if (now >= deadline) {
+      break;
+    }
+    const auto remaining =
+        std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now);
+
+    const std::size_t peeked =
+        co_await PeekWithTimeout(socket, buffer, remaining, ec);
+    if (ec || !peeked) {
+      if (bytes_read) {
+        ec.clear();
+        break;
+      }
+      co_return 0;
+    }
+    bytes_read = peeked;
+
+    constexpr std::size_t kTlsClientHelloPrefixLen = 6;
+    if (bytes_read >= kTlsClientHelloPrefixLen &&
+        !fptn::common::network::IsTlsClientHello(data, bytes_read)) {
+      break;
+    }
+
+    if (fptn::common::network::IsClientHelloComplete(
+            std::vector<std::uint8_t>(data, data + bytes_read))) {
+      break;
+    }
+    if (bytes_read == buffer.size()) {
+      break;
+    }
+
+    boost::asio::steady_timer timer(
+        co_await boost::asio::this_coro::executor, kPollInterval);
+    co_await timer.async_wait(boost::asio::use_awaitable);
+  }
+  co_return bytes_read;
 }
 
 }  // namespace
@@ -222,9 +342,46 @@ boost::asio::awaitable<void> Session::Run() {
   }
   ws_.next_layer().next_layer().set_obfuscator(obfuscator_opt.value());
 
+  std::array<std::uint8_t, 16384> client_hello{};
+  std::size_t client_hello_size = 0;
+  std::string client_sni = default_proxy_domain_;
+  if (obfuscator_opt.value() == nullptr) {
+    auto& tcp_socket = boost::beast::get_lowest_layer(ws_).socket();
+
+    boost::system::error_code peek_ec;
+    client_hello_size = co_await PeekClientHelloWithTimeout(tcp_socket,
+        boost::asio::buffer(client_hello), std::chrono::seconds(3), peek_ec);
+    if (peek_ec || !client_hello_size) {
+      SPDLOG_ERROR("Peeked zero bytes from socket (client_id={})", client_id_);
+      Close();
+      co_return;
+    }
+    if (!fptn::common::network::IsTlsClientHello(
+            client_hello.data(), client_hello_size)) {
+      SPDLOG_ERROR(
+          "Not an SSL message, closing connection (client_id={})", client_id_);
+      Close();
+      co_return;
+    }
+
+    const auto sni_opt =
+        common::network::GetTlsSNI(client_hello.data(), client_hello_size);
+    if (!sni_opt.has_value()) {
+      SPDLOG_WARN(
+          "Failed to extract SSLClientHelloMessage from handshake "
+          "(client_id={})",
+          client_id_);
+    } else {
+      client_sni = NormalizeSni(sni_opt.value());
+    }
+    client_sni = ApplyAllowedSniList(std::move(client_sni), allowed_sni_list_,
+        default_proxy_domain_, client_id_);
+  }
+
   // Detect probing (only for null obfuscator)
   if (enable_detect_probing_ && obfuscator_opt.value() == nullptr) {
-    const auto probing_result = co_await DetectProbing();
+    const auto probing_result = co_await DetectProbing(
+        client_hello.data(), client_hello_size, client_sni);
     if (probing_result.should_close) {
       SPDLOG_WARN(
           "Connection rejected during probing (client_id={})", client_id_);
@@ -236,7 +393,7 @@ boost::asio::awaitable<void> Session::Run() {
           "Probing detected. Redirecting to proxy (client_id={}, SNI={}, "
           "port={})",
           client_id_, probing_result.sni, 443);
-      co_await HandleProxy(probing_result.sni, 443);
+      co_await ProxyWithFallback(probing_result.sni);
       Close();
       co_return;
     }
@@ -246,10 +403,14 @@ boost::asio::awaitable<void> Session::Run() {
 
   // Check for Reality Mode handshake (only when no obfuscator is detected)
   if (obfuscator_opt.value() == nullptr) {
-    const auto result = co_await IsRealityHandshake();
+    const auto result = IsRealityHandshake(
+        client_hello.data(), client_hello_size, client_sni);
     if (result.should_close) {
       SPDLOG_WARN(
-          "Reality Mode handshake check failed (client_id={})", client_id_);
+          "Reality Mode handshake check failed. Redirecting to proxy "
+          "(client_id={}, SNI={})",
+          client_id_, client_sni);
+      co_await ProxyWithFallback(client_sni);
       Close();
       co_return;
     }
@@ -267,11 +428,13 @@ boost::asio::awaitable<void> Session::Run() {
       }
 
       // Prevent recursive proxy attempts for Reality Mode
-      const auto self_proxy = co_await IsSniSelfProxyAttempt(result.sni);
-      if (self_proxy) {
-        co_await HandleProxy(default_proxy_domain_, 443);
-        Close();
-        co_return;
+      if (result.sni != default_proxy_domain_) {
+        const auto self_proxy = co_await IsSniSelfProxyAttempt(result.sni);
+        if (self_proxy) {
+          co_await HandleProxy(default_proxy_domain_, 443);
+          Close();
+          co_return;
+        }
       }
 
       // Refresh the beast timeout: the construction-time deadline was already
@@ -348,68 +511,9 @@ boost::asio::awaitable<void> Session::Run() {
   co_return;
 }
 
-boost::asio::awaitable<Session::ProbingResult> Session::DetectProbing() {
+boost::asio::awaitable<Session::ProbingResult> Session::DetectProbing(
+    const std::uint8_t* client_hello, std::size_t size, std::string sni) {
   try {
-    auto& tcp_socket = boost::beast::get_lowest_layer(ws_).socket();
-    // Peek data without consuming it from the socket buffer!!!
-    // This allows inspection without affecting subsequent reads!!!
-    std::array<std::uint8_t, 16384> buffer;
-
-    boost::system::error_code ec;
-    const std::size_t bytes_read = co_await PeekWithTimeout(
-        tcp_socket, boost::asio::buffer(buffer), std::chrono::seconds(3), ec);
-
-    if (ec || !bytes_read) {
-      SPDLOG_ERROR("Peeked zero bytes from socket (client_id={})", client_id_);
-      co_return ProbingResult{.is_probing = true,
-          .sni = default_proxy_domain_,
-          .should_close = true};
-    }
-
-    // Check ssl
-    if (!fptn::common::network::IsTlsClientHello(
-            buffer.data(), buffer.size())) {
-      SPDLOG_ERROR(
-          "Not an SSL message, closing connection (client_id={})", client_id_);
-      co_return ProbingResult{.is_probing = true,
-          .sni = default_proxy_domain_,
-          .should_close = true};
-    }
-
-    std::string sni = default_proxy_domain_;
-    const auto sni_opt =
-        common::network::GetTlsSNI(buffer.data(), buffer.size());
-    if (!sni_opt.has_value()) {
-      SPDLOG_WARN(
-          "Failed to extract SSLClientHelloMessage from handshake "
-          "(client_id={})",
-          client_id_);
-    } else {
-      sni = sni_opt.value();
-    }
-
-    // Validate allowed sni
-    if (!allowed_sni_list_.empty()) {
-      const bool sni_allowed = std::ranges::any_of(
-          allowed_sni_list_, [&sni](const std::string& allowed_sni) {
-            if (sni == allowed_sni) {
-              return true;
-            }
-            // check subdomains
-            if (sni.size() > allowed_sni.size() + 1) {
-              return sni.ends_with("." + allowed_sni);
-            }
-            return false;
-          });
-      if (!sni_allowed) {
-        sni = default_proxy_domain_;
-        SPDLOG_WARN(
-            "SNI '{}' not in allowed list, using default domain: {} "
-            "(client_id={})",
-            sni, default_proxy_domain_, client_id_);
-      }
-    }
-
     // Detect and prevent recursive proxying to the local server
     if (sni != default_proxy_domain_) {
       const bool is_recursive_attempt = co_await IsSniSelfProxyAttempt(sni);
@@ -425,7 +529,7 @@ boost::asio::awaitable<Session::ProbingResult> Session::DetectProbing() {
     // Get Session ID
     constexpr std::size_t kSessionLen = 32;
     const auto session_id =
-        common::network::GetTlsSessionId(buffer.data(), buffer.size());
+        common::network::GetTlsSessionId(client_hello, size);
 
     if (session_id.size() != kSessionLen) {
       SPDLOG_ERROR(
@@ -478,6 +582,11 @@ boost::asio::awaitable<bool> Session::IsSniSelfProxyAttempt(
     co_return true;
   }
 
+  const auto cached_verdict = GetCachedSelfProxyVerdict(sni);
+  if (cached_verdict.has_value()) {
+    co_return cached_verdict.value();
+  }
+
   // Not an IP address - proceed with DNS resolution using our new function
   try {
     const auto server_ips = GetServerIpAddresses(server_external_ips_);
@@ -495,11 +604,13 @@ boost::asio::awaitable<bool> Session::IsSniSelfProxyAttempt(
                  timer.async_wait(boost::asio::use_awaitable));
     if (race.index() == 1) {
       SPDLOG_WARN("DNS resolution timed out for {}", sni);
+      CacheSelfProxyVerdict(sni, false);
       co_return false;
     }
     if (resolve_ec) {
       SPDLOG_WARN(
           "DNS resolution failed for {}: {}", sni, resolve_ec.message());
+      CacheSelfProxyVerdict(sni, false);
       co_return false;
     }
 
@@ -514,6 +625,7 @@ boost::asio::awaitable<bool> Session::IsSniSelfProxyAttempt(
         SPDLOG_WARN(
             "SNI {} resolves to server interface IP {}, blocking self-proxy",
             sni, ip);
+        CacheSelfProxyVerdict(sni, true);
         co_return true;
       }
     }
@@ -522,51 +634,17 @@ boost::asio::awaitable<bool> Session::IsSniSelfProxyAttempt(
     co_return false;
   }
 
+  CacheSelfProxyVerdict(sni, false);
   co_return false;
 }
 
-boost::asio::awaitable<Session::RealityResult> Session::IsRealityHandshake() {
+Session::RealityResult Session::IsRealityHandshake(
+    const std::uint8_t* client_hello, std::size_t size, std::string sni) const {
   try {
-    auto& tcp_socket = boost::beast::get_lowest_layer(ws_).socket();
-
-    // Peek data without consuming it
-    std::array<std::uint8_t, 16384> buffer{};
-    boost::system::error_code ec;
-    const std::size_t bytes_read = co_await PeekWithTimeout(
-        tcp_socket, boost::asio::buffer(buffer), std::chrono::seconds(3), ec);
-
-    if (ec || !bytes_read) {
-      co_return RealityResult{.is_reality_mode = false,
-          .is_reality_mode2 = false,
-          .sni = "",
-          .should_close = true};
-    }
-
-    // Check if it's SSL/TLS handshake
-    if (!fptn::common::network::IsTlsClientHello(
-            buffer.data(), buffer.size())) {
-      co_return RealityResult{.is_reality_mode = false,
-          .is_reality_mode2 = false,
-          .sni = "",
-          .should_close = true};
-    }
-
-    std::string sni = default_proxy_domain_;
-    const auto sni_opt =
-        common::network::GetTlsSNI(buffer.data(), buffer.size());
-    if (!sni_opt.has_value()) {
-      SPDLOG_WARN(
-          "Failed to extract SSLClientHelloMessage from handshake "
-          "(client_id={})",
-          client_id_);
-    } else {
-      sni = sni_opt.value();
-    }
-
     // Get Session ID
     constexpr std::size_t kSessionLen = 32;
     const auto session_id =
-        common::network::GetTlsSessionId(buffer.data(), buffer.size());
+        common::network::GetTlsSessionId(client_hello, size);
 
     if (session_id.size() == kSessionLen) {
       // Check if it's a decoy handshake (reality mode)
@@ -576,21 +654,27 @@ boost::asio::awaitable<Session::RealityResult> Session::IsRealityHandshake() {
           protocol::https::utils::IsDecoyHandshakeSessionID2(
               session_id.data(), session_id.size());
       if (is_reality || is_reality2) {
-        co_return RealityResult{.is_reality_mode = is_reality,
+        return RealityResult{.is_reality_mode = is_reality,
             .is_reality_mode2 = is_reality2,
-            .sni = sni,
+            .sni = std::move(sni),
             .should_close = false};
       }
-      co_return RealityResult{.is_reality_mode = false,
-          .is_reality_mode2 = false,
-          .sni = sni,
-          .should_close = false};
+      if (protocol::https::utils::IsFptnClientSessionID(
+              session_id.data(), session_id.size())) {
+        return RealityResult{.is_reality_mode = false,
+            .is_reality_mode2 = false,
+            .sni = std::move(sni),
+            .should_close = false};
+      }
+      SPDLOG_WARN(
+          "Session ID does not match FPTN client format (client_id={})",
+          client_id_);
     }
   } catch (const std::exception& e) {
     SPDLOG_ERROR("IsRealityHandshake exception (client_id={}): {}", client_id_,
         e.what());
   }
-  co_return RealityResult{.is_reality_mode = true,
+  return RealityResult{.is_reality_mode = true,
       .is_reality_mode2 = false,
       .sni = "",
       .should_close = true};
@@ -791,6 +875,20 @@ boost::asio::awaitable<bool> Session::HandleProxy(
   SPDLOG_INFO("Close proxy (client_id={})", client_id_);
 
   co_return status;
+}
+
+boost::asio::awaitable<void> Session::ProxyWithFallback(
+    const std::string& sni) {
+  if (co_await HandleProxy(sni, 443)) {
+    co_return;
+  }
+  if (sni != default_proxy_domain_ &&
+      boost::beast::get_lowest_layer(ws_).socket().is_open()) {
+    SPDLOG_WARN("Proxy to {} failed, falling back to {} (client_id={})", sni,
+        default_proxy_domain_, client_id_);
+    co_await HandleProxy(default_proxy_domain_, 443);
+  }
+  co_return;
 }
 
 boost::asio::awaitable<void> Session::RunReader() {
@@ -1116,8 +1214,7 @@ boost::asio::awaitable<bool> Session::HandleWebSocket2(
           ParseRequestUint(request, "X-Send-Duration", 0);
       params.request.ttl_ms = ParseRequestUint(request, "X-Ttl", 0);
 
-      const auto nat_session =
-          ws_open_callback_(params, shared_from_this());
+      const auto nat_session = ws_open_callback_(params, shared_from_this());
 
       if (nat_session == nullptr) {
         co_return false;

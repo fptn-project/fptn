@@ -24,7 +24,7 @@ namespace fptn::common::data {
 
 class Channel {
  public:
-  explicit Channel(std::string name, std::size_t max_capacity = 4096)
+  explicit Channel(std::string name, std::size_t max_capacity = 1024 * 8)
       : name_(std::move(name)), max_capacity_(max_capacity) {}
 
   bool Push(network::IPPacketPtr pkt) noexcept {
@@ -32,9 +32,19 @@ class Channel {
       const std::lock_guard<std::mutex> lock(mutex_);  // mutex
 
       if (queue_.size() <= max_capacity_) {
+        if (is_full_) {
+          is_full_ = false;
+          SPDLOG_WARN("Channel '{}' is no longer full, dropped {} packets",
+              name_, dropped_);
+          dropped_ = 0;
+        }
         queue_.push(std::move(pkt));
       } else {
-        SPDLOG_WARN("Channel '{}' is full", name_);
+        ++dropped_;
+        if (!is_full_) {
+          is_full_ = true;
+          SPDLOG_WARN("Channel '{}' is full, dropping packets", name_);
+        }
         return false;
       }
     }
@@ -47,8 +57,18 @@ class Channel {
       const std::lock_guard<std::mutex> lock(mutex_);  // mutex
 
       if (queue_.size() >= max_capacity_) {
-        SPDLOG_WARN("Channel '{}' batch push failed", name_);
+        dropped_ += packets.size();
+        if (!is_full_) {
+          is_full_ = true;
+          SPDLOG_WARN("Channel '{}' is full, dropping packets", name_);
+        }
         return false;
+      }
+      if (is_full_) {
+        is_full_ = false;
+        SPDLOG_WARN("Channel '{}' is no longer full, dropped {} packets", name_,
+            dropped_);
+        dropped_ = 0;
       }
       for (auto& packet : packets) {
         queue_.push(std::move(packet));
@@ -101,6 +121,8 @@ class Channel {
   const std::size_t max_capacity_;
 
   std::queue<network::IPPacketPtr> queue_;
+  bool is_full_ = false;
+  std::size_t dropped_ = 0;
   std::mutex mutex_;
   std::condition_variable cv_;
 };

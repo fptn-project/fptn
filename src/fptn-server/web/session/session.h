@@ -69,7 +69,8 @@ class Session : public std::enable_shared_from_this<Session> {
     bool should_close;
   };
 
-  boost::asio::awaitable<ProbingResult> DetectProbing();
+  boost::asio::awaitable<ProbingResult> DetectProbing(
+      const std::uint8_t* client_hello, std::size_t size, std::string sni);
 
  protected:
   boost::asio::awaitable<bool> IsSniSelfProxyAttempt(
@@ -82,7 +83,9 @@ class Session : public std::enable_shared_from_this<Session> {
     bool should_close;
   };
 
-  boost::asio::awaitable<RealityResult> IsRealityHandshake();
+  RealityResult IsRealityHandshake(const std::uint8_t* client_hello,
+      std::size_t size,
+      std::string sni) const;
 
   // DEPRECATED
   boost::asio::awaitable<bool> PerformFakeHandshake(const std::string& sni);
@@ -90,6 +93,8 @@ class Session : public std::enable_shared_from_this<Session> {
   boost::asio::awaitable<bool> PerformFakeHandshake2(const std::string& sni);
 
   boost::asio::awaitable<bool> HandleProxy(const std::string& sni, int port);
+
+  boost::asio::awaitable<void> ProxyWithFallback(const std::string& sni);
 
   boost::asio::awaitable<IObfuscator> DetectObfuscator();
 

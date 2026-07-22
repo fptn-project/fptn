@@ -42,7 +42,7 @@ class Client final {
   void SetAccessToken(const std::string& token);
   bool Login(const std::string& username,
       const std::string& password,
-      int timeout_sec = 5);
+      int timeout_sec = 10);
   std::pair<IPv4Address, IPv6Address> GetDns();
   bool Start();
   bool Stop();

@@ -18,6 +18,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <boost/beast.hpp>
 #include <spdlog/spdlog.h>  // NOLINT(build/include_order)
 
+#include "common/network/ip_utils.h"
 #include "common/network/resolv.h"
 #include "common/network/utils.h"
 
@@ -123,6 +124,16 @@ boost::asio::awaitable<HandshakeResponse> HandshakeCacheManager::GetHandshake(
     SPDLOG_INFO("Cache hit for SNI: {} (TLS fingerprint size: {})", sni,
         cached_response->size());
     co_return cached_response;
+  }
+
+  const auto client_sni = fptn::common::network::GetTlsSNI(buffer_ptr, size);
+  if (client_sni != sni) {
+    SPDLOG_INFO(
+        "ClientHello SNI '{}' differs from target '{}', generating a matching "
+        "handshake",
+        client_sni.value_or(""), sni);
+    client_handshake_data =
+        fptn::protocol::https::utils::GenerateDecoyTlsHandshake(sni);
   }
 
   HandshakeResponse response =
