@@ -53,7 +53,8 @@ bool Client::Login(
 
   const std::string ip = config_.server_ip.ToString();
   ApiClient cli(ip, config_.server_port, config_.sni,
-      config_.expected_md5_fingerprint, config_.censorship_strategy);
+      config_.expected_md5_fingerprint, config_.session_key,
+      config_.censorship_strategy);
 
   constexpr int kMaxRetries = 3;
   for (int attempt = 0; attempt < kMaxRetries; ++attempt) {
@@ -109,7 +110,8 @@ std::pair<IPv4Address, IPv6Address> Client::GetDns() {
 
   const std::string ip = config_.server_ip.ToString();
   ApiClient cli(ip, config_.server_port, config_.sni,
-      config_.expected_md5_fingerprint, config_.censorship_strategy);
+      config_.expected_md5_fingerprint, config_.session_key,
+      config_.censorship_strategy);
 
   constexpr int kMaxRetries = 3;
   for (int attempt = 0; attempt < kMaxRetries; ++attempt) {

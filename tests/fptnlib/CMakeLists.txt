@@ -34,3 +34,8 @@ set(LIBS
 add_executable(ApiClientTest api_client/ApiClientTest.cpp)
 target_link_libraries(ApiClientTest PRIVATE ${LIBS})
 add_test(NAME ApiClientTest COMMAND ApiClientTest)
+
+# --- TLS keyed session-id marker test ---
+add_executable(TlsMarkerTest tls/TlsMarkerTest.cpp)
+target_link_libraries(TlsMarkerTest PRIVATE ${LIBS})
+add_test(NAME TlsMarkerTest COMMAND TlsMarkerTest)

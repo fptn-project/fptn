@@ -412,6 +412,7 @@ int main(int argc, char* argv[]) {
             .tun_interface_address_ipv6 = tun_interface_address_ipv6,
             .sni = sni,
             .expected_md5_fingerprint = selected_server.md5_fingerprint,
+            .session_key = selected_server.session_key,
             .censorship_strategy = censorship_strategy,
             .on_connected_callback = nullptr,
             .new_ip_pkt_callback = nullptr});

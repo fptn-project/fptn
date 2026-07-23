@@ -102,6 +102,8 @@ Session::Session(bool enable_detect_probing,
     std::string default_proxy_domain,
     std::vector<std::string> allowed_sni_list,
     std::string server_external_ips,
+    std::vector<std::string> session_keys,
+    bool session_id_accept_legacy,
     boost::asio::ip::tcp::socket&& socket,
     boost::asio::ssl::context& ctx,
     const ApiHandleMap& api_handles,
@@ -113,6 +115,8 @@ Session::Session(bool enable_detect_probing,
       default_proxy_domain_(std::move(default_proxy_domain)),
       allowed_sni_list_(std::move(allowed_sni_list)),
       server_external_ips_(std::move(server_external_ips)),
+      session_keys_(std::move(session_keys)),
+      session_id_accept_legacy_(session_id_accept_legacy),
       ws_(ssl_stream_type(
           obfuscator_socket_type(tcp_stream_type(std::move(socket))), ctx)),
       strand_(boost::asio::make_strand(ws_.get_executor())),
@@ -406,14 +410,14 @@ boost::asio::awaitable<Session::ProbingResult> Session::DetectProbing() {
 
     // Check Session ID
     const bool is_fptn_session_id =
-        protocol::https::utils::IsFptnClientSessionID(
-            session_id.data(), session_id.size());
+        protocol::https::utils::IsFptnClientSessionID(session_id.data(),
+            session_id.size(), session_keys_, session_id_accept_legacy_);
     const bool is_decoy_session_id =
-        protocol::https::utils::IsDecoyHandshakeSessionID(
-            session_id.data(), session_id.size());
+        protocol::https::utils::IsDecoyHandshakeSessionID(session_id.data(),
+            session_id.size(), session_keys_, session_id_accept_legacy_);
     const bool is_decoy_session_id2 =
-        protocol::https::utils::IsDecoyHandshakeSessionID2(
-            session_id.data(), session_id.size());
+        protocol::https::utils::IsDecoyHandshakeSessionID2(session_id.data(),
+            session_id.size(), session_keys_, session_id_accept_legacy_);
     if (!is_fptn_session_id && !is_decoy_session_id && !is_decoy_session_id2) {
       SPDLOG_ERROR(
           "Session ID does not match FPTN client format (client_id={})",
@@ -540,10 +544,11 @@ boost::asio::awaitable<Session::RealityResult> Session::IsRealityHandshake() {
     if (session_id.size() == kSessionLen) {
       // Check if it's a decoy handshake (reality mode)
       const bool is_reality = protocol::https::utils::IsDecoyHandshakeSessionID(
-          session_id.data(), session_id.size());
+          session_id.data(), session_id.size(), session_keys_,
+          session_id_accept_legacy_);
       const bool is_reality2 =
-          protocol::https::utils::IsDecoyHandshakeSessionID2(
-              session_id.data(), session_id.size());
+          protocol::https::utils::IsDecoyHandshakeSessionID2(session_id.data(),
+              session_id.size(), session_keys_, session_id_accept_legacy_);
       if (is_reality || is_reality2) {
         co_return RealityResult{.is_reality_mode = is_reality,
             .is_reality_mode2 = is_reality2,

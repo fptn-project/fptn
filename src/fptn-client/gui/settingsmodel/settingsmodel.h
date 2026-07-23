@@ -98,6 +98,8 @@ struct ServiceConfig {
   QString service_name;
   QString username;
   QString password;
+  // Deployment-wide shared secret S for the keyed session-id marker (optional).
+  QString session_key;
   QVector<ServerConfig> servers;
   QVector<ServerConfig> censored_zone_servers;
   QString language;

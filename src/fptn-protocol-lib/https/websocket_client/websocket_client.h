@@ -54,6 +54,7 @@ class WebsocketClient : public std::enable_shared_from_this<WebsocketClient> {
     std::string sni;
     std::string access_token;
     std::string expected_md5_fingerprint;
+    std::string session_key;
     CensorshipStrategy censorship_strategy;
     OnConnectedCallback on_connected_callback;
     OnIPRecvPacketCallback new_ip_pkt_callback;

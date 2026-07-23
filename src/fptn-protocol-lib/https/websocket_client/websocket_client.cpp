@@ -48,7 +48,7 @@ WebsocketClient::WebsocketClient(Config config, int thread_number)
       config_(std::move(config)) {
   auto* ssl = ws_.next_layer().native_handle();
   https::utils::SetHandshakeSni(ssl, config_.sni);
-  https::utils::SetHandshakeSessionID(ssl);
+  https::utils::SetHandshakeSessionID(ssl, config_.session_key);
 
   // Set SSL buffer sizes
   SSL_set_mode(ssl, SSL_MODE_RELEASE_BUFFERS);
@@ -868,13 +868,14 @@ std::vector<std::uint8_t> WebsocketClient::GenerateHandshakePacket() const {
       break;
     default:
       SPDLOG_DEBUG("Using fallback handshake generator for SNI: {}", sni_);
-      return utils::GenerateDecoyTlsHandshake(config_.sni);
+      return utils::GenerateDecoyTlsHandshake(config_.sni, config_.session_key);
   }
 
-  const auto session_id = utils::GenerateDecoyTlsSessionId2();
+  const auto session_id =
+      utils::GenerateDecoyTlsSessionId2(config_.session_key);
   if (!session_id.has_value()) {
     SPDLOG_WARN("Session ID generation failed");
-    return utils::GenerateDecoyTlsHandshake(config_.sni);
+    return utils::GenerateDecoyTlsHandshake(config_.sni, config_.session_key);
   }
 
   const auto handshake =
@@ -882,7 +883,7 @@ std::vector<std::uint8_t> WebsocketClient::GenerateHandshakePacket() const {
   if (!handshake.has_value()) {
     SPDLOG_WARN(
         "Handshake generation failed for SNI: {}, using fallback", config_.sni);
-    return utils::GenerateDecoyTlsHandshake(config_.sni);
+    return utils::GenerateDecoyTlsHandshake(config_.sni, config_.session_key);
   }
 
   SPDLOG_INFO("Handshake generated: SNI={}, size={} bytes", config_.sni,

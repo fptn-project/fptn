@@ -23,7 +23,7 @@ def get_md5_fingerprint(cert_path="/etc/fptn/server.crt"):
         sys.exit(1)
 
 
-def generate_token(username, password, server_ip, service_name, md5_fingerprint, port=443):
+def generate_token(username, password, server_ip, service_name, md5_fingerprint, port=443, session_key=None):
     token_data = {
         "version": 1,
         "service_name": service_name,
@@ -32,6 +32,10 @@ def generate_token(username, password, server_ip, service_name, md5_fingerprint,
         "servers": [{"name": service_name, "host": server_ip, "md5_fingerprint": md5_fingerprint, "port": port}],
         "censored_zone_servers": [],
     }
+    # Shared secret for the keyed TLS session-id marker. Emit only when set so
+    # existing tokens stay unchanged; must match the server's --session-key.
+    if session_key:
+        token_data["session_key"] = session_key
     json_str = json.dumps(token_data, separators=(",", ":"))
     b64_bytes = base64.b64encode(json_str.encode("utf-8"))
     b64_str = b64_bytes.decode("utf-8").rstrip("=")
@@ -46,6 +50,9 @@ def main():
     parser.add_argument("--service-name", default="MyFptnServer", help="VPN service name")
     parser.add_argument("--cert-path", default="/etc/fptn/server.crt", help="Path to server certificate")
     parser.add_argument("--port", type=int, default=443, help="Port number (default: 443)")
+    parser.add_argument("--session-key", default=None,
+                        help="Shared secret for the keyed session-id marker "
+                             "(must match the server's --session-key)")
 
     args = parser.parse_args()
 
@@ -63,6 +70,7 @@ def main():
         service_name=args.service_name,
         md5_fingerprint=md5_fingerprint,
         port=args.port,
+        session_key=args.session_key,
     )
     print(token)
 

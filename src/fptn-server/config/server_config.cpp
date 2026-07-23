@@ -118,6 +118,20 @@ ServerConfig::ServerConfig(int argc, char* argv[])
           "Enable detection of non-FPTN clients or probing attempts during SSL "
           "handshake. ")
       .default_value("false");
+  args_.add_argument("--session-key")
+      .help(
+          "Shared secret(s) S for the keyed TLS session-id marker "
+          "(HMAC-SHA256). Without a secret the marker is only SHA1(time) and "
+          "can be recomputed by any observer. Comma-separated to accept "
+          "multiple keys at once for rotation. Must match the 'session_key' in "
+          "the clients' tokens. Empty (default): keep the legacy marker.")
+      .default_value("");
+  args_.add_argument("--session-id-accept-legacy")
+      .help(
+          "Keep accepting the legacy (unkeyed) session-id marker alongside the "
+          "keyed one during migration. Set to 'false' once all clients use a "
+          "session key to close the time-based fingerprint.")
+      .default_value("true");
   args_.add_argument("--default-proxy-domain")
       .help("Default domain for proxying non-VPN clients.")
       .default_value(FPTN_DEFAULT_SNI);
@@ -224,6 +238,18 @@ int ServerConfig::RemoteServerAuthPort() const {
 
 bool ServerConfig::EnableDetectProbing() const {
   return ParseBoolean(args_.get<std::string>("--enable-detect-probing"));
+}
+
+std::vector<std::string> ServerConfig::SessionKeys() const {
+  const auto keys = args_.get<std::string>("--session-key");
+  if (keys.empty()) {
+    return {};
+  }
+  return common::utils::SplitCommaSeparated(keys);
+}
+
+bool ServerConfig::SessionIdAcceptLegacy() const {
+  return ParseBoolean(args_.get<std::string>("--session-id-accept-legacy"));
 }
 
 [[nodiscard]]

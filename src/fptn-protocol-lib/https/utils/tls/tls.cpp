@@ -19,9 +19,9 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <fmt/format.h>  // NOLINT(build/include_order)
 #include <nlohmann/json.hpp>
 #include <openssl/evp.h>    // NOLINT(build/include_order)
+#include <openssl/hmac.h>   // NOLINT(build/include_order)
 #include <openssl/md5.h>    // NOLINT(build/include_order)
 #include <openssl/rand.h>   // NOLINT(build/include_order)
-#include <openssl/sha.h>    // NOLINT(build/include_order)
 #include <openssl/ssl.h>    // NOLINT(build/include_order)
 #include <spdlog/spdlog.h>  // NOLINT(build/include_order)
 
@@ -77,104 +77,115 @@ std::string GenerateFptnKey(std::uint32_t timestamp) {
       "Error generate Session ID");
 }
 
-bool SetDecoyHandshakeSessionID(SSL* ssl) {
+std::string GenerateFptnKeyKeyed(
+    std::uint32_t timestamp, const std::string& secret) {
+  const std::uint32_t be = htonl(timestamp);
+  unsigned char out[EVP_MAX_MD_SIZE] = {0};
+  unsigned int outlen = 0;
+  if (secret.empty() ||
+      ::HMAC(EVP_sha256(),
+          reinterpret_cast<const unsigned char*>(secret.data()),
+          static_cast<int>(secret.size()),
+          reinterpret_cast<const unsigned char*>(&be), sizeof(be), out,
+          &outlen) == nullptr ||
+      outlen < kFptnKeyLength) {
+    throw boost::beast::system_error(
+        boost::beast::error_code(static_cast<int>(::ERR_get_error()),
+            boost::asio::error::get_ssl_category()),
+        "Error generate keyed Session ID");
+  }
+  return std::string(reinterpret_cast<const char*>(out), kFptnKeyLength);
+}
+
+namespace {
+// True if recv_key matches the legacy time marker (when accept_legacy) or a
+// keyed marker for any of `secrets`, within the +-5s clock window.
+bool MarkerMatches(const std::string& recv_key,
+    const std::vector<std::string>& secrets,
+    bool accept_legacy) {
+  const auto now = fptn::time::TimeProvider::Instance()->NowTimestamp();
+  constexpr std::uint32_t kTimeShiftSeconds = 10;  // ten seconds
+  const std::uint32_t base = now + (kTimeShiftSeconds / 2);
+  for (std::uint32_t shift = 0; shift <= kTimeShiftSeconds; ++shift) {
+    const std::uint32_t ts = base - shift;
+    if (accept_legacy && recv_key == GenerateFptnKey(ts)) {
+      return true;
+    }
+    for (const auto& secret : secrets) {
+      if (!secret.empty() && recv_key == GenerateFptnKeyKeyed(ts, secret)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+}  // namespace
+
+bool SetDecoyHandshakeSessionID(SSL* ssl, const std::string& secret) {
   // random
   std::uint8_t session_id[kSessionLen] = {0};
   if (::RAND_bytes(session_id, sizeof(session_id)) != 1) {
     return false;
   }
 
-  // copy timestamp
+  // copy timestamp marker (keyed when a secret is provided, else legacy)
   const auto timestamp = fptn::time::TimeProvider::Instance()->NowTimestamp();
-  const std::string key = GenerateFptnKey(timestamp);
+  const std::string key = secret.empty()
+                              ? GenerateFptnKey(timestamp)
+                              : GenerateFptnKeyKeyed(timestamp, secret);
   std::memcpy(
       &session_id[kDecoyHandshakeSessionIDShift], key.c_str(), key.size());
   return 0 != ::SSL_set_tls_hello_custom_session_id(
                   ssl, session_id, sizeof(session_id));
 }
 
-bool IsDecoyHandshakeSessionID(
-    const std::uint8_t* session, std::size_t session_len) {
+bool IsDecoyHandshakeSessionID(const std::uint8_t* session,
+    std::size_t session_len,
+    const std::vector<std::string>& secrets,
+    bool accept_legacy) {
   (void)session_len;
   char data[kFptnKeyLength] = {0};
   std::memcpy(&data, &session[kDecoyHandshakeSessionIDShift], sizeof(data));
   const std::string recv_key(data, sizeof(data));
-
-  const auto now_timestamp =
-      fptn::time::TimeProvider::Instance()->NowTimestamp();
-
-  constexpr std::uint32_t kTimeShiftSeconds = 10;  // ten seconds
-
-  const std::uint32_t timestamp = now_timestamp + (kTimeShiftSeconds / 2);
-
-  for (std::uint32_t shift = 0; shift <= kTimeShiftSeconds; shift++) {
-    const std::string key = GenerateFptnKey(timestamp - shift);
-    if (recv_key == key) {
-      return true;
-    }
-  }
-  return false;
+  return MarkerMatches(recv_key, secrets, accept_legacy);
 }
 
-bool IsDecoyHandshakeSessionID2(
-    const std::uint8_t* session, std::size_t session_len) {
+bool IsDecoyHandshakeSessionID2(const std::uint8_t* session,
+    std::size_t session_len,
+    const std::vector<std::string>& secrets,
+    bool accept_legacy) {
   (void)session_len;
   char data[kFptnKeyLength] = {0};
   std::memcpy(&data, &session[kDecoyHandshakeSessionIDShift2], sizeof(data));
   const std::string recv_key(data, sizeof(data));
-
-  const auto now_timestamp =
-      fptn::time::TimeProvider::Instance()->NowTimestamp();
-
-  constexpr std::uint32_t kTimeShiftSeconds = 10;  // ten seconds
-
-  const std::uint32_t timestamp = now_timestamp + (kTimeShiftSeconds / 2);
-
-  for (std::uint32_t shift = 0; shift <= kTimeShiftSeconds; shift++) {
-    const std::string key = GenerateFptnKey(timestamp - shift);
-    if (recv_key == key) {
-      return true;
-    }
-  }
-  return false;
+  return MarkerMatches(recv_key, secrets, accept_legacy);
 }
 
-bool SetHandshakeSessionID(SSL* ssl) {
+bool SetHandshakeSessionID(SSL* ssl, const std::string& secret) {
   // random
   std::uint8_t session_id[kSessionLen] = {0};
   if (::RAND_bytes(session_id, sizeof(session_id)) != 1) {
     return false;
   }
-  // copy timestamp
+  // copy timestamp marker (keyed when a secret is provided, else legacy)
   const auto timestamp = fptn::time::TimeProvider::Instance()->NowTimestamp();
-
-  const std::string key = GenerateFptnKey(timestamp);
+  const std::string key = secret.empty()
+                              ? GenerateFptnKey(timestamp)
+                              : GenerateFptnKeyKeyed(timestamp, secret);
   std::memcpy(&session_id[kSessionLen - key.size()], key.c_str(), key.size());
 
   return 0 != ::SSL_set_tls_hello_custom_session_id(
                   ssl, session_id, sizeof(session_id));
 }
 
-bool IsFptnClientSessionID(
-    const std::uint8_t* session, std::size_t session_len) {
+bool IsFptnClientSessionID(const std::uint8_t* session,
+    std::size_t session_len,
+    const std::vector<std::string>& secrets,
+    bool accept_legacy) {
   char data[kFptnKeyLength] = {0};
   std::memcpy(&data, &session[session_len - sizeof(data)], sizeof(data));
   const std::string recv_key(data, sizeof(data));
-
-  const auto now_timestamp =
-      fptn::time::TimeProvider::Instance()->NowTimestamp();
-
-  constexpr std::uint32_t kTimeShiftSeconds = 10;  // ten seconds
-
-  const std::uint32_t timestamp = now_timestamp + (kTimeShiftSeconds / 2);
-
-  for (std::uint32_t shift = 0; shift <= kTimeShiftSeconds; shift++) {
-    const std::string key = GenerateFptnKey(timestamp - shift);
-    if (recv_key == key) {
-      return true;
-    }
-  }
-  return false;
+  return MarkerMatches(recv_key, secrets, accept_legacy);
 }
 
 bool SetHandshakeSni(SSL* ssl, const std::string& sni) {
@@ -298,7 +309,8 @@ std::string GetCertificateMD5Fingerprint(const X509* cert) {
   return ss.str();
 }
 
-std::vector<std::uint8_t> GenerateDecoyTlsHandshake(const std::string& sni) {
+std::vector<std::uint8_t> GenerateDecoyTlsHandshake(
+    const std::string& sni, const std::string& secret) {
   std::vector<std::uint8_t> handshake_data;
   try {
     SSL_CTX* ssl_ctx = CreateNewSslCtx();
@@ -309,7 +321,7 @@ std::vector<std::uint8_t> GenerateDecoyTlsHandshake(const std::string& sni) {
     ::SSL_set_bio(ssl, bio_in, bio_out);
 
     SetHandshakeSni(ssl, sni);
-    SetDecoyHandshakeSessionID(ssl);
+    SetDecoyHandshakeSessionID(ssl, secret);
     // X25519MLKEM768 (ctx default) triggers HelloRetryRequest on servers
     // that don't support post-quantum key exchange, deadlocking the decoy read.
     ::SSL_set1_groups_list(ssl, "X25519:secp256r1:secp384r1");
@@ -368,15 +380,19 @@ std::optional<std::array<std::uint8_t, 32>> GenerateDecoyTlsSessionId() {
   return session_id;
 }
 
-std::optional<std::array<std::uint8_t, 32>> GenerateDecoyTlsSessionId2() {
+std::optional<std::array<std::uint8_t, 32>> GenerateDecoyTlsSessionId2(
+    const std::string& secret) {
   std::array<std::uint8_t, kSessionLen> session_id{};
   if (::RAND_bytes(session_id.data(), session_id.size()) != 1) {
     return std::nullopt;
   }
 
-  // Get timestamp and generate key
+  // Get timestamp and generate key (keyed when a secret is provided, else
+  // legacy)
   const auto timestamp = fptn::time::TimeProvider::Instance()->NowTimestamp();
-  const std::string key = GenerateFptnKey(timestamp);
+  const std::string key = secret.empty()
+                              ? GenerateFptnKey(timestamp)
+                              : GenerateFptnKeyKeyed(timestamp, secret);
   const std::size_t copy_size =
       std::min(key.size(), session_id.size() - kDecoyHandshakeSessionIDShift2);
   std::memcpy(session_id.data() + kDecoyHandshakeSessionIDShift2, key.c_str(),

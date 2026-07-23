@@ -179,6 +179,7 @@ void SettingsModel::Load(bool dont_load_server) {
       service.service_name = jsonservice_obj["service_name"].toString();
       service.username = jsonservice_obj["username"].toString();
       service.password = jsonservice_obj["password"].toString();
+      service.session_key = jsonservice_obj["session_key"].toString();
 
       if (!dont_load_server) {
         service.servers = ParseServers(jsonservice_obj["servers"].toArray());
@@ -370,6 +371,7 @@ bool SettingsModel::Save() {
     service_obj["service_name"] = service.service_name;
     service_obj["username"] = service.username;
     service_obj["password"] = service.password;
+    service_obj["session_key"] = service.session_key;
 
     QJsonArray servers_array;
     for (const auto& server : service.servers) {
@@ -447,6 +449,7 @@ ServiceConfig SettingsModel::ParseToken(const QString& token) {
   service.service_name = json_object["service_name"].toString();
   service.username = json_object["username"].toString();
   service.password = json_object["password"].toString();
+  service.session_key = json_object["session_key"].toString();
 
   service.servers = ParseServers(json_object["servers"].toArray());
   if (json_object.contains("censored_zone_servers")) {

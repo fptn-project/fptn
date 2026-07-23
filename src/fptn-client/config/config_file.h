@@ -44,6 +44,7 @@ class ConfigFile final {
   const std::string& GetServiceName() const noexcept;
   const std::string& GetUsername() const noexcept;
   const std::string& GetPassword() const noexcept;
+  const std::string& GetSessionKey() const noexcept;
   const std::vector<fptn::utils::speed_estimator::ServerInfo>& GetServers()
       const noexcept;
 
@@ -56,6 +57,7 @@ class ConfigFile final {
   std::string service_name_;
   std::string username_;
   std::string password_;
+  std::string session_key_;
   std::vector<fptn::utils::speed_estimator::ServerInfo> servers_;
 };
 }  // namespace fptn::config

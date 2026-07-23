@@ -34,6 +34,8 @@ class Listener final {
       fptn::common::jwt_token::TokenManagerSPtr token_manager,
       HandshakeCacheManagerSPtr handshake_cache_manager,
       std::string server_external_ips,
+      std::vector<std::string> session_keys,
+      bool session_id_accept_legacy,
       WebSocketOpenConnectionCallback ws_open_callback,
       WebSocketNewIPPacketCallback ws_new_ippacket_callback,
       WebSocketCloseConnectionCallback ws_close_callback);
@@ -58,6 +60,8 @@ class Listener final {
   HandshakeCacheManagerSPtr handshake_cache_manager_;
 
   const std::string server_external_ips_;
+  const std::vector<std::string> session_keys_;
+  const bool session_id_accept_legacy_;
 
   const WebSocketOpenConnectionCallback ws_open_callback_;
   const WebSocketNewIPPacketCallback ws_new_ippacket_callback_;

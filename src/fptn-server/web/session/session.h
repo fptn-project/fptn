@@ -39,6 +39,8 @@ class Session : public std::enable_shared_from_this<Session> {
       std::string default_proxy_domain,
       std::vector<std::string> allowed_sni_list,
       std::string server_external_ips,
+      std::vector<std::string> session_keys,
+      bool session_id_accept_legacy,
       boost::asio::ip::tcp::socket&& socket,
       boost::asio::ssl::context& ctx,
       const ApiHandleMap& api_handles,
@@ -118,6 +120,8 @@ class Session : public std::enable_shared_from_this<Session> {
   const std::vector<std::string> allowed_sni_list_;
 
   const std::string server_external_ips_;
+  const std::vector<std::string> session_keys_;
+  const bool session_id_accept_legacy_;
 
   // TCP -> obfuscator -> SSL -> WebSocket
   using tcp_stream_type = boost::beast::tcp_stream;

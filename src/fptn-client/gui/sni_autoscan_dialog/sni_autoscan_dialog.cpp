@@ -247,9 +247,11 @@ void SniAutoscanDialog::WorkerThread(int thread_id) {
       bool http_ok = false;
 
       constexpr int kHandshakeTimeout = 2;
+      // SNI reachability probe: no keyed session-id marker here (the shared
+      // secret is service-level and not carried by this diagnostic scanner).
       fptn::protocol::https::ApiClient client(server.host.toStdString(),
           server.port, sni, server.md5_fingerprint.toStdString(),
-          protocol::https::CensorshipStrategy::kSni);
+          /*session_key=*/"", protocol::https::CensorshipStrategy::kSni);
 
       handshake_ok = client.TestHandshake(kHandshakeTimeout);
       if (handshake_ok) {
