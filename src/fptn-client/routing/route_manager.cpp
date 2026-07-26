@@ -582,13 +582,20 @@ pass out on {tunInterfaceName} proto tcp from any to any port 53
 
   const bool status = AddExcludeNetworks(config_.exclude_networks) &&
                       AddIncludeNetworks(config_.include_networks);
+
+  // Restore split-tunnel routes resolved from DNS before a reconnect (kept by
+  // Clean(keep_dns_routes=true)). Without this they stay gone until each domain
+  // is looked up again, so cached destinations wrongly fall back to the VPN.
+  ReapplyDnsRoutes();
+
   if (status) {
     SPDLOG_INFO("=== Routing setup completed successfully ===");
   }
   return status;
 }
 
-bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
+bool RouteManager::Clean(  // NOLINT(bugprone-exception-escape)
+    bool keep_dns_routes) {
   if (!running_) {
     SPDLOG_INFO("No need to clean rules!");
     return true;
@@ -617,7 +624,11 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
     del_commands.push_back(BuildRemoveIPv4RouteCommand(
         ip.destination, config_.gateway_ipv4.ToString(), interface_name));
   }
-  dns_routes_ipv4_.clear();
+  // On a reconnect the entries are kept so Apply() can re-install them without
+  // waiting for each domain to be resolved again.
+  if (!keep_dns_routes) {
+    dns_routes_ipv4_.clear();
+  }
 
   // clean dns ipv6
   for (const auto& ip : dns_routes_ipv6_) {
@@ -636,7 +647,9 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
     del_commands.push_back(BuildRemoveIPv6RouteCommand(
         ip.destination, config_.gateway_ipv6.ToString(), interface_name));
   }
-  dns_routes_ipv6_.clear();
+  if (!keep_dns_routes) {
+    dns_routes_ipv6_.clear();
+  }
 
   // clean route ipv4
   for (const auto& route : additional_routes_ipv4_) {
@@ -863,6 +876,58 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
   }
   running_ = false;
   return true;
+}
+
+void RouteManager::ReapplyDnsRoutes() {
+  // Called from Apply(), which already holds mutex_; do not lock again. The
+  // route-add helpers do not touch the dns_routes_* sets, so iterating them
+  // directly is safe.
+  if (dns_routes_ipv4_.empty() && dns_routes_ipv6_.empty()) {
+    return;
+  }
+
+  for (const auto& entry : dns_routes_ipv4_) {
+    std::string interface_name;
+    std::string gateway_ip;
+    if (entry.policy == RoutingPolicy::kExcludeFromVpn) {
+      interface_name = !detected_out_interface_name_.empty()
+                           ? detected_out_interface_name_
+                           : config_.out_interface_name;
+      gateway_ip = config_.gateway_ipv4.ToString();
+    } else {
+      interface_name = tun_interface_name_;
+      gateway_ip = config_.tun_interface_address_ipv4.ToString();
+    }
+    if (interface_name.empty()) {
+      interface_name = GetDefaultNetworkInterfaceName();
+    }
+    if (interface_name.empty()) {
+      continue;
+    }
+    AddIPv4RouteToSystem(entry.destination, gateway_ip, interface_name);
+  }
+
+  for (const auto& entry : dns_routes_ipv6_) {
+    std::string interface_name;
+    std::string gateway_ip;
+    if (entry.policy == RoutingPolicy::kExcludeFromVpn) {
+      interface_name = !detected_out_interface_name_.empty()
+                           ? detected_out_interface_name_
+                           : config_.out_interface_name;
+      gateway_ip = config_.gateway_ipv6.ToString();
+    } else {
+      interface_name = tun_interface_name_;
+      gateway_ip = config_.tun_interface_address_ipv6.ToString();
+    }
+    if (interface_name.empty() || gateway_ip.empty()) {
+      continue;
+    }
+    AddIPv6RouteToSystem(entry.destination, gateway_ip, interface_name);
+  }
+
+  SPDLOG_INFO("Reapplied split-tunnel DNS routes after reconnect: {} IPv4, {} "
+              "IPv6",
+      dns_routes_ipv4_.size(), dns_routes_ipv6_.size());
 }
 
 bool RouteManager::AddDnsRoutesIPv4(

@@ -75,7 +75,7 @@ class RouteManager final {
   ~RouteManager();
 
   bool Apply(std::string tun_name);
-  bool Clean();
+  bool Clean(bool keep_dns_routes = false);
 
   bool AddDnsRoutesIPv4(
       const std::vector<fptn::common::network::IPv4Address>& ips,
@@ -88,6 +88,11 @@ class RouteManager final {
  protected:
   bool AddExcludeNetworks(const std::vector<std::string>& networks);
   bool AddIncludeNetworks(const std::vector<std::string>& networks);
+
+  // Re-install split-tunnel host routes previously resolved from DNS. Called by
+  // Apply() so domain routes survive a reconnect instead of being lost until
+  // each domain is looked up again.
+  void ReapplyDnsRoutes();
 
  private:
   mutable std::mutex mutex_;
