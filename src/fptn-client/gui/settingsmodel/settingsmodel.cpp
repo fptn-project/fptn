@@ -266,8 +266,7 @@ void SettingsModel::Load(bool dont_load_server) {
   if (connection_strategy_ != kConnectionStrategyPersistent &&
       connection_strategy_ != kConnectionStrategyRolling &&
       connection_strategy_ != kConnectionStrategyDual &&
-      connection_strategy_ != kConnectionStrategyTriple &&
-      connection_strategy_ != kConnectionStrategyBrowserMimicry) {
+      connection_strategy_ != kConnectionStrategyTriple) {
     connection_strategy_ = kConnectionStrategyPersistent;
   }
 

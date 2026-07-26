@@ -170,18 +170,14 @@ void SettingsWidget::SetupUi() {
       SettingsModel::kConnectionStrategyDual);
   connection_strategy_combo_box_->addItem(QObject::tr("Triple rolling tunnel"),
       SettingsModel::kConnectionStrategyTriple);
-  connection_strategy_combo_box_->addItem(
-      QObject::tr("Browser mimicry (experimental)"),
-      SettingsModel::kConnectionStrategyBrowserMimicry);
   connection_strategy_combo_box_->setSizePolicy(
       QSizePolicy::Expanding, QSizePolicy::Fixed);
   connection_strategy_combo_box_->setMinimumWidth(200);
 
   const int connection_strategy_index =
       connection_strategy_combo_box_->findData(settings_->ConnectionStrategy());
-  if (connection_strategy_index >= 0) {
-    connection_strategy_combo_box_->setCurrentIndex(connection_strategy_index);
-  }
+  connection_strategy_combo_box_->setCurrentIndex(
+      connection_strategy_index >= 0 ? connection_strategy_index : 0);
 
   connect(connection_strategy_combo_box_, &QComboBox::currentIndexChanged, this,
       [this](int) {

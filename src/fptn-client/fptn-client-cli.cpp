@@ -149,17 +149,14 @@ int main(int argc, char* argv[]) {
             "  rolling-tunnel        - a single tunnel renewed every 10 "
             "minutes\n"
             "  dual-rolling-tunnel   - two rolling tunnels in parallel\n"
-            "  triple-rolling-tunnel - three rolling tunnels in parallel\n"
-            "  browser-mimicry       - many short connections mimicking a "
-            "browser (experimental)\n")
+            "  triple-rolling-tunnel - three rolling tunnels in parallel\n")
         .action([](const std::string& v) {
           if (v != "persistent-tunnel" && v != "rolling-tunnel" &&
-              v != "dual-rolling-tunnel" && v != "triple-rolling-tunnel" &&
-              v != "browser-mimicry") {
+              v != "dual-rolling-tunnel" && v != "triple-rolling-tunnel") {
             throw std::runtime_error(fmt::format(
                 "Invalid connection strategy '{}'. Choose from: "
                 "persistent-tunnel, rolling-tunnel, dual-rolling-tunnel, "
-                "triple-rolling-tunnel, browser-mimicry",
+                "triple-rolling-tunnel",
                 v));
           }
           return v;
