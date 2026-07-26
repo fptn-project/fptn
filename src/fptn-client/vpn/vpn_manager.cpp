@@ -285,11 +285,8 @@ void VpnManager::ProcessWebSocketPackets() {
 
     if (!to_send.empty()) {
       const std::unique_lock<std::mutex> lock(mutex_);
-      // cppcheck-suppress knownConditionTrueFalse
       if (running_ && config_.virtual_net_interface) {
-        for (auto& packet : to_send) {
-          config_.virtual_net_interface->Send(std::move(packet));
-        }
+        config_.virtual_net_interface->SendBatch(std::move(to_send));
       }
     }
   }

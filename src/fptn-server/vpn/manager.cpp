@@ -82,12 +82,10 @@ bool Manager::Start() {
 void Manager::RunToClient() const {
   constexpr std::chrono::milliseconds kTimeout{10};
 
+  std::unordered_map<fptn::ClientID, common::network::BatchIPPacketPtr> batches;
+
   while (running_) {
     auto packets = network_interface_->WaitForPackets(kTimeout, 256);
-
-    // Group packets by web session to send each session a batch at once
-    std::unordered_map<fptn::ClientID, common::network::BatchIPPacketPtr>
-        batches;
 
     for (auto& packet : packets) {
       if (!packet || (!packet->IsIPv4() && !packet->IsIPv6())) {
@@ -131,6 +129,8 @@ void Manager::RunToClient() const {
         web_session->SendBatch(std::move(batch));
       }
     }
+
+    batches.clear();
   }
 }
 
