@@ -267,7 +267,7 @@ void SettingsModel::Load(bool dont_load_server) {
       connection_strategy_ != kConnectionStrategyRolling &&
       connection_strategy_ != kConnectionStrategyDual &&
       connection_strategy_ != kConnectionStrategyTriple) {
-    connection_strategy_ = kConnectionStrategyPersistent;
+    connection_strategy_ = kConnectionStrategyDual;
   }
 
   if (service_obj.contains("blacklist_domains")) {
@@ -559,7 +559,7 @@ void SettingsModel::SetBypassMethod(const QString& method) {
 }
 
 QString SettingsModel::ConnectionStrategy() const {
-  return connection_strategy_.isEmpty() ? kConnectionStrategyPersistent
+  return connection_strategy_.isEmpty() ? kConnectionStrategyDual
                                         : connection_strategy_;
 }
 

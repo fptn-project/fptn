@@ -162,10 +162,7 @@ ConnectionMultiplexer::ChangeIPAddressToClientIP(
 
   ClientConnectionPtr connection = FindByClientId(receiving_, client_id);
   if (connection == nullptr) {
-    connection = FindByClientId(sending_, client_id);
-  }
-  if (connection == nullptr) {
-    return packet;
+    return nullptr;
   }
   const auto& request = connection->Params().request;
   if (packet->IsIPv4()) {
