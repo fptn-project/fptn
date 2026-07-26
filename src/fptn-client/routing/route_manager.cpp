@@ -836,18 +836,15 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
       // Remove routes
       fmt::format("route delete {} mask 255.255.255.255",
           config_.vpn_server_ip.ToString()),
-      fmt::format("route delete 0.0.0.0 mask 0.0.0.0"),
+      fmt::format("route delete 0.0.0.0 mask 0.0.0.0 {}",
+          config_.tun_interface_address_ipv4.ToString()),
       fmt::format("route delete {} mask 255.255.255.255",
           config_.dns_server_ipv4.ToString()),
       fmt::format(
           "netsh interface ipv6 delete route ::/0 \"{}\"", tun_interface_name_),
 
       // Final cleanup
-      "ipconfig /flushdns",
-
-      // restore routing
-      fmt::format("route add 0.0.0.0 mask 0.0.0.0 {} METRIC 1",
-          detected_gateway_ipv4_.ToString())};
+      "ipconfig /flushdns"};
 
 #else
 #error "Unsupported system!"
