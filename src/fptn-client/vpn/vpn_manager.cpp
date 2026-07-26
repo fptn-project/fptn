@@ -15,7 +15,6 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include <spdlog/spdlog.h>  // NOLINT(build/include_order)
 
-#include "fptn-protocol-lib/time/time_provider.h"
 
 namespace {
 std::chrono::seconds ReconnectBackoff(int full_restart_count) {
@@ -332,7 +331,6 @@ void VpnManager::Supervise() {
 
     config_.http_client->Stop();
     config_.route_manager->Clean();
-    fptn::time::TimeProvider::Instance()->SyncWithNtp();
 
     {
       std::unique_lock<std::mutex> lock(reconnect_mutex_);

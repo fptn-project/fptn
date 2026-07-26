@@ -7,7 +7,6 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #pragma once
 
 #include <atomic>
-#include <chrono>
 #include <cstdint>
 #include <ctime>
 #include <mutex>
@@ -26,9 +25,9 @@ class TimeProvider final {
     return &provider;
   }
 
-  std::string Rfc7231Date();
+  std::string Rfc7231Date() const;
   std::int32_t OffsetSeconds() const;
-  std::uint32_t NowTimestamp();
+  std::uint32_t NowTimestamp() const;
   bool SyncWithNtp();
 
  protected:
@@ -41,13 +40,10 @@ class TimeProvider final {
   bool Refresh();
 
  private:
-  const std::chrono::hours kSyncInterval_{1};
-
   mutable std::mutex mutex_;
   const NtpServers servers_;
 
   std::atomic<std::int32_t> offset_seconds_;
-  std::atomic<std::chrono::steady_clock::time_point> last_sync_time_;
 };
 
 }  // namespace fptn::time
