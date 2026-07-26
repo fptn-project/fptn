@@ -334,7 +334,10 @@ void VpnManager::Supervise() {
         "Full VPN restart {}/{}", full_restart_count, kMaxFullRestarts_);
 
     config_.http_client->Stop();
-    config_.route_manager->Clean();
+    // Keep split-tunnel DNS routes so Apply() can restore them right after the
+    // tunnel comes back, instead of losing them until every domain is resolved
+    // again (which sent cached split-tunnel destinations through the VPN).
+    config_.route_manager->Clean(/*keep_dns_routes=*/true);
     fptn::time::TimeProvider::Instance()->SyncWithNtp();
 
     {
