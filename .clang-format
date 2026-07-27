@@ -27,8 +27,6 @@ IncludeCategories:
     Priority:        3
   - Regex:          '^<protocol.pb.h>'
     Priority:        2
-  - Regex:          '^<tuntap++.*>'
-    Priority:        2
   - Regex:           '^<ntp_client.hpp>'
     Priority:        2
   - Regex:           '^<blockingconcurrentqueue.h>'

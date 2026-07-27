@@ -2,9 +2,7 @@ project(fptn-client)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
-if(APPLE OR UNIX)
-  set(TUNTAP_LIB tuntap++)
-else()
+if(WIN32)
   set(TUNTAP_LIB Wintun rpcrt4 iphlpapi Kernel32.lib)
 endif()
 

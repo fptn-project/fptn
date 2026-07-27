@@ -41,7 +41,7 @@ jobs:
           cppcheck --force --error-exitcode=1 --enable=all --check-level=exhaustive --language=c++ --suppress=unusedFunction --inline-suppr --suppress=missingIncludeSystem --suppress=unknownMacro --suppress=unmatchedSuppression -I ./src/fptn-client/ -I ./src/fptn-server/ -I ./src/fptn-passwd/ -I ./src/fptn-client-protocol-lib -I ./src/  ./src/ ./tests/
       - name: Run cmake-format
         run: |
-          cmake-format -i CMakeLists.txt src/fptn-client/CMakeLists.txt src/fptn-passwd/CMakeLists.txt src/fptn-server/CMakeLists.txt src/fptn-protocol-lib/CMakeLists.txt depends/cmake/FetchBase64.cmake depends/cmake/FetchLibTunTap.cmake depends/cmake/FetchWintun.cmake
+          cmake-format -i CMakeLists.txt src/fptn-client/CMakeLists.txt src/fptn-passwd/CMakeLists.txt src/fptn-server/CMakeLists.txt src/fptn-protocol-lib/CMakeLists.txt depends/cmake/FetchBase64.cmake depends/cmake/FetchWintun.cmake
       - name: Build
         run: |
           cd build
@@ -113,7 +113,7 @@ jobs:
           cppcheck --force --error-exitcode=1 --enable=all --check-level=exhaustive --language=c++ --suppress=unusedFunction --inline-suppr --suppress=missingIncludeSystem --suppress=unmatchedSuppression -I ./src/fptn-client/ -I ./src/fptn-server/ -I ./src/fptn-passwd/ -I ./src/fptn-client-protocol-lib -I ./src/ ./src/ ./tests/
       - name: Run cmake-format
         run: |
-          cmake-format -i CMakeLists.txt src/fptn-client/CMakeLists.txt src/fptn-passwd/CMakeLists.txt src/fptn-server/CMakeLists.txt src/fptn-protocol-lib/CMakeLists.txt depends/cmake/FetchBase64.cmake depends/cmake/FetchLibTunTap.cmake depends/cmake/FetchWintun.cmake
+          cmake-format -i CMakeLists.txt src/fptn-client/CMakeLists.txt src/fptn-passwd/CMakeLists.txt src/fptn-server/CMakeLists.txt src/fptn-protocol-lib/CMakeLists.txt depends/cmake/FetchBase64.cmake depends/cmake/FetchWintun.cmake
       - name: Build
         run: |
           cd build
@@ -185,7 +185,7 @@ jobs:
           cppcheck --force --error-exitcode=1 --enable=all --check-level=exhaustive --language=c++ --suppress=unusedFunction --inline-suppr --suppress=missingIncludeSystem --suppress=unknownMacro --suppress=unmatchedSuppression -I ./src/fptn-client/ -I ./src/fptn-server/ -I ./src/fptn-passwd/ -I ./src/fptn-client-protocol-lib -I ./src/  ./src/ ./tests/
       - name: Run cmake-format
         run: |
-          cmake-format -i CMakeLists.txt src/fptn-client/CMakeLists.txt src/fptn-passwd/CMakeLists.txt src/fptn-server/CMakeLists.txt src/fptn-protocol-lib/CMakeLists.txt depends/cmake/FetchBase64.cmake depends/cmake/FetchLibTunTap.cmake depends/cmake/FetchWintun.cmake
+          cmake-format -i CMakeLists.txt src/fptn-client/CMakeLists.txt src/fptn-passwd/CMakeLists.txt src/fptn-server/CMakeLists.txt src/fptn-protocol-lib/CMakeLists.txt depends/cmake/FetchBase64.cmake depends/cmake/FetchWintun.cmake
       - name: Build
         run: |
           cd build
@@ -250,7 +250,7 @@ jobs:
       - name: Run cmake-format
         shell: powershell
         run: |
-          cmake-format -i CMakeLists.txt src/fptn-client/CMakeLists.txt src/fptn-passwd/CMakeLists.txt src/fptn-server/CMakeLists.txt src/fptn-protocol-lib/CMakeLists.txt depends/cmake/FetchBase64.cmake depends/cmake/FetchLibTunTap.cmake depends/cmake/FetchWintun.cmake
+          cmake-format -i CMakeLists.txt src/fptn-client/CMakeLists.txt src/fptn-passwd/CMakeLists.txt src/fptn-server/CMakeLists.txt src/fptn-protocol-lib/CMakeLists.txt depends/cmake/FetchBase64.cmake depends/cmake/FetchWintun.cmake
       - name: Build
         shell: powershell
         run: |

@@ -7,32 +7,36 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #pragma once
 
-#include <fcntl.h>
-#include <linux/if_tun.h>
-// <linux/virtio_net.h> declares a struct member named `class`, valid in C
-// but a reserved word in C++. Rename it for the duration of the include so
-// we can still use the system UAPI header (struct virtio_net_hdr et al).
-#define class class_
-#include <linux/virtio_net.h>
-#undef class
-#include <net/if.h>
-#include <netinet/in.h>
-#include <sys/ioctl.h>
-#include <sys/socket.h>
-#include <sys/uio.h>
-#include <unistd.h>
+#include <fcntl.h>         // NOLINT(build/include_order)
+#include <linux/if_tun.h>  // NOLINT(build/include_order)
+#include <unistd.h>        // NOLINT(build/include_order)
 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wkeyword-macro"
+#endif
+#define class class_
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 #include <arpa/inet.h>
+#include <linux/ipv6.h>        // NOLINT(build/include_order)
+#include <linux/virtio_net.h>  // NOLINT(build/include_order)
+#include <net/if.h>            // NOLINT(build/include_order)
+#include <netinet/in.h>        // NOLINT(build/include_order)
+#include <sys/ioctl.h>         // NOLINT(build/include_order)
+#include <sys/socket.h>        // NOLINT(build/include_order)
+#include <sys/uio.h>           // NOLINT(build/include_order)
+#undef class
 
 #include <atomic>
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
+#include <deque>
 #include <string>
 #include <utility>
 #include <vector>
-
-#include <deque>
 
 #include <spdlog/spdlog.h>  // NOLINT(build/include_order)
 
@@ -153,18 +157,11 @@ class LinuxTunDevice {
       return false;
     }
 
-    // struct in6_ifreq from <linux/ipv6.h> (defined locally to avoid
-    // conflicts between kernel and libc headers)
-    struct In6Ifreq {
-      struct in6_addr addr;
-      std::uint32_t prefixlen;
-      int ifindex;
-    } req = {};
-
-    req.ifindex = static_cast<int>(::if_nametoindex(name_.c_str()));
-    req.prefixlen = static_cast<std::uint32_t>(prefixlen);
-    if (req.ifindex == 0 ||
-        ::inet_pton(AF_INET6, addr.c_str(), &req.addr) != 1 ||
+    struct in6_ifreq req = {};
+    req.ifr6_ifindex = static_cast<int>(::if_nametoindex(name_.c_str()));
+    req.ifr6_prefixlen = static_cast<std::uint32_t>(prefixlen);
+    if (req.ifr6_ifindex == 0 ||
+        ::inet_pton(AF_INET6, addr.c_str(), &req.ifr6_addr) != 1 ||
         ::ioctl(sock, SIOCSIFADDR, &req) < 0) {
       SPDLOG_WARN("IPv6 SIOCSIFADDR({}) failed: {}", addr, strerror(errno));
       ::close(sock);
@@ -177,8 +174,8 @@ class LinuxTunDevice {
   void SetNonBlocking(bool enabled) {
     const int flags = ::fcntl(fd_, F_GETFL, 0);
     if (flags >= 0) {
-      ::fcntl(fd_, F_SETFL,
-          enabled ? (flags | O_NONBLOCK) : (flags & ~O_NONBLOCK));
+      ::fcntl(
+          fd_, F_SETFL, enabled ? (flags | O_NONBLOCK) : (flags & ~O_NONBLOCK));
     }
   }
 
@@ -294,7 +291,8 @@ class LinuxTunDevice {
   // csum_start is used as the network-header length and hdr.hdr_len from
   // the kernel is not trusted (it can be the whole first packet length on
   // the FORWARD path).
-  bool SegmentGsoFrame(const std::uint8_t* frame, std::size_t size,
+  bool SegmentGsoFrame(const std::uint8_t* frame,
+      std::size_t size,
       const struct virtio_net_hdr& hdr) {
     // Non-GSO frame: pass through. With VIRTIO_NET_HDR_F_NEEDS_CSUM
     // (CHECKSUM_PARTIAL) the kernel stored the pseudo-header sum at the
@@ -311,9 +309,15 @@ class LinuxTunDevice {
         const std::uint32_t initial = ReadU16Be(p + csum_at);
         p[csum_at] = 0;
         p[csum_at + 1] = 0;
-        WriteU16Be(p + csum_at,
-            Rfc1071(p + hdr.csum_start,
-                static_cast<int>(size - hdr.csum_start), initial));
+        std::uint16_t ck = Rfc1071(p + hdr.csum_start,
+            static_cast<int>(size - hdr.csum_start), initial);
+        // RFC 768/8200: a UDP checksum computed as 0 goes on the wire as
+        // 0xFFFF (proto at byte 9 for IPv4, next-header at byte 6 for IPv6).
+        const std::uint8_t proto = (p[0] >> 4) == 6u ? p[6] : p[9];
+        if (ck == 0u && proto == IPPROTO_UDP) {
+          ck = 0xFFFFu;
+        }
+        WriteU16Be(p + csum_at, ck);
       } else {
         pending_.emplace_back(frame, frame + size);
       }
@@ -436,9 +440,12 @@ class LinuxTunDevice {
       // Transport checksum: pseudo-header seed + one pass over L4 data.
       tr[hdr.csum_offset] = 0;
       tr[hdr.csum_offset + 1] = 0;
-      WriteU16Be(tr + hdr.csum_offset,
-          Rfc1071(tr, static_cast<int>(l4_len),
-              addr_sum + proto + static_cast<std::uint32_t>(l4_len)));
+      std::uint16_t ck = Rfc1071(tr, static_cast<int>(l4_len),
+          addr_sum + proto + static_cast<std::uint32_t>(l4_len));
+      if (!tcp && ck == 0u) {
+        ck = 0xFFFFu;  // RFC 768/8200: UDP puts 0xFFFF on the wire, not 0.
+      }
+      WriteU16Be(tr + hdr.csum_offset, ck);
 
       pending_.push_back(std::move(seg));
       offset += chunk;

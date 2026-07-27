@@ -88,6 +88,5 @@ target_link_libraries(
           jwt-cpp::jwt-cpp
           spdlog::spdlog
           fmt::fmt
-          tuntap++
           fptn-protocol-lib_static
           prometheus-cpp::prometheus-cpp)
