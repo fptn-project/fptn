@@ -33,11 +33,12 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 namespace fptn::protocol::connection::strategies {
 
-template <std::size_t ConnectionCount, int LifetimeSeconds>
+template <std::size_t ConnectionCount, int LifetimeSeconds, int StaggerSeconds>
 class ParallelTunnels : public BaseStrategyConnection {
   static_assert(
       ConnectionCount >= 2, "ParallelTunnels needs at least 2 connections");
   static_assert(LifetimeSeconds > 0, "Socket lifetime must be positive");
+  static_assert(StaggerSeconds >= 0, "Stagger interval must be non-negative");
 
  private:
   struct Channel {
@@ -256,22 +257,28 @@ class ParallelTunnels : public BaseStrategyConnection {
           });
     }
 
-    for (std::size_t i = healthy_count; i < ConnectionCount; i++) {
-      {
-        const std::shared_lock lock(mutex_);  // read-only lock
-        if (connections_.size() >= kMaxConnections) {
-          break;
-        }
-      }
+    if (healthy_count >= ConnectionCount) {
+      co_return;
+    }
 
-      auto channel = co_await CreateNewConnection(NextLifetimeSeconds());
-      if (!channel) {
-        break;
+    {
+      const std::shared_lock lock(mutex_);  // read-only lock
+      if (connections_.size() >= kMaxConnections) {
+        co_return;
       }
-      {
-        const std::unique_lock lock(mutex_);  // mutex
-        connections_.push_back(std::move(channel));
-      }
+    }
+
+    if (StaggerSeconds > 0 &&
+        std::chrono::steady_clock::now() - last_spawn_time_ <
+            std::chrono::seconds(StaggerSeconds)) {
+      co_return;
+    }
+
+    auto channel = co_await CreateNewConnection(NextLifetimeSeconds());
+    if (channel) {
+      const std::unique_lock lock(mutex_);  // mutex
+      connections_.push_back(std::move(channel));
+      last_spawn_time_ = std::chrono::steady_clock::now();
     }
     co_return;
   }
@@ -351,12 +358,14 @@ class ParallelTunnels : public BaseStrategyConnection {
   std::atomic<std::uint64_t> connection_id_counter_{0};
   std::atomic<std::size_t> round_robin_cursor_{0};
 
+  std::chrono::steady_clock::time_point last_spawn_time_{};
+
   const std::string session_id_;
 
   std::vector<std::shared_ptr<Channel>> connections_;
 };
 
-using DualTunnel = ParallelTunnels<2, 600>;
-using TripleTunnel = ParallelTunnels<3, 600>;
+using DualTunnel = ParallelTunnels<2, 600, 30>;
+using TripleTunnel = ParallelTunnels<3, 600, 30>;
 
 }  // namespace fptn::protocol::connection::strategies
