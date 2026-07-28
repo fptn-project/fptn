@@ -25,6 +25,8 @@ using OnIPRecvPacketCallback = std::function<void(
 
 using OnConnectedCallback = std::function<void()>;
 
+using OnSocketOpenedCallback = std::function<void(int socket_fd)>;
+
 struct ConnectionConfig {
   struct Common {
     IPv4Address server_ip;
@@ -54,6 +56,7 @@ struct ConnectionConfig {
 
     OnConnectedCallback on_connected_callback = nullptr;
     OnIPRecvPacketCallback recv_ip_packet_callback = nullptr;
+    OnSocketOpenedCallback on_socket_opened_callback = nullptr;
   } common;
 
   struct Pool {

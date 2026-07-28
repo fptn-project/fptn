@@ -300,6 +300,12 @@ boost::asio::awaitable<bool> WebsocketClient::RunInternal() {
       config_.common.on_connected_callback();
     }
 
+    if (config_.common.on_socket_opened_callback) {
+      const int fd = static_cast<int>(
+          boost::beast::get_lowest_layer(ws_).socket().native_handle());
+      config_.common.on_socket_opened_callback(fd);
+    }
+
     co_return true;
   } catch (const std::exception& e) {
     SPDLOG_ERROR("RunInternal exception: {}", e.what());
