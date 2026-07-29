@@ -110,7 +110,9 @@ void Manager::RunToClient() const {
         continue;
       }
 
-      const auto client_id = nat_session->NextReceiverClientId();
+      auto [moved_packet, client_id] =
+          nat_session->NextReceiverClientId(std::move(packet));
+      packet = std::move(moved_packet);
       if (!client_id) {
         continue;
       }

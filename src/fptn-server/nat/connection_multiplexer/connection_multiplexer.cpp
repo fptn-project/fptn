@@ -136,16 +136,24 @@ std::vector<fptn::ClientID> ConnectionMultiplexer::UpdateConnectionsStatus() {
   return expired;
 }
 
-std::optional<fptn::ClientID> ConnectionMultiplexer::NextReceiverClientId() {
+std::pair<fptn::common::network::IPPacketPtr, std::optional<fptn::ClientID>>
+ConnectionMultiplexer::NextReceiverClientId(
+    fptn::common::network::IPPacketPtr packet) {
   const std::shared_lock<std::shared_mutex> lock(mutex_);  // mutex
 
-  if (receiving_.empty()) {
-    return std::nullopt;
+  if (receiving_.empty() || !packet) {
+    return {std::move(packet), std::nullopt};
   }
-  const auto cursor =
-      round_robin_cursor_.fetch_add(1, std::memory_order_relaxed);
-  const std::size_t index = cursor % receiving_.size();
-  return receiving_[index]->Params().client_id;
+  std::size_t start = 0;
+  if (packet->IsTCP()) {
+    start = packet->GetTcpDstPort();
+  } else if (packet->IsUDP()) {
+    start = packet->GetUdpDstPort();
+  } else {
+    start = round_robin_cursor_.fetch_add(1, std::memory_order_relaxed);
+  }
+  const std::size_t index = start % receiving_.size();
+  return {std::move(packet), receiving_[index]->Params().client_id};
 }
 
 fptn::common::network::IPPacketPtr

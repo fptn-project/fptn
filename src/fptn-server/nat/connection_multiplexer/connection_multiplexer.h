@@ -59,7 +59,8 @@ class ConnectionMultiplexer final {
   // close their transports. Meant to be called periodically by the vpn manager.
   std::vector<fptn::ClientID> UpdateConnectionsStatus();
 
-  std::optional<fptn::ClientID> NextReceiverClientId();
+  std::pair<fptn::common::network::IPPacketPtr, std::optional<fptn::ClientID>>
+  NextReceiverClientId(fptn::common::network::IPPacketPtr packet);
 
   fptn::common::network::IPPacketPtr ChangeIPAddressToClientIP(
       fptn::common::network::IPPacketPtr packet,

@@ -49,6 +49,11 @@ add_executable(IPv6UtilsTest network/IPv6UtilsTest.cpp)
 target_link_libraries(IPv6UtilsTest PRIVATE ${LIBS})
 add_test(NAME IPv6UtilsTest COMMAND IPv6UtilsTest)
 
+# --- IPPacket test ---
+add_executable(IPPacketTest network/IPPacketTest.cpp)
+target_link_libraries(IPPacketTest PRIVATE ${LIBS})
+add_test(NAME IPPacketTest COMMAND IPPacketTest)
+
 # --- TUN Device test ---
 add_executable(TunDeviceTest network/TunDeviceTest.cpp)
 target_link_libraries(TunDeviceTest PRIVATE ${LIBS})

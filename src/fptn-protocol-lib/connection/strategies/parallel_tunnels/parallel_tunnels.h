@@ -51,8 +51,7 @@ class ParallelTunnels : public BaseStrategyConnection {
   static constexpr std::size_t kMaxConnections = ConnectionCount + 1;
 
  public:
-  static std::unique_ptr<ParallelTunnels> Create(
-      std::string jwt_access_token,
+  static std::unique_ptr<ParallelTunnels> Create(std::string jwt_access_token,
       fptn::protocol::https::ConnectionConfig config) {
     return std::make_unique<ParallelTunnels>(
         std::move(jwt_access_token), std::move(config));
@@ -92,29 +91,33 @@ class ParallelTunnels : public BaseStrategyConnection {
   }
 
   bool Send(fptn::common::network::IPPacketPtr packet) override {
-    if (!IsStarted()) {
+    if (!IsStarted() || !packet) {
       return false;
     }
 
-    std::shared_ptr<Channel> channel;
-    {
-      const std::shared_lock lock(mutex_);  // read-only lock
+    const std::shared_lock lock(mutex_);  // read-only lock
 
-      if (connections_.empty()) {
-        return false;
-      }
-      const std::size_t count = connections_.size();
-      const std::size_t start = round_robin_cursor_.fetch_add(1);
-      for (std::size_t i = 0; i < count; ++i) {
-        const auto& candidate = connections_[(start + i) % count];
-        if (candidate && candidate->client && candidate->client->IsStarted()) {
-          channel = candidate;
-          break;
-        }
+    if (connections_.empty()) {
+      return false;
+    }
+
+    const std::size_t count = connections_.size();
+    std::size_t start = 0;
+    if (packet->IsTCP()) {
+      start = packet->GetTcpSrcPort();
+    } else if (packet->IsUDP()) {
+      start = packet->GetUdpSrcPort();
+    } else {
+      start = round_robin_cursor_.fetch_add(1);
+    }
+
+    for (std::size_t i = 0; i < count; ++i) {
+      const auto& channel = connections_[(start + i) % count];
+      if (channel && channel->client && channel->client->IsStarted()) {
+        return channel->client->Send(std::move(packet));
       }
     }
-    return channel && channel->client &&
-           channel->client->Send(std::move(packet));
+    return false;
   }
 
   bool IsStarted() override { return RunningStatus(); }

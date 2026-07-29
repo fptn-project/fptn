@@ -317,6 +317,66 @@ class IPPacket {
            detail::Ipv6Next(data_.data()) == 58u;
   }
 
+  bool IsTCP() const noexcept {
+    if (IsIPv4()) {
+      return data_.size() >= detail::kMinIPv4 &&
+             detail::Ipv4Proto(data_.data()) == 6u;
+    }
+    if (IsIPv6()) {
+      return data_.size() >= detail::kMinIPv6 &&
+             detail::Ipv6Next(data_.data()) == 6u;
+    }
+    return false;
+  }
+
+  std::uint16_t GetTcpSrcPort() const noexcept {
+    const std::uint8_t* p = data_.data();
+    const std::size_t ip_hdr = IsIPv4() ? detail::Ipv4Ihl(p) : detail::kMinIPv6;
+    if (data_.size() < ip_hdr + 2) {
+      return 0;
+    }
+    return ReadU16Be(p + ip_hdr);
+  }
+
+  std::uint16_t GetTcpDstPort() const noexcept {
+    const std::uint8_t* p = data_.data();
+    const std::size_t ip_hdr = IsIPv4() ? detail::Ipv4Ihl(p) : detail::kMinIPv6;
+    if (data_.size() < ip_hdr + 4) {
+      return 0;
+    }
+    return ReadU16Be(p + ip_hdr + 2);
+  }
+
+  bool IsUDP() const noexcept {
+    if (IsIPv4()) {
+      return data_.size() >= detail::kMinIPv4 &&
+             detail::Ipv4Proto(data_.data()) == 17u;
+    }
+    if (IsIPv6()) {
+      return data_.size() >= detail::kMinIPv6 &&
+             detail::Ipv6Next(data_.data()) == 17u;
+    }
+    return false;
+  }
+
+  std::uint16_t GetUdpSrcPort() const noexcept {
+    const std::uint8_t* p = data_.data();
+    const std::size_t ip_hdr = IsIPv4() ? detail::Ipv4Ihl(p) : detail::kMinIPv6;
+    if (data_.size() < ip_hdr + 2) {
+      return 0;
+    }
+    return ReadU16Be(p + ip_hdr);
+  }
+
+  std::uint16_t GetUdpDstPort() const noexcept {
+    const std::uint8_t* p = data_.data();
+    const std::size_t ip_hdr = IsIPv4() ? detail::Ipv4Ihl(p) : detail::kMinIPv6;
+    if (data_.size() < ip_hdr + 4) {
+      return 0;
+    }
+    return ReadU16Be(p + ip_hdr + 2);
+  }
+
   std::pair<const std::uint8_t*, std::size_t> GetTcpPayload() const noexcept {
     const std::uint8_t* p = data_.data();
     const std::uint8_t proto =
