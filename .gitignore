@@ -8,6 +8,8 @@ logs/
 *.dmg
 *.deb
 *.pkg
+*.rpm
+*.zip
 .vs/
 .vscode/
 tmp/
@@ -15,6 +17,7 @@ keys/
 build*/
 cmake-build-*/
 .idea/
+.conan2_cache/
 libhv.*
 macos-build/
 linux-build/
