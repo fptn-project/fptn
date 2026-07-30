@@ -1222,7 +1222,7 @@ fptn::common::network::IPv6Address GetDefaultGatewayIPv6Address() {
         "route get -inet6 default | grep gateway | awk '{print $2}'";
 #elif _WIN32
     const std::string command =
-        R"(netsh interface ipv6 show routes | find "::/0" | head -1 | awk "{print $3}")";
+        R"(powershell -Command "(Get-NetRoute -DestinationPrefix '::/0' | Sort-Object RouteMetric | Select-Object -First 1).NextHop")";
 #else
     return {};
 #endif
@@ -1234,8 +1234,12 @@ fptn::common::network::IPv6Address GetDefaultGatewayIPv6Address() {
       std::erase_if(result, [](const char c) {
         return !std::isalnum(c) && c != ':' && c != '.' && c != '-';
       });
-      if (!result.empty()) {
-        return fptn::common::network::IPv6Address::Create(result);
+      if (result.empty()) {
+        continue;
+      }
+      const auto addr = fptn::common::network::IPv6Address::Create(result);
+      if (addr.IsValid()) {
+        return addr;
       }
     }
   } catch (const std::exception& ex) {
