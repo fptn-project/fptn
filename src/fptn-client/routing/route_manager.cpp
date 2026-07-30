@@ -295,6 +295,22 @@ std::string BuildRemoveIPv6RouteCommand(const std::string& destination,
 }  // namespace
 
 namespace fptn::routing {
+#ifdef __linux__
+void HealStaleResolvConf() {
+  const std::string command =
+      R"(bash -c "test -e /etc/resolv.conf.fptn-backup || exit 0; )"
+      R"(chattr -i /etc/resolv.conf 2>/dev/null; )"
+      R"(cp -f /etc/resolv.conf.fptn-backup /etc/resolv.conf; )"
+      R"(rm -f /etc/resolv.conf.fptn-backup; )"
+      R"(resolvectl flush-caches 2>/dev/null; true")";
+  try {
+    fptn::common::system::command::run(command);
+  } catch (const std::exception& e) {
+    SPDLOG_ERROR("Failed to heal /etc/resolv.conf: {}", e.what());
+  }
+}
+#endif
+
 RouteManager::RouteManager(Config config)
     : running_(false), config_(std::move(config)) {}
 
@@ -420,6 +436,8 @@ bool RouteManager::Apply(std::string tun_name) {
           config_.dns_server_ipv4.ToString()),
       fmt::format("resolvectl default-route {} true", tun_interface_name_),
       fmt::format("resolvectl domain {} ~.", tun_interface_name_),
+      fmt::format(
+          R"(bash -c "test -e /etc/resolv.conf.fptn-backup || cp -f /etc/resolv.conf /etc/resolv.conf.fptn-backup")"),
       fmt::format(R"(bash -c "chattr -i /etc/resolv.conf")"),
       fmt::format(
           R"(bash -c "grep -q '^nameserver {}$' /etc/resolv.conf || sed -i '1i nameserver {}' /etc/resolv.conf")",
@@ -690,7 +708,7 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
       fmt::format("ip route del {} dev {}", config_.dns_server_ipv4.ToString(),
           tun_interface_name_),
       fmt::format(
-          R"(bash -c "chattr -i /etc/resolv.conf; sed -i '/^nameserver {}$/d' /etc/resolv.conf; sed -i '/^nameserver {}$/d' /etc/resolv.conf")",
+          R"(bash -c "chattr -i /etc/resolv.conf; sed -i '/^nameserver {}$/d' /etc/resolv.conf; sed -i '/^nameserver {}$/d' /etc/resolv.conf; rm -f /etc/resolv.conf.fptn-backup")",
           config_.dns_server_ipv4.ToString(),
           config_.dns_server_ipv6.ToString()),
       // Delete DNS to specific DNS server IP rules

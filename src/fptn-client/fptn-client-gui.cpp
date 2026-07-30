@@ -17,6 +17,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "common/logger/logger.h"
 
 #include "gui/tray/tray.h"
+#include "routing/route_manager.h"
 
 #ifdef __APPLE__
 #include "utils/macos/admin.h"
@@ -60,6 +61,10 @@ int main(int argc, char* argv[]) {
                 << std::endl;
       return EXIT_FAILURE;
     }
+
+#ifdef __linux__
+    fptn::routing::HealStaleResolvConf();
+#endif
 
     // Setup signal handler
 #if defined(__APPLE__) || defined(__linux__)

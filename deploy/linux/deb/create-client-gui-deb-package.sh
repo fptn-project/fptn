@@ -109,7 +109,7 @@ fi
 
 chattr -i /etc/resolv.conf
 trap cleanup_dns EXIT
-exec pkexec env -u PKEXEC_UID "SUDO_USER=\$USER" "SUDO_UID=\$(id -u)" "SUDO_GID=\$(id -g)" "\${VARS[@]}" "/bin/sh" -c "exec /opt/fptn/fptn-client-gui \"\$@\"" "\$@"
+exec pkexec env -u PKEXEC_UID "SUDO_USER=\$USER" "SUDO_UID=\$(id -u)" "SUDO_GID=\$(id -g)" "\${VARS[@]}" "/bin/sh" -c "/opt/fptn/fptn-client-gui \"\$@\"; [ -x /usr/sbin/fptn-resolv-heal ] && /usr/sbin/fptn-resolv-heal" "\$@"
 
 EOL
 chmod 755 "$CLIENT_TMP_DIR/usr/bin/fptn-client"
@@ -149,6 +149,37 @@ cat <<EOL > "$CLIENT_TMP_DIR/DEBIAN/postinst"
 #!/bin/bash
 
 update-desktop-database || true
+
+# Boot-time healer: restores /etc/resolv.conf on the next boot if a VPN
+# session was interrupted (shutdown/crash) and left the VPN DNS locked in.
+# Generated here (not shipped) so the GUI and CLI packages can coexist.
+cat > /usr/sbin/fptn-resolv-heal <<'HEAL'
+#!/bin/sh
+[ -e /etc/resolv.conf.fptn-backup ] || exit 0
+chattr -i /etc/resolv.conf 2>/dev/null || true
+cp -f /etc/resolv.conf.fptn-backup /etc/resolv.conf
+rm -f /etc/resolv.conf.fptn-backup
+HEAL
+chmod 755 /usr/sbin/fptn-resolv-heal
+
+cat > /lib/systemd/system/fptn-resolv-heal.service <<'UNIT'
+[Unit]
+Description=FPTN: restore /etc/resolv.conf after an interrupted VPN session
+DefaultDependencies=no
+Before=network-pre.target systemd-resolved.service NetworkManager.service
+Wants=network-pre.target
+ConditionPathExists=/etc/resolv.conf.fptn-backup
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/fptn-resolv-heal
+
+[Install]
+WantedBy=sysinit.target
+UNIT
+
+systemctl daemon-reload || true
+systemctl enable fptn-resolv-heal.service || true
 EOL
 chmod 755 "$CLIENT_TMP_DIR/DEBIAN/postinst"
 
@@ -185,6 +216,13 @@ if [ "\$1" != "upgrade" ]; then
     rm -f "/usr/bin/fptn-client" || true
     rm -f "/usr/share/icons/hicolor/512x512/apps/fptn-client.png" || true
     rm -f "/usr/share/applications/fptn-client.desktop" || true
+    # Drop the shared resolv healer only if the CLI package is gone too
+    if ! dpkg -s fptn-client-cli >/dev/null 2>&1; then
+        systemctl disable fptn-resolv-heal.service 2>/dev/null || true
+        rm -f /lib/systemd/system/fptn-resolv-heal.service 2>/dev/null || true
+        rm -f /usr/sbin/fptn-resolv-heal 2>/dev/null || true
+        systemctl daemon-reload 2>/dev/null || true
+    fi
 fi
 update-desktop-database || true
 EOL

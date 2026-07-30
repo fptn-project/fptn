@@ -242,6 +242,10 @@ int main(int argc, char* argv[]) {
       return EXIT_FAILURE;
     }
 
+#ifdef __linux__
+    fptn::routing::HealStaleResolvConf();
+#endif
+
     /* parse cmd args */
     const auto out_network_interface_name =
         args.get<std::string>("--out-network-interface");

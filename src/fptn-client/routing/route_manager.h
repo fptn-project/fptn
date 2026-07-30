@@ -22,6 +22,10 @@ fptn::common::network::IPv4Address ResolveDomain(const std::string& domain);
 
 fptn::common::network::IPv6Address GetDefaultGatewayIPv6Address();
 
+#ifdef __linux__
+void HealStaleResolvConf();
+#endif
+
 enum class RoutingPolicy {
   kExcludeFromVpn,  // Traffic bypasses VPN
   kIncludeInVpn     // Traffic goes through VPN
