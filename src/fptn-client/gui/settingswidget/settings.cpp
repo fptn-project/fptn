@@ -1307,6 +1307,33 @@ void SettingsWidget::onLanguageChanged(const QString&) {
     sni_import_button_->setText(QObject::tr("Import SNI file"));
   }
 
+  // Connection strategy
+  if (connection_strategy_label_) {
+    connection_strategy_label_->setText(QObject::tr("Connection strategy"));
+  }
+  
+  if (connection_strategy_combo_box_) {
+    const QString current =
+        connection_strategy_combo_box_->currentData().toString();
+    connection_strategy_combo_box_->blockSignals(true);
+    connection_strategy_combo_box_->clear();
+    connection_strategy_combo_box_->addItem(
+        QObject::tr("Persistent tunnel"),
+        SettingsModel::kConnectionStrategyPersistent);
+    connection_strategy_combo_box_->addItem(
+        QObject::tr("Rolling tunnel"),
+        SettingsModel::kConnectionStrategyRolling);
+    connection_strategy_combo_box_->addItem(
+        QObject::tr("Dual rolling tunnel"),
+        SettingsModel::kConnectionStrategyDual);
+    connection_strategy_combo_box_->addItem(
+        QObject::tr("Triple rolling tunnel"),
+        SettingsModel::kConnectionStrategyTriple);
+    const int idx = connection_strategy_combo_box_->findData(current);
+    connection_strategy_combo_box_->setCurrentIndex(idx >= 0 ? idx : 0);
+    connection_strategy_combo_box_->blockSignals(false);
+  }
+
   // Routing tab
   if (enable_dns_management_label_) {
     enable_dns_management_label_->setText(

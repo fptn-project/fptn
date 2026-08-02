@@ -7,7 +7,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "gui/translations/translations.h"
 
 #include <spdlog/spdlog.h>  // NOLINT(build/include_order)
-
+#include <QFontDatabase>
 #include <QApplication>  // NOLINT(build/include_order)
 #include <QTranslator>   // NOLINT(build/include_order)
 
@@ -21,6 +21,13 @@ QTranslator& getTranslator() {
 }  // namespace
 
 bool fptn::gui::SetTranslation(const QString& language_code) {
+  QFont font = QFontDatabase::systemFont(QFontDatabase::GeneralFont);
+  if (language_code == "fa") {
+    font.setFamily("Vazirmatn");
+    font.setStyleHint(QFont::SansSerif);
+  }
+  qApp->setFont(font);
+
   const QString translation_file = QString("fptn_%1.qm").arg(language_code);
   QTranslator& translator = getTranslator();
   qApp->removeTranslator(&translator);

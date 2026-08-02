@@ -13,7 +13,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include <QApplication>   // NOLINT(build/include_order)
 #include <QStyleFactory>  // NOLINT(build/include_order)
-
+#include <QFontDatabase>
 #include "common/logger/logger.h"
 
 #include "gui/tray/tray.h"
@@ -90,8 +90,9 @@ int main(int argc, char* argv[]) {
 #endif
 
     QApplication app(argc, argv);
+    QFontDatabase::addApplicationFont(":/fonts/Vazirmatn-Regular.ttf");
     const auto settings = std::make_shared<fptn::gui::SettingsModel>(
-        QMap<QString, QString>{{"en", "English"}, {"ru", "Русский"}});
+        QMap<QString, QString>{{"en", "English"}, {"ru", "Русский"}, {"fa", "فارسی"}});
 
     // Start GUI app
     fptn::gui::TrayApp tray(settings);
