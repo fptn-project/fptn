@@ -219,6 +219,15 @@ void VpnManager::HandleOnPacketFromVirtualNetworkInterface(
 
   const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
+  if (running_ && config_.ad_blocker && packet && packet->IsDns()) {
+    if (auto response = config_.ad_blocker->ProcessOutgoingDns(*packet)) {
+      if (config_.virtual_net_interface) {
+        config_.virtual_net_interface->Send(std::move(response));
+      }
+      return;
+    }
+  }
+
   if (running_ && config_.http_client) {
     config_.http_client->Send(std::move(packet));
   }

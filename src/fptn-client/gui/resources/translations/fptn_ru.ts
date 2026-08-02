@@ -471,6 +471,10 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>Маршрутизация</translation>
         </message>
         <message>
+            <source>Block ads</source>
+            <translation>Блокировать рекламу</translation>
+        </message>
+        <message>
             <source>Blacklist domains</source>
             <translation>Черный список доменов</translation>
         </message>

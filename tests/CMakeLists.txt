@@ -3,6 +3,7 @@ find_package(GTest REQUIRED)
 add_subdirectory(common)
 add_subdirectory(server)
 add_subdirectory(fptnlib)
+add_subdirectory(fptn-client)
 
 add_custom_target(
   run_tests

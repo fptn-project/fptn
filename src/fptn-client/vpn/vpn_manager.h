@@ -20,6 +20,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "common/network/ip_packet.h"
 #include "common/network/net_interface.h"
 
+#include "adblock/adblock.h"
 #include "http/client.h"
 #include "plugins/split/tunneling.h"
 
@@ -35,6 +36,7 @@ class VpnManager final {
     fptn::routing::RouteManagerSPtr route_manager;
     fptn::common::network::TunInterfaceSPtr virtual_net_interface;
     fptn::plugin::PluginList plugins;
+    fptn::adblock::AdBlockerPtr ad_blocker;
   };
 
  public:

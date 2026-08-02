@@ -33,6 +33,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "gui/server_menu_item_widget/server_menu_item_widget.h"
 #include "gui/style/style.h"
 #include "gui/translations/translations.h"
+#include "adblock/adblock.h"
 #include "plugins/blacklist/domain_blacklist.h"
 
 #ifdef _WIN32
@@ -1042,6 +1043,11 @@ bool TrayApp::startVpn(QString& err_msg) {
     client_plugins.push_back(std::move(split_tunnel_plugin));
   }
 
+  fptn::adblock::AdBlockerPtr ad_blocker;
+  if (settings_->EnableAdBlock()) {
+    ad_blocker = std::make_shared<fptn::adblock::AdBlocker>();
+  }
+
   if (cancel_connecting_) {
     return false;
   }
@@ -1064,7 +1070,8 @@ bool TrayApp::startVpn(QString& err_msg) {
       fptn::vpn::VpnManager::Config{.http_client = std::move(http_client),
           .route_manager = route_manager,
           .virtual_net_interface = virtual_network_interface,
-          .plugins = std::move(client_plugins)});
+          .plugins = std::move(client_plugins),
+          .ad_blocker = std::move(ad_blocker)});
 
   if (cancel_connecting_) {
     return false;
