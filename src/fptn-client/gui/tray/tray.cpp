@@ -909,11 +909,9 @@ bool TrayApp::startVpn(QString& err_msg) {
   auto connection_strategy = ConnectionStrategy::kPersistentTunnel;
   if (strategy_name == SettingsModel::kConnectionStrategyBrowserMimicry) {
     connection_strategy = ConnectionStrategy::kBrowserMimicry;
-  } else if (strategy_name ==
-             SettingsModel::kConnectionStrategyDual) {
+  } else if (strategy_name == SettingsModel::kConnectionStrategyDual) {
     connection_strategy = ConnectionStrategy::kDualTunnel;
-  } else if (strategy_name ==
-             SettingsModel::kConnectionStrategyTriple) {
+  } else if (strategy_name == SettingsModel::kConnectionStrategyTriple) {
     connection_strategy = ConnectionStrategy::kTripleTunnel;
   } else if (strategy_name == SettingsModel::kConnectionStrategyRolling) {
     connection_strategy = ConnectionStrategy::kRollingTunnel;
@@ -1001,6 +999,8 @@ bool TrayApp::startVpn(QString& err_msg) {
           .vpn_server_ip = server_ip,
           .dns_server_ipv4 = dns_server_ipv4,
           .dns_server_ipv6 = dns_server_ipv6,
+          .custom_dns_ipv4 = common::network::IPv4Address(
+              settings_->CustomDns().toStdString()),
           .gateway_ipv4 = gateway_ip,
           .gateway_ipv6 = gateway_ipv6,
           .exclude_networks = exclude_networks_std,

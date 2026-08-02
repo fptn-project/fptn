@@ -475,6 +475,14 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>دامنه‌های لیست سیاه</translation>
         </message>
         <message>
+            <source>Custom DNS</source>
+            <translation>DNS سفارشی</translation>
+        </message>
+        <message>
+            <source>Please enter a valid DNS IPv4 address or enable Auto.</source>
+            <translation>یک نشانی IPv4 معتبر برای DNS وارد کنید یا «خودکار» را فعال کنید.</translation>
+        </message>
+        <message>
             <source>Completely block access to the main domain AND all its subdomains. Format: domain:example.com (one per line)</source>
             <translation>مسدودیت کامل دسترسی به دامنه اصلی و همه زیردامنه‌های آن. قالب: domain:example.com (هر خط یک مورد)</translation>
         </message>

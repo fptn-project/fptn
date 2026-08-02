@@ -475,6 +475,14 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>Blacklist domains</translation>
         </message>
         <message>
+            <source>Custom DNS</source>
+            <translation>Custom DNS</translation>
+        </message>
+        <message>
+            <source>Please enter a valid DNS IPv4 address or enable Auto.</source>
+            <translation>Please enter a valid DNS IPv4 address or enable Auto.</translation>
+        </message>
+        <message>
             <source>Completely block access to the main domain AND all its subdomains. Format: domain:example.com (one per line)</source>
             <translation>Completely block access to the main domain AND all its subdomains. Format: domain:example.com (one per line)</translation>
         </message>

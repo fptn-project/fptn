@@ -313,6 +313,15 @@ void SettingsModel::Load(bool dont_load_server) {
         "domain:ru,domain:su,domain:рф,domain:vk.com,domain:yandex.com,"
         "domain:userapi.com,domain:yandex.net,domain:clstorage.net";
   }
+
+  if (service_obj.contains("custom_dns")) {
+    custom_dns_ = service_obj["custom_dns"].toString();
+  }
+  if (!custom_dns_.isEmpty() &&
+      !fptn::common::network::IPv4Address(custom_dns_.toStdString())
+           .IsValid()) {
+    custom_dns_.clear();
+  }
 }
 
 QString SettingsModel::LanguageName() const {
@@ -427,6 +436,7 @@ bool SettingsModel::Save() {
   json_object["enable_split_tunnel"] = enable_split_tunnel_;
   json_object["split_tunnel_mode"] = split_tunnel_mode_;
   json_object["split_tunnel_domains"] = split_tunnel_domains_;
+  json_object["custom_dns"] = custom_dns_;
 
   QJsonDocument document(json_object);
   auto len = file.write(document.toJson());
@@ -633,6 +643,19 @@ QVector<QString> SettingsModel::SplitTunnelDomains() {
 
 void SettingsModel::SetSplitTunnelDomains(const QVector<QString>& domains) {
   split_tunnel_domains_ = JoinVectorToString(domains);
+  Save();
+}
+
+QString SettingsModel::CustomDns() const { return custom_dns_; }
+
+void SettingsModel::SetCustomDns(const QString& dns) {
+  const QString trimmed = dns.trimmed();
+  if (trimmed.isEmpty() ||
+      fptn::common::network::IPv4Address(trimmed.toStdString()).IsValid()) {
+    custom_dns_ = trimmed;
+  } else {
+    custom_dns_.clear();
+  }
   Save();
 }
 #if _WIN32

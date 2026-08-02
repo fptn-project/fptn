@@ -47,6 +47,8 @@ class RouteManager final {
     IPv4Address dns_server_ipv4;
     IPv6Address dns_server_ipv6;
 
+    IPv4Address custom_dns_ipv4;
+
     IPv4Address gateway_ipv4;
     IPv6Address gateway_ipv6;
 

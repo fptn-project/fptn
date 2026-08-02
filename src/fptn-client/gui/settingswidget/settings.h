@@ -46,6 +46,7 @@ class SettingsWidget : public QDialog {
   void onInterfaceChanged(const QString& new_language);
   void onAutostartChanged(bool checked);
   void onAutoGatewayChanged(bool checked);
+  void onAutoCustomDnsChanged(bool checked);
   void onBypassMethodChanged(const QString& method);
 
   // cppcheck-suppress unknownMacro
@@ -79,6 +80,10 @@ class SettingsWidget : public QDialog {
   QLineEdit* gateway_line_edit_ = nullptr;
   QCheckBox* gateway_auto_checkbox_ = nullptr;
   QLabel* gateway_label_ = nullptr;
+
+  QLabel* custom_dns_label_ = nullptr;
+  QCheckBox* custom_dns_auto_checkbox_ = nullptr;
+  QLineEdit* custom_dns_line_edit_ = nullptr;
 
   QLabel* connection_strategy_label_ = nullptr;
   QComboBox* connection_strategy_combo_box_ = nullptr;

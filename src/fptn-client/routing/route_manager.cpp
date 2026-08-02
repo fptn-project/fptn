@@ -345,6 +345,12 @@ bool RouteManager::Apply(std::string tun_name) {
     detected_gateway_ipv6_ = GetDefaultGatewayIPv6Address();
   }
 
+  const bool has_custom_dns = config_.custom_dns_ipv4.IsValid();
+  const std::string custom_dns = config_.custom_dns_ipv4.ToString();
+  if (has_custom_dns) {
+    SPDLOG_INFO("Custom DNS (IPv4):              {}", custom_dns);
+  }
+
   SPDLOG_INFO("=== Setting up routing ===");
   SPDLOG_INFO(
       "IPTABLES VPN SERVER IP:         {}", config_.vpn_server_ip.ToString());
@@ -359,6 +365,9 @@ bool RouteManager::Apply(std::string tun_name) {
   for (const auto& dns : original_dns_servers_) {
     SPDLOG_INFO("Saved dns: {}", dns);
   }
+  const std::string resolvectl_dns4 =
+      has_custom_dns ? (custom_dns + " " + config_.dns_server_ipv4.ToString())
+                     : config_.dns_server_ipv4.ToString();
   std::vector<std::string> commands = {fmt::format("systemctl start sysctl"),
       fmt::format("sysctl -w net.ipv4.ip_forward=1"),
       fmt::format("sysctl -w net.ipv6.conf.default.disable_ipv6=0"),
@@ -429,11 +438,10 @@ bool RouteManager::Apply(std::string tun_name) {
       // DNS via resolvectl
       fmt::format("resolvectl resolv-conf false"),
       fmt::format("resolvectl dns {} {}", detected_out_interface_name_,
-          config_.dns_server_ipv4.ToString()),
+          resolvectl_dns4),
       fmt::format(
           "resolvectl default-route {} false", detected_out_interface_name_),
-      fmt::format("resolvectl dns {} {}", tun_interface_name_,
-          config_.dns_server_ipv4.ToString()),
+      fmt::format("resolvectl dns {} {}", tun_interface_name_, resolvectl_dns4),
       fmt::format("resolvectl default-route {} true", tun_interface_name_),
       fmt::format("resolvectl domain {} ~.", tun_interface_name_),
       fmt::format(
@@ -450,8 +458,25 @@ bool RouteManager::Apply(std::string tun_name) {
       fmt::format(R"(bash -c "chattr +i /etc/resolv.conf")"),
       fmt::format("resolvectl flush-caches")};
 
+  if (has_custom_dns) {
+    commands.push_back(
+        fmt::format("ip route add {} dev {}", custom_dns, tun_interface_name_));
+    commands.push_back(fmt::format(
+        "iptables -A OUTPUT -d {} -p udp --dport 53 -j ACCEPT", custom_dns));
+    commands.push_back(fmt::format(
+        "iptables -A OUTPUT -d {} -p tcp --dport 53 -j ACCEPT", custom_dns));
+    commands.push_back(fmt::format(
+        R"(bash -c "chattr -i /etc/resolv.conf; grep -q '^nameserver {}$' /etc/resolv.conf || sed -i '1i nameserver {}' /etc/resolv.conf; chattr +i /etc/resolv.conf")",
+        custom_dns, custom_dns));
+  }
+
 #elif __APPLE__
-  const std::vector<std::string> commands = {
+  const std::string mac_dns_servers =
+      has_custom_dns ? (custom_dns + " " + config_.dns_server_ipv6.ToString() +
+                           " " + config_.dns_server_ipv4.ToString())
+                     : (config_.dns_server_ipv6.ToString() + " " +
+                           config_.dns_server_ipv4.ToString());
+  std::vector<std::string> commands = {
       fmt::format(
           R"(bash -c "networksetup -listallnetworkservices | grep -v '^An asterisk' | grep -v '^\* ' | xargs -I {{}} networksetup -setdnsservers '{{}}' empty")",
           config_.dns_server_ipv4.ToString()),  // clean DNS
@@ -500,9 +525,13 @@ pass out on {tunInterfaceName} proto tcp from any to any port 53
       // DNS
       fmt::format("dscacheutil -flushcache"),
       fmt::format(
-          R"(bash -c "networksetup -listallnetworkservices | grep -v '^An asterisk' | grep -v '^\* ' | xargs -I {{}} networksetup -setdnsservers '{{}}' {} {}")",
-          config_.dns_server_ipv6.ToString(),
-          config_.dns_server_ipv4.ToString())};
+          R"(bash -c "networksetup -listallnetworkservices | grep -v '^An asterisk' | grep -v '^\* ' | xargs -I {{}} networksetup -setdnsservers '{{}}' {}")",
+          mac_dns_servers)};
+
+  if (has_custom_dns) {
+    commands.push_back(fmt::format(
+        "route add -host {} -interface {}", custom_dns, tun_interface_name_));
+  }
 
 #elif _WIN32
   const std::string win_interface_number =
@@ -558,7 +587,9 @@ pass out on {tunInterfaceName} proto tcp from any to any port 53
       netsh interface ipv6 set dnsservers name=\"$interface\" source=static address=$dns6 validate=no register=no 2>`$null;
   }")PSHELL";
 
-  const std::vector<std::string> commands = {
+  const std::string win_tun_dns4 =
+      has_custom_dns ? custom_dns : config_.dns_server_ipv4.ToString();
+  std::vector<std::string> commands = {
       fmt::format("route add {} mask 255.255.255.255 {} METRIC 2",
           config_.vpn_server_ip.ToString(), detected_gateway_ipv4_.ToString()),
       // Default gateway & dns
@@ -576,7 +607,7 @@ pass out on {tunInterfaceName} proto tcp from any to any port 53
           ? configure_dns_cmd
           : "echo \"No advanced DNS management\" ",
       fmt::format("netsh interface ip set dns name=\"{}\" static {}",
-          tun_interface_name_, config_.dns_server_ipv4.ToString()),
+          tun_interface_name_, win_tun_dns4),
       // IPv6
       fmt::format("netsh interface ipv6 add route ::/0 \"{}\" \"{}\" ",
           tun_interface_name_, config_.tun_interface_address_ipv6.ToString()),
@@ -584,6 +615,15 @@ pass out on {tunInterfaceName} proto tcp from any to any port 53
           tun_interface_name_, config_.dns_server_ipv6.ToString()),
       // Flush DNS cache
       "ipconfig /flushdns"};
+
+  if (has_custom_dns) {
+    commands.push_back(
+        fmt::format("netsh interface ip add dns name=\"{}\" {} index=2",
+            tun_interface_name_, config_.dns_server_ipv4.ToString()));
+    commands.push_back(fmt::format(
+        "route add {} mask 255.255.255.255 {} METRIC 2 {}", custom_dns,
+        config_.tun_interface_address_ipv4.ToString(), interface_info));
+  }
 
 #else
 #error "Unsupported system!"
@@ -615,6 +655,9 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
   const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
   running_ = false;
+
+  const bool has_custom_dns = config_.custom_dns_ipv4.IsValid();
+  const std::string custom_dns = config_.custom_dns_ipv4.ToString();
 
   std::vector<std::string> del_commands;
 
@@ -745,6 +788,18 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
       fmt::format("ip6tables -D OUTPUT -o {} -p tcp --sport 53 -j ACCEPT",
           tun_interface_name_)};
 
+  if (has_custom_dns) {
+    commands.push_back(
+        fmt::format("ip route del {} dev {}", custom_dns, tun_interface_name_));
+    commands.push_back(fmt::format(
+        "iptables -D OUTPUT -d {} -p udp --dport 53 -j ACCEPT", custom_dns));
+    commands.push_back(fmt::format(
+        "iptables -D OUTPUT -d {} -p tcp --dport 53 -j ACCEPT", custom_dns));
+    commands.push_back(fmt::format(
+        R"(bash -c "chattr -i /etc/resolv.conf; sed -i '/^nameserver {}$/d' /etc/resolv.conf")",
+        custom_dns));
+  }
+
   if (!detected_gateway_ipv6_.IsEmpty()) {
     commands.push_back(fmt::format("ip -6 route del {} dev {}",
         config_.dns_server_ipv6.ToString(), tun_interface_name_));
@@ -779,7 +834,7 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
   commands.emplace_back("resolvectl flush-caches");
 
 #elif __APPLE__
-  const std::vector<std::string> commands = {
+  std::vector<std::string> commands = {
       fmt::format(
           R"(bash -c "networksetup -listallnetworkservices | grep -v '^An asterisk' | grep -v '^\* ' | xargs -I {{}} networksetup -setdnsservers '{{}}' empty")"),  // clean DNS
       fmt::format("pfctl -F all -f /etc/pf.conf"),
@@ -802,6 +857,11 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
       fmt::format(
           R"(bash -c "networksetup -listallnetworkservices | grep -v '^An asterisk' | grep -v '^\* ' | xargs -I {{}} networksetup -setdnsservers '{{}}' empty")")  // clean DNS
   };
+
+  if (has_custom_dns) {
+    commands.push_back(fmt::format("route delete -host {} -interface {}",
+        custom_dns, tun_interface_name_));
+  }
 #elif _WIN32
   std::string current_interface_name = detected_out_interface_name_;
   if (current_interface_name.empty()) {
@@ -847,7 +907,7 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
         }
     }")PSHELL";
 
-  const std::vector<std::string> commands = {
+  std::vector<std::string> commands = {
       config_.enable_advanced_dns_management
           ? restore_dns_cmd
           : "echo \"No advanced DNS management\" ",
@@ -863,6 +923,11 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
 
       // Final cleanup
       "ipconfig /flushdns"};
+
+  if (has_custom_dns) {
+    commands.push_back(
+        fmt::format("route delete {} mask 255.255.255.255", custom_dns));
+  }
 
 #else
 #error "Unsupported system!"

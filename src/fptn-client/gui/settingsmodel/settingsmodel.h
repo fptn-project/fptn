@@ -237,6 +237,9 @@ class SettingsModel : public QObject {
   QVector<QString> SplitTunnelDomains();
   void SetSplitTunnelDomains(const QVector<QString>& domains);
 
+  QString CustomDns() const;
+  void SetCustomDns(const QString& dns);
+
 #if _WIN32
   bool EnableAdvancedDnsManagement() const;
   void SetEnableAdvancedDnsManagement(bool enable);
@@ -281,6 +284,8 @@ class SettingsModel : public QObject {
   bool enable_split_tunnel_;
   QString split_tunnel_mode_;
   QString split_tunnel_domains_;
+
+  QString custom_dns_;
 
   SNIManagerSPtr sni_manager_;
 };
