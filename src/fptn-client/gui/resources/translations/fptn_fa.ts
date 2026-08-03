@@ -33,6 +33,10 @@
         </message>
 
         <message>
+            <source>Connection time</source>
+            <translation>زمان اتصال</translation>
+        </message>
+        <message>
             <source>Upload speed</source>
             <translation>سرعت بارگذاری</translation>
         </message>

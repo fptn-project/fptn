@@ -43,6 +43,19 @@ using fptn::gui::TrayApp;
 
 namespace {
 
+QString FormatConnectionTime(qint64 total_seconds) {
+  const qint64 h = total_seconds / 3600;
+  const qint64 m = (total_seconds % 3600) / 60;
+  const qint64 s = total_seconds % 60;
+  if (h > 0) {
+    return QString("%1:%2:%3")
+        .arg(h)
+        .arg(m, 2, 10, QChar('0'))
+        .arg(s, 2, 10, QChar('0'));
+  }
+  return QString("%1:%2").arg(m, 2, 10, QChar('0')).arg(s, 2, 10, QChar('0'));
+}
+
 #ifndef __APPLE__
 QPixmap LoadIcon(const QString& icon_path, int size = 12) {
   QPixmap pixmap(icon_path);
@@ -461,7 +474,8 @@ void TrayApp::UpdateTrayMenu() {
       tray_icon_->setIcon(QIcon(active_icon_path_));
       if (disconnect_action_) {
         disconnect_action_->setText(QString(QObject::tr("Disconnect") + ": %1")
-                .arg(QString::fromStdString(selected_server_.name)));
+                                        .arg(QString::fromStdString(
+                                            selected_server_.name)));
         disconnect_action_->setVisible(true);
       }
       if (speed_widget_) {
@@ -536,7 +550,6 @@ void TrayApp::onDisconnectFromServer() {
     vpn_client_->Stop();
     vpn_client_.reset();
   }
-
   settings_->StartPingMonitoring();
 
   UpdateTrayMenu();
@@ -608,6 +621,10 @@ void TrayApp::handleConnected() {
     const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
     connection_state_ = ConnectionState::Connected;
+    connection_start_time_ = std::chrono::steady_clock::now();
+    if (speed_widget_) {
+      speed_widget_->UpdateConnectionTime(FormatConnectionTime(0));
+    }
   }
   UpdateTrayMenu();
 }
@@ -664,6 +681,13 @@ void TrayApp::handleTimer() {
         if (disconnect_action_) {
           disconnect_action_->setVisible(false);
         }
+        if (speed_widget_) {
+          const auto secs = std::chrono::duration_cast<std::chrono::seconds>(
+                                std::chrono::steady_clock::now() -
+                                connection_start_time_)
+                                .count();
+          speed_widget_->UpdateConnectionTime(FormatConnectionTime(secs));
+        }
       } else {
         if (reconnecting_label_action_) {
           reconnecting_label_action_->setVisible(false);
@@ -674,6 +698,13 @@ void TrayApp::handleTimer() {
         if (speed_widget_) {
           speed_widget_->UpdateSpeed(
               vpn_client_->GetReceiveRate(), vpn_client_->GetSendRate());
+        }
+        if (speed_widget_) {
+          const auto secs = std::chrono::duration_cast<std::chrono::seconds>(
+                                std::chrono::steady_clock::now() -
+                                connection_start_time_)
+                                .count();
+          speed_widget_->UpdateConnectionTime(FormatConnectionTime(secs));
         }
       }
     }

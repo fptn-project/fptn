@@ -19,8 +19,10 @@ class SpeedWidget : public QWidget {
  public:
   explicit SpeedWidget(QWidget* parent = nullptr);
   void UpdateSpeed(std::size_t upload_speed, std::size_t download_speed);
+  void UpdateConnectionTime(const QString& time);
 
  private:
+  QLabel* connection_time_label_;
   QLabel* upload_speed_label_;
   QLabel* download_speed_label_;
 };

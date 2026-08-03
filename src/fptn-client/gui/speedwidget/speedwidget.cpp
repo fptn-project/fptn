@@ -36,12 +36,14 @@ QString FormatSpeedLabel(const QString& text, std::size_t speed) {
 
 SpeedWidget::SpeedWidget(QWidget* parent)
     : QWidget(parent),
+      connection_time_label_(new QLabel("", this)),
       upload_speed_label_(
           new QLabel(FormatSpeedLabel(QObject::tr("Upload speed"), 0), this)),
       download_speed_label_(new QLabel(
           FormatSpeedLabel(QObject::tr("Download speed"), 0), this)) {
   auto* layout = new QVBoxLayout();
   layout->setContentsMargins(4, 4, 4, 4);
+  layout->addWidget(connection_time_label_);
   layout->addWidget(download_speed_label_);
   layout->addWidget(upload_speed_label_);
   setLayout(layout);
@@ -53,4 +55,9 @@ void SpeedWidget::UpdateSpeed(
       FormatSpeedLabel(QObject::tr("Upload speed"), upload_speed));
   download_speed_label_->setText(
       FormatSpeedLabel(QObject::tr("Download speed"), download_speed));
+}
+
+void SpeedWidget::UpdateConnectionTime(const QString& time) {
+  connection_time_label_->setText(
+      " " + QObject::tr("Connection time") + ": " + time);
 }

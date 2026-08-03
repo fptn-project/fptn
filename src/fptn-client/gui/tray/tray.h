@@ -6,6 +6,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #pragma once
 
+#include <chrono>
 #include <future>
 #include <mutex>
 #include <string>
@@ -112,6 +113,7 @@ class TrayApp : public QWidget {
   SpeedWidget* speed_widget_ = nullptr;
   QTimer* update_timer_ = nullptr;
   ConnectionState connection_state_ = ConnectionState::None;
+  std::chrono::steady_clock::time_point connection_start_time_;
   QString connected_server_address_;
 
   QString active_icon_path_;

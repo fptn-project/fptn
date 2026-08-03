@@ -33,6 +33,10 @@
         </message>
 
         <message>
+            <source>Connection time</source>
+            <translation>Connection time</translation>
+        </message>
+        <message>
             <source>Upload speed</source>
             <translation>Upload speed</translation>
         </message>
