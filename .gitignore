@@ -1,3 +1,4 @@
+src/fptn-client/adblock/blocklist.gz
 .env
 .cache/
 .vsconan/

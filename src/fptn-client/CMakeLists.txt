@@ -28,6 +28,19 @@ find_library(BROTLI_DEC_LIB NAMES brotlidec REQUIRED)
 find_library(BROTLI_COMMON_LIB NAMES brotlicommon REQUIRED)
 find_library(BROTLI_ENC_LIB NAMES brotlienc REQUIRED)
 
+set(ADBLOCK_BLOCKLIST_GZ "${CMAKE_CURRENT_BINARY_DIR}/blocklist.gz")
+set(ADBLOCK_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/blocklist_data.generated.cpp")
+add_custom_command(
+  OUTPUT "${ADBLOCK_GENERATED}"
+  COMMAND ${CMAKE_COMMAND} -DGZ=${ADBLOCK_BLOCKLIST_GZ}
+          -DOUTPUT=${ADBLOCK_GENERATED} -DSYMBOL=kBlocklistGz
+          -P "${CMAKE_SOURCE_DIR}/depends/cmake/FetchBlocklist.cmake"
+  DEPENDS "${CMAKE_SOURCE_DIR}/depends/cmake/FetchBlocklist.cmake"
+  COMMENT "Downloading and embedding ad-block domain list"
+  VERBATIM)
+set_source_files_properties(
+  "${ADBLOCK_GENERATED}" PROPERTIES GENERATED TRUE SKIP_CLANG_TIDY ON)
+
 # fptn-client-cli
 add_executable(
   "${PROJECT_NAME}-cli"
@@ -44,6 +57,9 @@ add_executable(
   plugins/split/tunneling.cpp
   plugins/blacklist/domain_blacklist.h
   plugins/blacklist/domain_blacklist.cpp
+  adblock/adblock.h
+  adblock/adblock.cpp
+  "${ADBLOCK_GENERATED}"
   utils/speed_estimator/speed_estimator.cpp
   utils/speed_estimator/speed_estimator.h
   utils/speed_estimator/server_info.h)
@@ -154,6 +170,9 @@ WarningsAsErrors: ''
     plugins/split/tunneling.cpp
     plugins/blacklist/domain_blacklist.h
     plugins/blacklist/domain_blacklist.cpp
+    adblock/adblock.h
+    adblock/adblock.cpp
+    "${ADBLOCK_GENERATED}"
     utils/windows/vpn_conflict.h
     utils/macos/admin.h
     utils/speed_estimator/speed_estimator.cpp

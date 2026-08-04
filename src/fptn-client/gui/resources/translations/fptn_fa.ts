@@ -471,6 +471,14 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>مسیریابی</translation>
         </message>
         <message>
+            <source>Block ads</source>
+            <translation>مسدودسازی تبلیغات</translation>
+        </message>
+        <message>
+            <source>Reconnect attempts:</source>
+            <translation>تعداد تلاش‌های اتصال مجدد:</translation>
+        </message>
+        <message>
             <source>Blacklist domains</source>
             <translation>دامنه‌های لیست سیاه</translation>
         </message>

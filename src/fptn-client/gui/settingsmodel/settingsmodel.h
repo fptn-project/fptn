@@ -219,6 +219,9 @@ class SettingsModel : public QObject {
 
   SNIManagerSPtr SniManager() const;
 
+  bool EnableAdBlock() const;
+  void SetEnableAdBlock(bool enable);
+
   QVector<QString> BlacklistDomains() const;
   void SetBlacklistDomains(const QVector<QString>& domains);
 
@@ -278,10 +281,16 @@ class SettingsModel : public QObject {
   QString bypass_method_;
   QString connection_strategy_;
 
+  bool enable_ad_block_;
   QString blacklist_domains_;
   QString exclude_tunnel_networks_;
   QString include_tunnel_networks_;
   bool enable_split_tunnel_;
+  int reconnect_attempts_;
+
+  public:
+      int ReconnectAttempts() const;
+      void SetReconnectAttempts(int attempts);
   QString split_tunnel_mode_;
   QString split_tunnel_domains_;
 

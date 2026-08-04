@@ -33,6 +33,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "gui/server_menu_item_widget/server_menu_item_widget.h"
 #include "gui/style/style.h"
 #include "gui/translations/translations.h"
+#include "adblock/adblock.h"
 #include "plugins/blacklist/domain_blacklist.h"
 
 #ifdef _WIN32
@@ -654,9 +655,10 @@ void TrayApp::handleTimer() {
           const int n = vpn_client_->ReconnectAttempt();
           QString text = QObject::tr("Reconnecting...");
           if (n > 0) {
-            text += QString(" (%1/%2)")
-                        .arg(n)
-                        .arg(vpn_client_->MaxReconnectAttempts());
+            const int max = vpn_client_->MaxReconnectAttempts();
+            const QString max_str =
+                (max > 0) ? QString::number(max) : QString::fromUtf8("∞");
+            text += QString(" (%1/%2)").arg(n).arg(max_str);
           }
           reconnecting_label_action_->setText(text);
           reconnecting_label_action_->setVisible(true);
@@ -1042,6 +1044,11 @@ bool TrayApp::startVpn(QString& err_msg) {
     client_plugins.push_back(std::move(split_tunnel_plugin));
   }
 
+  fptn::adblock::AdBlockerPtr ad_blocker;
+  if (settings_->EnableAdBlock()) {
+    ad_blocker = std::make_shared<fptn::adblock::AdBlocker>();
+  }
+
   if (cancel_connecting_) {
     return false;
   }
@@ -1064,7 +1071,9 @@ bool TrayApp::startVpn(QString& err_msg) {
       fptn::vpn::VpnManager::Config{.http_client = std::move(http_client),
           .route_manager = route_manager,
           .virtual_net_interface = virtual_network_interface,
-          .plugins = std::move(client_plugins)});
+          .plugins = std::move(client_plugins),
+          .ad_blocker = std::move(ad_blocker),
+          .max_reconnect_attempts = settings_->ReconnectAttempts()});
 
   if (cancel_connecting_) {
     return false;

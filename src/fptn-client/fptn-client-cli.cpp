@@ -27,6 +27,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "config/config_file.h"
 #include "fptn-protocol-lib/https/obfuscator/methods/detector.h"
 #include "fptn-protocol-lib/time/time_provider.h"
+#include "adblock/adblock.h"
 #include "plugins/blacklist/domain_blacklist.h"
 #include "routing/route_manager.h"
 #include "utils/signal/main_loop.h"
@@ -99,6 +100,22 @@ int main(int argc, char* argv[]) {
             "subdomains\n"
             "Format: domain:example.com,domain:sub.site.org\n"
             "Example: domain:ria.ru blocks ria.ru and all *.ria.ru sites");
+    args.add_argument("--enable-ad-block")
+        .help("Block ads and trackers at the DNS level")
+        .default_value(true)
+        .nargs(1)
+        .action([](const std::string& value) {
+          if (value.empty()) {
+            return true;
+          }
+          if (fptn::common::utils::ToLowerCase(value) == "true") {
+            return true;
+          }
+          if (fptn::common::utils::ToLowerCase(value) == "false") {
+            return false;
+          }
+          throw std::runtime_error("Value must be true/false");
+        });
     // Method to bypass censorship
     args.add_argument("--bypass-method")
         .default_value("sni-spoofing-yandex-26-4")
@@ -365,6 +382,7 @@ int main(int argc, char* argv[]) {
         fptn::common::utils::SplitCommaSeparated(include_networks_str);
 
     /* parse split-tunneling parameters */
+    const bool enable_ad_block = args.get<bool>("--enable-ad-block");
     const bool enable_split_tunnel = args.get<bool>("--enable-split-tunnel");
     const auto tunnel_mode = args.get<std::string>("--split-tunnel-mode");
     const auto split_domains_str =
@@ -521,12 +539,18 @@ int main(int argc, char* argv[]) {
       client_plugins.push_back(std::move(split_tunnel_plugin));
     }
 
+    fptn::adblock::AdBlockerPtr ad_blocker;
+    if (enable_ad_block) {
+      ad_blocker = std::make_shared<fptn::adblock::AdBlocker>();
+    }
+
     /* vpn client */
     fptn::vpn::VpnManager vpn_client(
         fptn::vpn::VpnManager::Config{.http_client = std::move(http_client),
             .route_manager = route_manager,
             .virtual_net_interface = virtual_network_interface,
-            .plugins = std::move(client_plugins)});
+            .plugins = std::move(client_plugins),
+            .ad_blocker = std::move(ad_blocker)});
 
     vpn_client.Start();
 
