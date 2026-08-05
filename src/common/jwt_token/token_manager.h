@@ -58,8 +58,9 @@ class TokenManager {
       auto verifier =
           jwt::verify<jwt::default_clock, jwt::traits::nlohmann_json>(
               jwt::default_clock())
-              .allow_algorithm(jwt::algorithm::rs256("", server_key_, "", ""))
+              .allow_algorithm(jwt::algorithm::rs256(server_crt_, "", "", ""))
               .with_issuer("auth0");
+      verifier.verify(decoded);
       return true;
     } catch (const jwt::error::invalid_json_exception& e) {
       SPDLOG_ERROR("Token parsing error: {}", e.what());
