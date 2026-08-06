@@ -10,8 +10,6 @@ find_package(Boost REQUIRED COMPONENTS random filesystem)
 if(WIN32)
   set(TUNTAP_LIB Wintun rpcrt4)
   add_definitions(-D_WIN32_WINNT=0x0601)
-else()
-  set(TUNTAP_LIB tuntap++)
 endif()
 
 set(LIBS

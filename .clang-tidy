@@ -72,6 +72,11 @@
 #     Despite what the documentation says, this warning appears after
 #     `ASSERT_TRUE(variable)` or `ASSERT_TRUE(variable.has_value())`.
 #
+#  -clang-diagnostic-keyword-macro: linux_tun_device.h intentionally does
+#     `#define class class_` around the kernel UAPI header <linux/virtio_net.h>
+#     (which declares a C member named `class`) and `#undef`s it right after.
+#     Redefining a keyword is deliberate and confined to that include.
+#
 #   TODO(#14162): Enable clang-tidy checks. We initially omitted these checks
 #   because they require large cleanup efforts or were blocking the clang-tidy
 #   X update.
@@ -114,7 +119,8 @@ Checks: >
   -bugprone-unchecked-optional-access,
   -bugprone-unused-local-non-trivial-variable,
   -bugprone-unused-return-value,
-  -portability-template-virtual-member-function
+  -portability-template-virtual-member-function,
+  -clang-diagnostic-keyword-macro
 
 # Turn all the warnings from the checks above into errors.
 WarningsAsErrors: "*"

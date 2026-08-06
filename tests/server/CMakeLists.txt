@@ -9,8 +9,6 @@ find_package(prometheus-cpp REQUIRED)
 
 if(WIN32)
   set(TUNTAP_LIB Wintun rpcrt4)
-else()
-  set(TUNTAP_LIB tuntap++)
 endif()
 
 set(LIBS
