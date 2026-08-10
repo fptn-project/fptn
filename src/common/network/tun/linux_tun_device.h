@@ -1,5 +1,6 @@
 /*=============================================================================
 Copyright (c) 2024-2026 Pavel Shpilev
+Copyright (c) 2024-2026 Stas Skokov
 
 Distributed under the MIT License (https://opensource.org/licenses/MIT)
 =============================================================================*/
@@ -31,32 +32,38 @@ class LinuxTunDevice {
 
   [[nodiscard]] const std::string& GetName() const { return name_; }
 
-  bool ConfigureIPv4(const std::string& addr, int mask) {
+  bool ConfigureIPv4(const std::string& addr, int mask) const {
     tun_->ip(addr, mask);
     return true;
   }
 
-  bool ConfigureIPv6(const std::string& addr, int mask) {
+  bool ConfigureIPv6(const std::string& addr, int mask) const {
     tun_->ip(addr, mask);
     return true;
   }
 
-  void SetNonBlocking(bool enabled) { tun_->nonblocking(enabled); }
+  void SetNonBlocking(bool enabled) const { tun_->nonblocking(enabled); }
 
-  void SetMTU(int mtu) { tun_->mtu(mtu); }
+  void SetMTU(int mtu) const { tun_->mtu(mtu); }
 
-  void BringUp() { tun_->up(); }
+  void BringUp() const { tun_->up(); }
 
-  int Read(void* buffer, int size) {
-    return tun_->read(buffer, static_cast<std::size_t>(size));
+  int Read(void* buffer, int size) const {
+    for (int i = 0; i < 4; i++) {
+      const int res = tun_->read(buffer, static_cast<std::size_t>(size));
+      if (res > 0) {
+        return res;
+      }
+    }
+    return 0;
   }
 
-  int Write(const void* data, int size) {
+  int Write(const void* data, int size) const {
     return tun_->write(const_cast<void*>(data), static_cast<std::size_t>(size));
   }
 
   // cppcheck-suppress functionStatic
-  void SetStopFlag(const std::atomic<bool>* /*running*/) {}
+  static void SetStopFlag(const std::atomic<bool>* /*running*/) {}
 
  private:
   std::unique_ptr<tuntap::tun> tun_;

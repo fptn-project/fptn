@@ -6,6 +6,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <string>
 #include <utility>
@@ -19,8 +20,7 @@ class IPAddress {
  public:
   IPAddress() = default;
   virtual ~IPAddress() = default;
-
-  explicit IPAddress(const std::string& ip) : ip_(ip) {
+  explicit IPAddress(const std::string& ip) {
     if (!ip.empty()) {
       try {
         ip_impl_ = boost::asio::ip::make_address(ip);
@@ -33,41 +33,23 @@ class IPAddress {
 
   T Get() const noexcept { return ip_impl_; }
 
-  bool IsEmpty() const { return ip_.empty() || ip_impl_ == T(); }
+  bool IsEmpty() const { return ip_impl_ == T(); }
 
-  bool IsValid() const { return !ip_.empty() && ip_impl_ != T(); }
+  bool IsValid() const { return ip_impl_ != T(); }
 
-  const std::string& ToString() const { return ip_; }
+  std::string ToString() const { return ip_impl_.to_string(); }
 
-  // Add copy and move constructors/assignment for base class
-  IPAddress(const IPAddress& other)
-      : ip_(other.ip_), ip_impl_(other.ip_impl_) {}
-
-  IPAddress(IPAddress&& other) noexcept
-      : ip_(std::move(other.ip_)), ip_impl_(std::move(other.ip_impl_)) {}
-
-  IPAddress& operator=(const IPAddress& other) {
-    if (this != &other) {
-      ip_ = other.ip_;
-      ip_impl_ = other.ip_impl_;
-    }
-    return *this;
-  }
-
-  IPAddress& operator=(IPAddress&& other) noexcept {
-    if (this != &other) {
-      ip_ = std::move(other.ip_);
-      ip_impl_ = std::move(other.ip_impl_);
-    }
-    return *this;
-  }
+  IPAddress(const IPAddress& other) = default;
+  IPAddress(IPAddress&& other) noexcept = default;
+  IPAddress& operator=(const IPAddress& other) = default;
+  IPAddress& operator=(IPAddress&& other) noexcept = default;
 
   bool operator!=(const IPAddress<T>& other) const noexcept {
-    return ip_ != other.ip_ || ip_impl_ != other.ip_impl_;
+    return ip_impl_ != other.ip_impl_;
   }
 
   bool operator==(const IPAddress<T>& other) const noexcept {
-    return ip_ == other.ip_ && ip_impl_ == other.ip_impl_;
+    return ip_impl_ == other.ip_impl_;
   }
 
   std::uint32_t ToInt() const {
@@ -78,7 +60,8 @@ class IPAddress {
   }
 
  protected:
-  std::string ip_;
+  explicit IPAddress(T ip_impl) : ip_impl_(std::move(ip_impl)) {}
+
   T ip_impl_;
 };
 
@@ -90,43 +73,24 @@ class IPv4Address : public IPAddress<boost::asio::ip::address> {
   // Constructor from string
   explicit IPv4Address(const std::string& ip)
       : IPAddress<boost::asio::ip::address>(ip) {
-    // Additional validation for IPv4
-    if (!ip_.empty() && !ip_impl_.is_v4()) {
+    if (!ip_impl_.is_v4()) {
       ip_impl_ = boost::asio::ip::address();
     }
+  }
+
+  explicit IPv4Address(std::uint32_t addr)
+      : IPAddress<boost::asio::ip::address>(boost::asio::ip::address_v4(addr)) {
   }
 
   // Constructor from boost::asio::ip::address object
   explicit IPv4Address(const boost::asio::ip::address& ip_addr)
-      : IPAddress<boost::asio::ip::address>(ip_addr.to_string()) {
-    if (!ip_addr.is_v4()) {
-      ip_impl_ = boost::asio::ip::address();
-    }
-  }
+      : IPAddress<boost::asio::ip::address>(
+            ip_addr.is_v4() ? ip_addr : boost::asio::ip::address()) {}
 
-  // Copy constructor
-  IPv4Address(const IPv4Address& other)
-      : IPAddress<boost::asio::ip::address>(other) {}
-
-  // Move constructor
-  IPv4Address(IPv4Address&& other) noexcept
-      : IPAddress<boost::asio::ip::address>(std::move(other)) {}
-
-  // Copy assignment operator
-  IPv4Address& operator=(const IPv4Address& other) {
-    if (this != &other) {
-      IPAddress<boost::asio::ip::address>::operator=(other);
-    }
-    return *this;
-  }
-
-  // Move assignment operator
-  IPv4Address& operator=(IPv4Address&& other) noexcept {
-    if (this != &other) {
-      IPAddress<boost::asio::ip::address>::operator=(std::move(other));
-    }
-    return *this;
-  }
+  IPv4Address(const IPv4Address& other) = default;
+  IPv4Address(IPv4Address&& other) noexcept = default;
+  IPv4Address& operator=(const IPv4Address& other) = default;
+  IPv4Address& operator=(IPv4Address&& other) noexcept = default;
 
   static IPv4Address Create(const std::string& ip) { return IPv4Address(ip); }
 
@@ -156,6 +120,8 @@ class IPv4Address : public IPAddress<boost::asio::ip::address> {
 
 class IPv6Address : public IPAddress<boost::asio::ip::address> {
  public:
+  using Bytes = std::array<std::uint8_t, 16>;
+
   // Default constructor
   IPv6Address() = default;
 
@@ -163,42 +129,25 @@ class IPv6Address : public IPAddress<boost::asio::ip::address> {
   explicit IPv6Address(const std::string& ip)
       : IPAddress<boost::asio::ip::address>(ip) {
     // Additional validation for IPv6
-    if (!ip_.empty() && !ip_impl_.is_v6()) {
+    if (!ip_impl_.is_v6()) {
       ip_impl_ = boost::asio::ip::address();
     }
+  }
+
+  // Constructor from the raw 16 bytes
+  explicit IPv6Address(const Bytes& addr)
+      : IPAddress<boost::asio::ip::address>(boost::asio::ip::address_v6(addr)) {
   }
 
   // Constructor from boost::asio::ip::address object
   explicit IPv6Address(const boost::asio::ip::address& ip_addr)
-      : IPAddress<boost::asio::ip::address>(ip_addr.to_string()) {
-    if (!ip_addr.is_v6()) {
-      ip_impl_ = boost::asio::ip::address();
-    }
-  }
+      : IPAddress<boost::asio::ip::address>(
+            ip_addr.is_v6() ? ip_addr : boost::asio::ip::address()) {}
 
-  // Copy constructor
-  IPv6Address(const IPv6Address& other)
-      : IPAddress<boost::asio::ip::address>(other) {}
-
-  // Move constructor
-  IPv6Address(IPv6Address&& other) noexcept
-      : IPAddress<boost::asio::ip::address>(std::move(other)) {}
-
-  // Copy assignment operator
-  IPv6Address& operator=(const IPv6Address& other) {
-    if (this != &other) {
-      IPAddress<boost::asio::ip::address>::operator=(other);
-    }
-    return *this;
-  }
-
-  // Move assignment operator
-  IPv6Address& operator=(IPv6Address&& other) noexcept {
-    if (this != &other) {
-      IPAddress<boost::asio::ip::address>::operator=(std::move(other));
-    }
-    return *this;
-  }
+  IPv6Address(const IPv6Address& other) = default;
+  IPv6Address(IPv6Address&& other) noexcept = default;
+  IPv6Address& operator=(const IPv6Address& other) = default;
+  IPv6Address& operator=(IPv6Address&& other) noexcept = default;
 
   static IPv6Address Create(const std::string& ip) { return IPv6Address(ip); }
 
@@ -208,6 +157,14 @@ class IPv6Address : public IPAddress<boost::asio::ip::address> {
 
   static IPv6Address Create(const IPv6Address& ip_addr) {
     return IPv6Address(ip_addr);
+  }
+
+  // Raw address bytes
+  Bytes ToBytes() const noexcept {
+    if (!ip_impl_.is_v6()) {
+      return Bytes{};
+    }
+    return ip_impl_.to_v6().to_bytes();
   }
 
   // Additional IPv6-specific methods

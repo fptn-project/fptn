@@ -11,6 +11,11 @@ services:
       - SYS_RESOURCE
     sysctls:
       net.ipv4.ip_local_port_range: "6890 65535"
+      # These are per-network-namespace: setting them on the host does not
+      # reach the container. Requires tcp_bbr loaded on the host.
+      net.ipv4.tcp_congestion_control: "bbr"
+      net.ipv4.tcp_rmem: "4096 131072 33554432"
+      net.ipv4.tcp_wmem: "4096 65536 33554432"
     ulimits:
       nproc:
         soft: 524288

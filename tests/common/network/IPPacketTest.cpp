@@ -4,12 +4,18 @@ Copyright (c) 2024-2026 Stas Skokov
 Distributed under the MIT License (https://opensource.org/licenses/MIT)
 =============================================================================*/
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
+#include <string>
 #include <utility>
 
 #include <gtest/gtest.h>  // NOLINT(build/include_order)
 
 #include "common/network/ip_packet.h"
+
+#include "fptn-protocol-lib/protocol/protobuf/protobuf_serializer.h"
+#include "fptn-protocol-lib/protocol/yaff/yaff_serializer.h"
 
 namespace {
 
@@ -125,4 +131,158 @@ TEST(IPPacketTest, IPv6Icmp) {
   ASSERT_NE(packet, nullptr);
   EXPECT_FALSE(packet->IsTCP());
   EXPECT_FALSE(packet->IsUDP());
+}
+
+namespace {
+
+using fptn::common::network::BatchIPPacketPtr;
+using fptn::common::network::IPv4Address;
+using fptn::common::network::IPv6Address;
+
+IPPacketData MakeIPv4WithAddrs() {
+  IPPacketData p = MakeIPv4(kTcp, 1, 2);
+  p[8] = 64;  // ttl, the setters refuse to touch a packet with ttl 0
+  p[12] = 10;
+  p[13] = 0;
+  p[14] = 0;
+  p[15] = 1;
+  p[16] = 192;
+  p[17] = 168;
+  p[18] = 5;
+  p[19] = 7;
+  return p;
+}
+
+IPPacketData MakeIPv6WithAddrs() {
+  IPPacketData p = MakeIPv6(kTcp, 1, 2);
+  p[8] = 0xfd;
+  p[23] = 0x02;  // src fd00::2
+  p[24] = 0xfd;
+  p[39] = 0x01;  // dst fd00::1
+  return p;
+}
+
+BatchIPPacketPtr MakeFullBatch(std::size_t count, std::size_t mtu) {
+  BatchIPPacketPtr batch;
+  batch.reserve(count);
+  for (std::size_t i = 0; i < count; ++i) {
+    // Distinct contents: identical payloads are deduplicated by the
+    // serializer and would understate the real frame size.
+    IPPacketData raw(mtu, static_cast<std::uint8_t>(i));
+    raw[0] = 0x45;
+    raw[9] = kTcp;
+    for (std::size_t j = 20; j < raw.size(); j += 7) {
+      raw[j] = static_cast<std::uint8_t>((i * 31) + j);
+    }
+    batch.push_back(IPPacket::Parse(std::move(raw)));
+  }
+  return batch;
+}
+
+}  // namespace
+
+TEST(IPPacketTest, IPv4AddressesReadFromHeader) {
+  const auto packet = IPPacket::Parse(MakeIPv4WithAddrs());
+  ASSERT_NE(packet, nullptr);
+  EXPECT_EQ(packet->GetSrcIPv4Address().ToString(), "10.0.0.1");
+  EXPECT_EQ(packet->GetDstIPv4Address().ToString(), "192.168.5.7");
+  EXPECT_EQ(packet->GetDstIPv4Address().ToInt(), 3232236807U);
+}
+
+// The NAT table is keyed on ToInt(); a key taken from a packet header must
+// equal the key taken from the configured address.
+TEST(IPPacketTest, IPv4KeyMatchesAddressBuiltFromString) {
+  const auto packet = IPPacket::Parse(MakeIPv4WithAddrs());
+  ASSERT_NE(packet, nullptr);
+  const IPv4Address expected(std::string("192.168.5.7"));
+  EXPECT_EQ(packet->GetDstIPv4Address().ToInt(), expected.ToInt());
+  EXPECT_TRUE(packet->GetDstIPv4Address() == expected);
+  EXPECT_TRUE(
+      packet->GetDstIPv4Address() != IPv4Address(std::string("192.168.5.8")));
+}
+
+TEST(IPPacketTest, IPv6AddressesReadFromHeader) {
+  const auto packet = IPPacket::Parse(MakeIPv6WithAddrs());
+  ASSERT_NE(packet, nullptr);
+  EXPECT_EQ(packet->GetSrcIPv6Address().ToString(), "fd00::2");
+  EXPECT_EQ(packet->GetDstIPv6Address().ToString(), "fd00::1");
+}
+
+// Same invariant for IPv6, whose table is keyed on the raw bytes.
+TEST(IPPacketTest, IPv6KeyMatchesAddressBuiltFromString) {
+  const auto packet = IPPacket::Parse(MakeIPv6WithAddrs());
+  ASSERT_NE(packet, nullptr);
+  const IPv6Address expected(std::string("fd00::1"));
+  EXPECT_EQ(packet->GetDstIPv6Address().ToBytes(), expected.ToBytes());
+  EXPECT_TRUE(packet->GetDstIPv6Address() == expected);
+}
+
+TEST(IPPacketTest, IPv4AddressSetterRoundTrip) {
+  auto packet = IPPacket::Parse(MakeIPv4WithAddrs());
+  ASSERT_NE(packet, nullptr);
+  packet->SetDstIPv4Address(IPv4Address(std::string("172.16.9.3")));
+  packet->SetSrcIPv4Address(IPv4Address(std::string("172.16.9.4")));
+  EXPECT_EQ(packet->GetDstIPv4Address().ToString(), "172.16.9.3");
+  EXPECT_EQ(packet->GetSrcIPv4Address().ToString(), "172.16.9.4");
+}
+
+TEST(IPPacketTest, IPv6AddressSetterRoundTrip) {
+  auto packet = IPPacket::Parse(MakeIPv6WithAddrs());
+  ASSERT_NE(packet, nullptr);
+  packet->SetDstIPv6Address(IPv6Address(std::string("2001:db8::dead:beef")));
+  packet->SetSrcIPv6Address(IPv6Address(std::string("2001:db8::1")));
+  EXPECT_EQ(packet->GetDstIPv6Address().ToString(), "2001:db8::dead:beef");
+  EXPECT_EQ(packet->GetSrcIPv6Address().ToString(), "2001:db8::1");
+}
+
+TEST(IPPacketTest, IPv6SetterIgnoresInvalidAddress) {
+  auto packet = IPPacket::Parse(MakeIPv6WithAddrs());
+  ASSERT_NE(packet, nullptr);
+  packet->SetDstIPv6Address(IPv6Address());
+  EXPECT_EQ(packet->GetDstIPv6Address().ToString(), "fd00::1");
+}
+
+// A frame larger than the peer's read_message_max fails its async_read and
+// tears the tunnel down, so the sender's batch cap must leave headroom at the
+// largest MTU the server may be configured with.
+TEST(IPPacketTest, SerializedBatchFitsPeerMessageLimit) {
+  constexpr std::size_t kPeerMessageLimit = 256 * 1024;
+  constexpr std::size_t kSenderBatchCap = 128;  // Session::RunSender
+
+  for (const std::size_t mtu : {std::size_t{1420}, std::size_t{1500}}) {
+    auto protobuf_frame = fptn::protocol::protobuf::SerializeBatchIPPacket(
+        MakeFullBatch(kSenderBatchCap, mtu));
+    ASSERT_TRUE(protobuf_frame.has_value()) << "mtu=" << mtu;
+    EXPECT_LT(protobuf_frame->size(), kPeerMessageLimit) << "mtu=" << mtu;
+
+    auto yaff_frame = fptn::protocol::yaff::SerializeBatchIPPacket(
+        MakeFullBatch(kSenderBatchCap, mtu));
+    ASSERT_TRUE(yaff_frame.has_value()) << "mtu=" << mtu;
+    EXPECT_LT(yaff_frame->size(), kPeerMessageLimit) << "mtu=" << mtu;
+
+    std::printf("mtu=%zu cap=%zu -> protobuf=%zu yaff=%zu (limit %zu)\n", mtu,
+        kSenderBatchCap, protobuf_frame->size(), yaff_frame->size(),
+        kPeerMessageLimit);
+  }
+}
+
+// Shows how much room is left, so raising the cap is a measured decision.
+TEST(IPPacketTest, SerializedBatchSizeByCap) {
+  constexpr std::size_t kPeerMessageLimit = 256 * 1024;
+  for (const std::size_t cap : {std::size_t{128}, std::size_t{150},
+           std::size_t{160}, std::size_t{180}, std::size_t{190}}) {
+    auto protobuf_frame = fptn::protocol::protobuf::SerializeBatchIPPacket(
+        MakeFullBatch(cap, 1420));
+    auto yaff_frame =
+        fptn::protocol::yaff::SerializeBatchIPPacket(MakeFullBatch(cap, 1420));
+    ASSERT_TRUE(protobuf_frame.has_value());
+    ASSERT_TRUE(yaff_frame.has_value());
+    const std::size_t worst =
+        std::max(protobuf_frame->size(), yaff_frame->size());
+    std::printf("cap=%3zu mtu=1420 -> protobuf=%7zu yaff=%7zu (%5.1f%%)%s\n",
+        cap, protobuf_frame->size(), yaff_frame->size(),
+        100.0 * static_cast<double>(worst) /
+            static_cast<double>(kPeerMessageLimit),
+        worst >= kPeerMessageLimit ? "  OVER" : "");
+  }
 }

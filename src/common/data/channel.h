@@ -24,7 +24,7 @@ namespace fptn::common::data {
 
 class Channel {
  public:
-  explicit Channel(std::string name, std::size_t max_capacity = 1024 * 8)
+  explicit Channel(std::string name, std::size_t max_capacity = 1024 * 2)
       : name_(std::move(name)), max_capacity_(max_capacity) {}
 
   bool Push(network::IPPacketPtr pkt) noexcept {

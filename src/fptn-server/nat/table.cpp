@@ -81,7 +81,7 @@ ConnectionMultiplexerSPtr Table::AddConnection(const ConnectParams& params,
 
     session_to_mplx_.insert({params.request.session_id, mplx});
     ipv4_to_mplx_.insert({fake_ipv4.ToInt(), mplx});
-    ipv6_to_mplx_.insert({fake_ipv6.ToString(), mplx});
+    ipv6_to_mplx_.insert({fake_ipv6.ToBytes(), mplx});
     client_to_mplx_.insert({params.client_id, mplx});
     return mplx;
   } catch (const std::exception& e) {
@@ -121,7 +121,7 @@ void Table::ReleaseSessionIfEmpty(const ConnectionMultiplexerSPtr& mplx) {
   free_ipv4_.push_back(fake_ipv4);
   free_ipv6_.push_back(fake_ipv6);
   ipv4_to_mplx_.erase(fake_ipv4.ToInt());
-  ipv6_to_mplx_.erase(fake_ipv6.ToString());
+  ipv6_to_mplx_.erase(fake_ipv6.ToBytes());
   session_to_mplx_.erase(mplx->SessionId());
 }
 
@@ -140,7 +140,7 @@ ConnectionMultiplexerSPtr Table::GetMultiplexerByFakeIPv6(
     const fptn::common::network::IPv6Address& ip) noexcept {
   const std::shared_lock<std::shared_mutex> lock(mutex_);  // mutex
 
-  const auto it = ipv6_to_mplx_.find(ip.ToString());
+  const auto it = ipv6_to_mplx_.find(ip.ToBytes());
   if (it != ipv6_to_mplx_.end()) {
     return it->second;
   }

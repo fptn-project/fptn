@@ -7,6 +7,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #pragma once
 
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <shared_mutex>
 #include <string>
@@ -26,6 +27,18 @@ namespace fptn::nat {
 
 class Table final {
   using IPv4INT = std::uint32_t;
+  using IPv6Bytes = fptn::common::network::IPv6Address::Bytes;
+
+  struct IPv6BytesHash {
+    std::size_t operator()(const IPv6Bytes& addr) const noexcept {
+      std::uint64_t hi = 0;
+      std::uint64_t lo = 0;
+      std::memcpy(&hi, addr.data(), sizeof(hi));
+      std::memcpy(&lo, addr.data() + sizeof(hi), sizeof(lo));
+      hi ^= lo + 0x9e3779b97f4a7c15ULL + (hi << 6) + (hi >> 2);
+      return static_cast<std::size_t>(hi);
+    }
+  };
 
  public:
   struct Config {
@@ -83,7 +96,8 @@ class Table final {
 
   std::unordered_map<std::string, ConnectionMultiplexerSPtr> session_to_mplx_;
   std::unordered_map<IPv4INT, ConnectionMultiplexerSPtr> ipv4_to_mplx_;
-  std::unordered_map<std::string, ConnectionMultiplexerSPtr> ipv6_to_mplx_;
+  std::unordered_map<IPv6Bytes, ConnectionMultiplexerSPtr, IPv6BytesHash>
+      ipv6_to_mplx_;
   std::unordered_map<ClientID, ConnectionMultiplexerSPtr> client_to_mplx_;
 };
 

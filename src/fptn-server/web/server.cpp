@@ -50,7 +50,7 @@ Server::Server(std::uint16_t port,
       server_external_ips_(std::move(server_external_ips)),
       thread_number_(std::max<std::size_t>(1, thread_number)),
       ioc_(thread_number),
-      from_client_("packets_from_websockets", 1024 * 16) {
+      from_client_("packets_from_websockets", 1024 * 2) {
   using std::placeholders::_1;
   using std::placeholders::_2;
 

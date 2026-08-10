@@ -64,7 +64,7 @@ struct ConnectionConfig {
   } pool;
 
   bool Validate() const {
-    if (common.server_ip.ToString().empty() || pool.size == 0) {
+    if (common.server_ip.IsEmpty() || pool.size == 0) {
       return false;
     }
     return true;

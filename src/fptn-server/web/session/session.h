@@ -49,7 +49,6 @@ class Session : public std::enable_shared_from_this<Session> {
   virtual ~Session();
   void Close();
 
-  void Send(common::network::IPPacketPtr pkt);
   void SendBatch(common::network::BatchIPPacketPtr pkts);
 
   boost::asio::strand<boost::asio::any_io_executor> GetExecutor()
@@ -61,6 +60,8 @@ class Session : public std::enable_shared_from_this<Session> {
  protected:
   boost::asio::awaitable<void> RunReader();
   boost::asio::awaitable<void> RunSender();
+  boost::asio::awaitable<void> WriteFrame(
+      common::network::BatchIPPacketPtr frame);
 
  protected:
   struct ProbingResult {
@@ -137,7 +138,7 @@ class Session : public std::enable_shared_from_this<Session> {
 
   boost::asio::strand<boost::asio::any_io_executor> strand_;
   boost::asio::experimental::concurrent_channel<void(
-      boost::system::error_code, fptn::common::network::IPPacketPtr)>
+      boost::system::error_code, fptn::common::network::BatchIPPacketPtr)>
       write_channel_;
 
   const ApiHandleMap& api_handles_;
