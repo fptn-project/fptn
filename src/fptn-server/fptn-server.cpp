@@ -5,9 +5,12 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 =============================================================================*/
 
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <memory>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include <boost/asio.hpp>
 #include <fmt/ranges.h>  // NOLINT(build/include_order)
@@ -21,6 +24,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "config/server_config.h"
 #include "filter/filters/antiscan/antiscan.h"
 #include "filter/filters/bittorrent/bittorrent.h"
+#include "filter/filters/domain_blacklist/domain_blacklist.h"
 #include "filter/manager.h"
 #include "nat/table.h"
 #include "network/virtual_interface.h"
@@ -130,6 +134,25 @@ int main(int argc, char* argv[]) {
         config->TunInterfaceIPv6(), config->TunInterfaceNetworkIPv6Address(),
         config->TunInterfaceNetworkIPv6Mask()));
 
+    /* init to-client packet filter (domain blacklist) */
+    auto to_client_filter_manager = std::make_shared<fptn::filter::Manager>();
+    const std::string blacklist_file = config->DomainBlacklistFile();
+    if (!blacklist_file.empty()) {
+      if (std::filesystem::exists(blacklist_file)) {
+        std::vector<std::string> domains;
+        std::ifstream in(blacklist_file);
+        std::string line;
+        while (std::getline(in, line)) {
+          domains.push_back(line);
+        }
+        to_client_filter_manager->Add(
+            std::make_shared<fptn::filter::DomainBlacklist>(domains));
+        SPDLOG_INFO("Domain blacklist file loaded: {}", blacklist_file);
+      } else {
+        SPDLOG_WARN("Domain blacklist file not found: {}", blacklist_file);
+      }
+    }
+
     SPDLOG_INFO(
         "\n--- Starting server---\n"
         "VERSION:           {}\n"
@@ -157,7 +180,7 @@ int main(int argc, char* argv[]) {
     // Init vpn manager
     fptn::vpn::Manager manager(std::move(web_server),
         std::move(virtual_network_interface), nat_table, filter_manager,
-        prometheus);
+        to_client_filter_manager, prometheus);
 
     /* start/wait/stop */
     manager.Start();

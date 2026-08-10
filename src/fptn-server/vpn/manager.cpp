@@ -15,12 +15,14 @@ Manager::Manager(fptn::web::ServerPtr web_server,
     fptn::network::VirtualInterfacePtr network_interface,
     fptn::nat::TableSPtr nat,
     fptn::filter::ManagerSPtr filter,
+    fptn::filter::ManagerSPtr to_client_filter,
     fptn::statistic::MetricsSPtr prometheus,
     std::size_t thread_pool_size)
     : web_server_(std::move(web_server)),
       network_interface_(std::move(network_interface)),
       nat_(std::move(nat)),
       filter_(std::move(filter)),
+      to_client_filter_(std::move(to_client_filter)),
       prometheus_(std::move(prometheus)),
       thread_pool_size_(thread_pool_size > 0 ? thread_pool_size : 1) {
   read_to_client_threads_.reserve(thread_pool_size_);
@@ -119,6 +121,12 @@ void Manager::RunToClient() const {
 
       packet = nat_session->ChangeIPAddressToClientIP(
           std::move(packet), *client_id);
+      if (!packet) {
+        continue;
+      }
+
+      // filter (domain blacklist: DNS rewrite + drop from blacklisted IPs)
+      packet = to_client_filter_->Apply(std::move(packet));
       if (!packet) {
         continue;
       }

@@ -23,6 +23,7 @@ class Manager final {
       fptn::network::VirtualInterfacePtr network_interface,
       fptn::nat::TableSPtr nat,
       fptn::filter::ManagerSPtr filter,
+      fptn::filter::ManagerSPtr to_client_filter,
       fptn::statistic::MetricsSPtr prometheus,
       std::size_t thread_pool_size = 1);
   ~Manager();
@@ -42,6 +43,7 @@ class Manager final {
   const fptn::network::VirtualInterfacePtr network_interface_;
   const fptn::nat::TableSPtr nat_;
   const fptn::filter::ManagerSPtr filter_;
+  const fptn::filter::ManagerSPtr to_client_filter_;
   const fptn::statistic::MetricsSPtr prometheus_;
   const std::size_t thread_pool_size_;
 

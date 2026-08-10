@@ -80,6 +80,13 @@ ServerConfig::ServerConfig(int argc, char* argv[])
       .help("Path to users file (default: /etc/fptn/users.list)")
       .default_value("/etc/fptn/users.list");
   // Packet filters
+  args_.add_argument("--domain-blacklist-file")
+      .help(
+          "Path to a file with domains to block, one per line ('#' starts a "
+          "comment). On a DNS response for a listed domain or any of its "
+          "subdomains the answer is rewritten to loopback (127.0.0.1 / ::1). "
+          "Empty (default) disables the feature.")
+      .default_value("");
   args_.add_argument("--disable-bittorrent")
       .help(
           "Disable BitTorrent traffic filtering. Use this flag to disable "
@@ -204,6 +211,10 @@ std::string ServerConfig::UserFile() const {
 
 bool ServerConfig::DisableBittorrent() const {
   return ParseBoolean(args_.get<std::string>("--disable-bittorrent"));
+}
+
+std::string ServerConfig::DomainBlacklistFile() const {
+  return args_.get<std::string>("--domain-blacklist-file");
 }
 
 std::string ServerConfig::PrometheusAccessKey() const {
