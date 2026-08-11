@@ -48,6 +48,11 @@ void ConnectionManager::SetRecvIPPacketCallback(
   config_.common.recv_ip_packet_callback = callback;
 }
 
+void ConnectionManager::SetRecvBatchIPPacketCallback(
+    const fptn::protocol::https::OnIPRecvBatchPacketCallback& callback) {
+  config_.common.recv_ip_packet_batch_callback = callback;
+}
+
 void ConnectionManager::SetAccessToken(const std::string& token) {
   jwt_access_token_ = token;
 }

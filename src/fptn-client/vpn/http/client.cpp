@@ -32,9 +32,9 @@ std::pair<IPv4Address, IPv6Address> Client::GetDns() {
   return manager_.GetDns();
 }
 
-void Client::SetRecvIPPacketCallback(
-    const NewIPPacketCallback& callback) noexcept {
-  manager_.SetRecvIPPacketCallback(callback);
+void Client::SetRecvBatchIPPacketCallback(
+    const NewBatchIPPacketCallback& callback) noexcept {
+  manager_.SetRecvBatchIPPacketCallback(callback);
 }
 
 bool Client::Send(fptn::common::network::IPPacketPtr packet) const {

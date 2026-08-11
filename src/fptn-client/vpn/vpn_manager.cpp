@@ -81,8 +81,8 @@ bool VpnManager::Start() {
   running_ = true;
 
   // NOLINTNEXTLINE(modernize-avoid-bind)
-  config_.http_client->SetRecvIPPacketCallback(std::bind(
-      &VpnManager::HandleOnPacketFromWebSocket, this, std::placeholders::_1));
+  config_.http_client->SetRecvBatchIPPacketCallback(std::bind(
+      &VpnManager::HandleOnPacketsFromWebSocket, this, std::placeholders::_1));
 
   bool tun_opened = false;
   if (config_.virtual_net_interface) {
@@ -226,9 +226,9 @@ void VpnManager::HandleOnPacketsFromVirtualNetworkInterface(
   }
 }
 
-void VpnManager::HandleOnPacketFromWebSocket(
-    fptn::common::network::IPPacketPtr packet) {
-  if (!running_ || !packet) {
+void VpnManager::HandleOnPacketsFromWebSocket(
+    fptn::common::network::BatchIPPacketPtr packets) {
+  if (!running_ || packets.empty()) {
     return;
   }
 
@@ -237,11 +237,15 @@ void VpnManager::HandleOnPacketFromWebSocket(
   std::unique_lock<std::mutex> lock(queue_mutex_);
 
   if (ws_packet_queue_.size() >= kMaxQueueSize) {
-    SPDLOG_WARN("WebSocket packet queue is full, dropping packet");
+    SPDLOG_WARN("WebSocket packet queue is full, dropping packets");
     return;
   }
 
-  ws_packet_queue_.push(std::move(packet));
+  for (auto& packet : packets) {
+    if (packet) {
+      ws_packet_queue_.push(std::move(packet));
+    }
+  }
   lock.unlock();
   ws_queue_cv_.notify_one();
 }

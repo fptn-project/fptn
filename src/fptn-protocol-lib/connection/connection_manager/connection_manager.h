@@ -28,6 +28,9 @@ class ConnectionManager final {
 
   ~ConnectionManager();
 
+  void SetRecvBatchIPPacketCallback(
+      const fptn::protocol::https::OnIPRecvBatchPacketCallback& callback);
+
   void SetRecvIPPacketCallback(
       const fptn::protocol::https::OnIPRecvPacketCallback& callback);
 

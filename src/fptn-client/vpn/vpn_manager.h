@@ -57,7 +57,8 @@ class VpnManager final {
 
   void HandleOnPacketsFromVirtualNetworkInterface(
       fptn::common::network::BatchIPPacketPtr packets);
-  void HandleOnPacketFromWebSocket(fptn::common::network::IPPacketPtr packet);
+  void HandleOnPacketsFromWebSocket(
+      fptn::common::network::BatchIPPacketPtr packets);
 
  private:
   mutable std::mutex mutex_;
