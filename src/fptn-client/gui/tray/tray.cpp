@@ -906,15 +906,13 @@ bool TrayApp::startVpn(QString& err_msg) {
 
   using fptn::protocol::connection::strategies::ConnectionStrategy;
   const auto strategy_name = settings_->ConnectionStrategy();
-  auto connection_strategy = ConnectionStrategy::kPersistentTunnel;
+  auto connection_strategy = ConnectionStrategy::kSingleRollingTunnel;
   if (strategy_name == SettingsModel::kConnectionStrategyBrowserMimicry) {
     connection_strategy = ConnectionStrategy::kBrowserMimicry;
   } else if (strategy_name == SettingsModel::kConnectionStrategyDual) {
-    connection_strategy = ConnectionStrategy::kDualTunnel;
+    connection_strategy = ConnectionStrategy::kDualRollingTunnel;
   } else if (strategy_name == SettingsModel::kConnectionStrategyTriple) {
-    connection_strategy = ConnectionStrategy::kTripleTunnel;
-  } else if (strategy_name == SettingsModel::kConnectionStrategyRolling) {
-    connection_strategy = ConnectionStrategy::kRollingTunnel;
+    connection_strategy = ConnectionStrategy::kTripleRollingTunnel;
   }
 
   auto http_client = std::make_unique<fptn::vpn::http::Client>(

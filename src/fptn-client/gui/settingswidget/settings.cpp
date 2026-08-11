@@ -192,8 +192,6 @@ void SettingsWidget::SetupUi() {
   connection_strategy_label_ =
       new QLabel(QObject::tr("Connection strategy"), this);
   connection_strategy_combo_box_ = new QComboBox(this);
-  connection_strategy_combo_box_->addItem(QObject::tr("Persistent tunnel"),
-      SettingsModel::kConnectionStrategyPersistent);
   connection_strategy_combo_box_->addItem(
       QObject::tr("Rolling tunnel"), SettingsModel::kConnectionStrategyRolling);
   connection_strategy_combo_box_->addItem(QObject::tr("Dual rolling tunnel"),

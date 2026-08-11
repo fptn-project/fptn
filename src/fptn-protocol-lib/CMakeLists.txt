@@ -107,11 +107,7 @@ set(FPTN_CLIENT_PROTOCOL_SOURCES
     connection/connection_manager/connection_manager.cpp
     connection/strategies/base_strategy_connection.h
     connection/strategies/base_strategy_connection.cpp
-    connection/strategies/persistent_tunnel/persistent_tunnel.h
-    connection/strategies/persistent_tunnel/persistent_tunnel.cpp
-    connection/strategies/parallel_tunnels/parallel_tunnels.h
     connection/strategies/rolling_tunnel/rolling_tunnel.h
-    connection/strategies/rolling_tunnel/rolling_tunnel.cpp
     connection/strategies/browser_mimicry/browser_mimicry.h
     connection/strategies/browser_mimicry/browser_mimicry.cpp
     https/connection_config.h

@@ -37,7 +37,7 @@ class Client final {
   explicit Client(fptn::protocol::https::ConnectionConfig config,
       fptn::protocol::connection::strategies::ConnectionStrategy strategy =
           fptn::protocol::connection::strategies::ConnectionStrategy::
-              kPersistentTunnel);
+              kSingleRollingTunnel);
   ~Client();
   void SetAccessToken(const std::string& token);
   bool Login(const std::string& username,
