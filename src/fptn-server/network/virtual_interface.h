@@ -40,7 +40,8 @@ class VirtualInterface final {
       const std::chrono::milliseconds& duration) noexcept;
 
  protected:
-  void IPPacketFromNetwork(fptn::common::network::IPPacketPtr packet) noexcept;
+  void IPPacketsFromNetwork(
+      fptn::common::network::BatchIPPacketPtr packets) noexcept;
 
  private:
   std::thread thread_;

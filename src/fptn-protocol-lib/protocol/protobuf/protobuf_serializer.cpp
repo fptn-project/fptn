@@ -49,6 +49,8 @@ class ArenaManager {
   std::unique_ptr<google::protobuf::Arena> arena_;
 };
 
+constexpr std::size_t kMaxPaddedBatchSize = 2;
+
 }  // namespace
 
 namespace fptn::protocol::protobuf {
@@ -102,7 +104,9 @@ ProtoPayloadOpt DeserializeIPPacket(const boost::beast::flat_buffer& buffer) {
   return std::nullopt;
 }
 
-ProtoPayloadOpt SerializeIPPacket(fptn::common::network::IPPacketPtr packet) {
+ProtoPayloadOpt SerializeIPPacket(
+    fptn::common::network::IPPacketPtr packet, bool with_padding) {
+  (void)with_padding;
   if (!packet) {
     SPDLOG_ERROR("Cannot create proto payload: packet is null");
     return std::nullopt;
@@ -126,7 +130,7 @@ ProtoPayloadOpt SerializeIPPacket(fptn::common::network::IPPacketPtr packet) {
       data.data(), static_cast<int>(data.size()));
 
 #ifdef FPTN_ENABLE_PACKET_PADDING
-  if (data.size() < FPTN_IP_PACKET_MAX_SIZE) {
+  if (with_padding && data.size() < FPTN_IP_PACKET_MAX_SIZE) {
     // Random-length padding to obscure packet size (TLS-inside-TLS).
     constexpr std::size_t kMinPaddingBytes = 64;
     constexpr std::size_t kMaxPaddingBytes = 128;
@@ -181,7 +185,8 @@ ProtoPayloadOpt SerializeBatchIPPacket(
     if (!packet_ptr) {
       continue;
     }
-    auto serialized = SerializeIPPacket(std::move(packet_ptr));
+    auto serialized = SerializeIPPacket(
+        std::move(packet_ptr), packets.size() <= kMaxPaddedBatchSize);
     if (serialized.has_value() && !serialized.value().empty()) {
       batch->add_packets(serialized.value().data(), serialized.value().size());
     }

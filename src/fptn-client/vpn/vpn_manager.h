@@ -55,8 +55,8 @@ class VpnManager final {
   void ProcessWebSocketPackets();
   void Supervise();
 
-  void HandleOnPacketFromVirtualNetworkInterface(
-      fptn::common::network::IPPacketPtr packet);
+  void HandleOnPacketsFromVirtualNetworkInterface(
+      fptn::common::network::BatchIPPacketPtr packets);
   void HandleOnPacketFromWebSocket(fptn::common::network::IPPacketPtr packet);
 
  private:

@@ -7,6 +7,8 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <iomanip>
+#include <iostream>
 #include <string>
 #include <utility>
 
@@ -242,9 +244,7 @@ TEST(IPPacketTest, IPv6SetterIgnoresInvalidAddress) {
   EXPECT_EQ(packet->GetDstIPv6Address().ToString(), "fd00::1");
 }
 
-// A frame larger than the peer's read_message_max fails its async_read and
-// tears the tunnel down, so the sender's batch cap must leave headroom at the
-// largest MTU the server may be configured with.
+// A frame above the peer's read_message_max drops the tunnel.
 TEST(IPPacketTest, SerializedBatchFitsPeerMessageLimit) {
   constexpr std::size_t kPeerMessageLimit = 256 * 1024;
   constexpr std::size_t kSenderBatchCap = 128;  // Session::RunSender
@@ -260,17 +260,17 @@ TEST(IPPacketTest, SerializedBatchFitsPeerMessageLimit) {
     ASSERT_TRUE(yaff_frame.has_value()) << "mtu=" << mtu;
     EXPECT_LT(yaff_frame->size(), kPeerMessageLimit) << "mtu=" << mtu;
 
-    std::printf("mtu=%zu cap=%zu -> protobuf=%zu yaff=%zu (limit %zu)\n", mtu,
-        kSenderBatchCap, protobuf_frame->size(), yaff_frame->size(),
-        kPeerMessageLimit);
+    std::cout << "mtu=" << mtu << " cap=" << kSenderBatchCap
+              << " -> protobuf=" << protobuf_frame->size()
+              << " yaff=" << yaff_frame->size() << " (limit "
+              << kPeerMessageLimit << ")\n";
   }
 }
 
-// Shows how much room is left, so raising the cap is a measured decision.
 TEST(IPPacketTest, SerializedBatchSizeByCap) {
   constexpr std::size_t kPeerMessageLimit = 256 * 1024;
-  for (const std::size_t cap : {std::size_t{128}, std::size_t{150},
-           std::size_t{160}, std::size_t{180}, std::size_t{190}}) {
+  for (const std::size_t cap : {std::size_t{128}, std::size_t{160},
+           std::size_t{180}, std::size_t{200}, std::size_t{256}}) {
     auto protobuf_frame = fptn::protocol::protobuf::SerializeBatchIPPacket(
         MakeFullBatch(cap, 1420));
     auto yaff_frame =
@@ -279,10 +279,36 @@ TEST(IPPacketTest, SerializedBatchSizeByCap) {
     ASSERT_TRUE(yaff_frame.has_value());
     const std::size_t worst =
         std::max(protobuf_frame->size(), yaff_frame->size());
-    std::printf("cap=%3zu mtu=1420 -> protobuf=%7zu yaff=%7zu (%5.1f%%)%s\n",
-        cap, protobuf_frame->size(), yaff_frame->size(),
-        100.0 * static_cast<double>(worst) /
-            static_cast<double>(kPeerMessageLimit),
-        worst >= kPeerMessageLimit ? "  OVER" : "");
+    std::cout << "cap=" << cap
+              << " mtu=1420 -> protobuf=" << protobuf_frame->size()
+              << " yaff=" << yaff_frame->size() << " (" << std::fixed
+              << std::setprecision(1)
+              << (100.0 * static_cast<double>(worst) /
+                     static_cast<double>(kPeerMessageLimit))
+              << "%)" << (worst >= kPeerMessageLimit ? "  OVER" : "") << "\n";
+  }
+}
+
+// Full-MTU packets are never padded, so this uses ACK-sized ones.
+TEST(IPPacketTest, PaddingAppliedOnlyToSmallBatches) {
+  constexpr std::size_t kAckSize = 40;
+  constexpr std::size_t kMinPaddingBytes = 64;
+
+  const auto per_packet = [](std::size_t count, bool yaff) {
+    auto frame = yaff ? fptn::protocol::yaff::SerializeBatchIPPacket(
+                            MakeFullBatch(count, kAckSize))
+                      : fptn::protocol::protobuf::SerializeBatchIPPacket(
+                            MakeFullBatch(count, kAckSize));
+    return frame.has_value() ? frame->size() / count : 0;
+  };
+
+  for (const bool yaff : {false, true}) {
+    const std::size_t padded = per_packet(2, yaff);
+    const std::size_t plain = per_packet(64, yaff);
+    std::cout << (yaff ? "yaff" : "protobuf") << " ack: batch=2 -> " << padded
+              << " B/pkt, batch=64 -> " << plain << " B/pkt\n";
+
+    EXPECT_GT(padded, plain + (kMinPaddingBytes / 2));
+    EXPECT_LT(plain, kAckSize + kMinPaddingBytes);
   }
 }
