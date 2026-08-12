@@ -388,7 +388,9 @@ boost::asio::awaitable<Response> ApiClient::AsyncPost(const std::string& handle,
     boost::asio::ip::tcp::resolver::results_type results;
     if (const auto addr = boost::asio::ip::make_address(host_, ec); !ec) {
       results = boost::asio::ip::tcp::resolver::results_type::create(
-          boost::asio::ip::tcp::endpoint(addr, port_), host_, port_str);
+          boost::asio::ip::tcp::endpoint(
+              addr, static_cast<boost::asio::ip::port_type>(port_)),
+          host_, port_str);
     } else {
       ec.clear();
       boost::asio::ip::tcp::resolver resolver(executor);
