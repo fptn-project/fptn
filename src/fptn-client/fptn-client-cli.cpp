@@ -239,6 +239,8 @@ int main(int argc, char* argv[]) {
       return EXIT_FAILURE;
     }
 
+    fptn::time::TimeProvider::Instance();
+
 #ifdef __linux__
     fptn::routing::HealStaleResolvConf();
 #endif

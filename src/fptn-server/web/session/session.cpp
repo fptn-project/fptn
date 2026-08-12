@@ -696,8 +696,8 @@ boost::asio::awaitable<bool> Session::PerformFakeHandshake(
     buffer.resize(bytes_read);
 
     const auto handshake_answer =
-        co_await handshake_cache_manager_->GetHandshake(
-            sni, buffer.data(), bytes_read, std::chrono::seconds(3));
+        co_await handshake_cache_manager_->GetHandshake(sni, buffer.data(),
+            bytes_read, std::chrono::seconds(2), std::chrono::seconds(3));
 
     if (!handshake_answer) {
       co_return false;
@@ -739,7 +739,7 @@ boost::asio::awaitable<bool> Session::PerformFakeHandshake2(
     const auto handshake_answer =
         co_await handshake_cache_manager_->GetHandshake(sni,
             client_hello.value().data(), client_hello_size,
-            std::chrono::seconds(5));
+            std::chrono::seconds(2), std::chrono::seconds(5));
     if (!handshake_answer) {
       co_return false;
     }

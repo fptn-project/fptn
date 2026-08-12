@@ -589,15 +589,18 @@ boost::asio::awaitable<void> WebsocketClient::RunReader() {
         fptn::common::network::BatchIPPacketPtr packets;
         packets.reserve(batch_packets.size());
         for (auto& raw_ip_opt : batch_packets) {
-          auto packet = fptn::common::network::IPPacket::Parse(std::move(raw_ip_opt));
+          auto packet =
+              fptn::common::network::IPPacket::Parse(std::move(raw_ip_opt));
           if (!running_ || !packet) {
             continue;
           }
           // change IP addresses
           if (packet->IsIPv4()) {
-            packet->SetDstIPv4Address(config_.common.tun_interface_address_ipv4);
+            packet->SetDstIPv4Address(
+                config_.common.tun_interface_address_ipv4);
           } else if (packet->IsIPv6()) {
-            packet->SetDstIPv6Address(config_.common.tun_interface_address_ipv6);
+            packet->SetDstIPv6Address(
+                config_.common.tun_interface_address_ipv6);
           } else {
             continue;
           }

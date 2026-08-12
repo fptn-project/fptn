@@ -28,7 +28,8 @@ class HandshakeCacheManager final {
   boost::asio::awaitable<HandshakeResponse> GetHandshake(const std::string& sni,
       const std::uint8_t* buffer_ptr,
       std::size_t size,
-      const std::chrono::seconds& timeout);
+      const std::chrono::seconds& target_timeout,
+      const std::chrono::seconds& fallback_timeout);
 
   HandshakeResponse CheckCache(const std::string& cache_key);
 
