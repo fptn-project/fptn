@@ -59,6 +59,11 @@ add_executable(TunDeviceTest network/TunDeviceTest.cpp)
 target_link_libraries(TunDeviceTest PRIVATE ${LIBS})
 add_test(NAME TunDeviceTest COMMAND TunDeviceTest)
 
+# --- JWT token manager test ---
+add_executable(TokenManagerTest jwt_token/TokenManagerTest.cpp)
+target_link_libraries(TokenManagerTest PRIVATE ${LIBS})
+add_test(NAME TokenManagerTest COMMAND TokenManagerTest)
+
 # --- Client Stop race condition test ---
 add_executable(ClientStopRaceTest network/ClientStopRaceTest.cpp)
 target_link_libraries(ClientStopRaceTest PRIVATE GTest::gtest GTest::gtest_main)

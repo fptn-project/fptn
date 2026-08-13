@@ -49,16 +49,15 @@ class TokenManager {
   bool Validate(const std::string& token,
       std::string& username,
       std::size_t& bandwidth_bit) const noexcept {
-    // CHECK IT
     try {
-      auto decoded = jwt::decode<jwt::traits::nlohmann_json>(token);
+      const auto decoded = jwt::decode<jwt::traits::nlohmann_json>(token);
       username = decoded.get_payload_claim("username").as_string();
       bandwidth_bit = decoded.get_payload_claim("bandwidth_bit").as_integer();
 
-      auto verifier =
+      const auto verifier =
           jwt::verify<jwt::default_clock, jwt::traits::nlohmann_json>(
               jwt::default_clock())
-              .allow_algorithm(jwt::algorithm::rs256(server_crt_, "", "", ""))
+              .allow_algorithm(jwt::algorithm::rs256("", server_key_, "", ""))
               .with_issuer("auth0");
       verifier.verify(decoded);
       return true;
