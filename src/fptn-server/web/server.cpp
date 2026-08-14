@@ -98,11 +98,6 @@ bool Server::Start() {
         ioc_,
         [this]() -> boost::asio::awaitable<void> { co_await listener_->Run(); },
         boost::asio::detached);
-    // run senders
-    // boost::asio::co_spawn(
-    //     ioc_,
-    //     [this]() -> boost::asio::awaitable<void> { co_await RunSender(); },
-    //     boost::asio::detached);
     // run threads
     ioc_threads_.reserve(thread_number_);
     for (std::size_t i = 0; i < thread_number_; ++i) {

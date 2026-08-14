@@ -15,7 +15,6 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include <spdlog/spdlog.h>  // NOLINT(build/include_order)
 
-
 namespace {
 std::chrono::seconds ReconnectBackoff(int full_restart_count) {
   switch (full_restart_count) {
@@ -219,17 +218,19 @@ void VpnManager::HandleOnPacketsFromVirtualNetworkInterface(
 
   const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
-  if (running_ && config_.ad_blocker && packet && packet->IsDns()) {
-    if (auto response = config_.ad_blocker->ProcessOutgoingDns(*packet)) {
-      if (config_.virtual_net_interface) {
-        config_.virtual_net_interface->Send(std::move(response));
-      }
-      return;
-    }
-  }
-
   if (running_ && config_.http_client) {
     for (auto& packet : packets) {
+      if (!packet) {
+        continue;
+      }
+      if (config_.ad_blocker && packet->IsDns()) {
+        if (auto response = config_.ad_blocker->ProcessOutgoingDns(*packet)) {
+          if (config_.virtual_net_interface) {
+            config_.virtual_net_interface->Send(std::move(response));
+          }
+          continue;
+        }
+      }
       config_.http_client->Send(std::move(packet));
     }
   }

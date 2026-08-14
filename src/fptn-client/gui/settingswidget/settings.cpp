@@ -125,6 +125,14 @@ void SettingsWidget::SetupUi() {
   grid_layout_->addWidget(language_label_, 1, 0, Qt::AlignLeft);
   grid_layout_->addWidget(language_combo_box_, 1, 1, Qt::AlignLeft);
 
+  enable_ad_block_label_ = new QLabel(QObject::tr("Block ads"), this);
+  enable_ad_block_checkbox_ = new QCheckBox(" ", this);
+  enable_ad_block_checkbox_->setChecked(settings_->EnableAdBlock());
+  connect(enable_ad_block_checkbox_, &QCheckBox::toggled, this,
+      [this](bool checked) { settings_->SetEnableAdBlock(checked); });
+  grid_layout_->addWidget(enable_ad_block_label_, 2, 0, Qt::AlignLeft);
+  grid_layout_->addWidget(enable_ad_block_checkbox_, 2, 1, Qt::AlignLeft);
+
   interface_label_ =
       new QLabel(QObject::tr("Network Interface (adapter)"), this);
   interface_combo_box_ = new QComboBox(this);
@@ -132,8 +140,8 @@ void SettingsWidget::SetupUi() {
   interface_combo_box_->setCurrentText(settings_->UsingNetworkInterface());
   connect(interface_combo_box_, &QComboBox::currentTextChanged, this,
       &SettingsWidget::onInterfaceChanged);
-  grid_layout_->addWidget(interface_label_, 2, 0, Qt::AlignLeft);
-  grid_layout_->addWidget(interface_combo_box_, 2, 1, Qt::AlignLeft);
+  grid_layout_->addWidget(interface_label_, 3, 0, Qt::AlignLeft);
+  grid_layout_->addWidget(interface_combo_box_, 3, 1, Qt::AlignLeft);
 
   gateway_label_ = new QLabel(
       QObject::tr("Gateway IP Address (typically your router's address)"),
@@ -158,16 +166,8 @@ void SettingsWidget::SetupUi() {
   gateway_layout->setStretch(0, 0);
   gateway_layout->setStretch(1, 1);
 
-  grid_layout_->addWidget(gateway_label_, 3, 0, Qt::AlignLeft);
-  grid_layout_->addLayout(gateway_layout, 3, 1);
-
-  enable_ad_block_label_ = new QLabel(QObject::tr("Block ads"), this);
-  enable_ad_block_checkbox_ = new QCheckBox(" ", this);
-  enable_ad_block_checkbox_->setChecked(settings_->EnableAdBlock());
-  connect(enable_ad_block_checkbox_, &QCheckBox::toggled, this,
-      [this](bool checked) { settings_->SetEnableAdBlock(checked); });
-  grid_layout_->addWidget(enable_ad_block_label_, 4, 0, Qt::AlignLeft);
-  grid_layout_->addWidget(enable_ad_block_checkbox_, 4, 1, Qt::AlignLeft);
+  grid_layout_->addWidget(gateway_label_, 4, 0, Qt::AlignLeft);
+  grid_layout_->addLayout(gateway_layout, 4, 1);
 
   custom_dns_label_ = new QLabel(QObject::tr("Custom DNS"), this);
   custom_dns_auto_checkbox_ = new QCheckBox(QObject::tr("Auto"), this);

@@ -531,11 +531,11 @@ class IPPacket {
   // unchanged, so no header offsets are touched. Returns true if at least one
   // record was rewritten.
   bool RewriteDnsAnswersToLoopback() noexcept {
-    std::uint8_t* dns = const_cast<std::uint8_t*>(DnsPtr());
+    const std::uint8_t* dns = DnsPtr();
     if (!dns) {
       return false;
     }
-    std::uint8_t* end = data_.data() + data_.size();
+    const std::uint8_t* end = data_.data() + data_.size();
     int ancount = 0;
     std::uint8_t* cur =
         const_cast<std::uint8_t*>(detail::DnsAnswerStart(dns, end, &ancount));
