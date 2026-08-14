@@ -20,6 +20,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "common/network/ip_packet.h"
 #include "common/network/net_interface.h"
 
+#include "adblock/adblock.h"
 #include "http/client.h"
 #include "plugins/split/tunneling.h"
 
@@ -31,10 +32,12 @@ using fptn::common::network::IPv6Address;
 class VpnManager final {
  public:
   struct Config {
-    fptn::vpn::http::ClientPtr http_client;
-    fptn::routing::RouteManagerSPtr route_manager;
-    fptn::common::network::TunInterfaceSPtr virtual_net_interface;
-    fptn::plugin::PluginList plugins;
+      fptn::vpn::http::ClientPtr http_client;
+      fptn::routing::RouteManagerSPtr route_manager;
+      fptn::common::network::TunInterfaceSPtr virtual_net_interface;
+      fptn::plugin::PluginList plugins;
+      fptn::adblock::AdBlockerPtr ad_blocker;
+      int max_reconnect_attempts = 10;
   };
 
  public:
@@ -63,7 +66,6 @@ class VpnManager final {
  private:
   mutable std::mutex mutex_;
   mutable std::mutex queue_mutex_;
-  static constexpr int kMaxFullRestarts_ = 10;
 
   std::atomic<bool> running_;
   std::atomic<bool> ever_connected_;

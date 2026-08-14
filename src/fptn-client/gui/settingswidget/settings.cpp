@@ -161,6 +161,31 @@ void SettingsWidget::SetupUi() {
   grid_layout_->addWidget(gateway_label_, 3, 0, Qt::AlignLeft);
   grid_layout_->addLayout(gateway_layout, 3, 1);
 
+  enable_ad_block_label_ = new QLabel(QObject::tr("Block ads"), this);
+  enable_ad_block_checkbox_ = new QCheckBox(" ", this);
+  enable_ad_block_checkbox_->setChecked(settings_->EnableAdBlock());
+  connect(enable_ad_block_checkbox_, &QCheckBox::toggled, this,
+      [this](bool checked) { settings_->SetEnableAdBlock(checked); });
+  grid_layout_->addWidget(enable_ad_block_label_, 4, 0, Qt::AlignLeft);
+  grid_layout_->addWidget(enable_ad_block_checkbox_, 4, 1, Qt::AlignLeft);
+
+  reconnect_attempts_label_ = new QLabel(QObject::tr("Reconnect attempts:"), this);
+  reconnect_attempts_combo_ = new QComboBox(this);
+  reconnect_attempts_combo_->addItem("5", 5);
+  reconnect_attempts_combo_->addItem("10", 10);
+  reconnect_attempts_combo_->addItem("15", 15);
+  reconnect_attempts_combo_->addItem("35", 35);
+  reconnect_attempts_combo_->addItem(QString::fromUtf8("∞"), 0);
+
+  int idx = reconnect_attempts_combo_->findData(settings_->ReconnectAttempts());
+  if (idx != -1) reconnect_attempts_combo_->setCurrentIndex(idx);
+
+  connect(reconnect_attempts_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+      [this](int i) { settings_->SetReconnectAttempts(reconnect_attempts_combo_->itemData(i).toInt()); });
+
+  grid_layout_->addWidget(reconnect_attempts_label_, 5, 0, Qt::AlignLeft);
+  grid_layout_->addWidget(reconnect_attempts_combo_, 5, 1, Qt::AlignLeft);
+
   custom_dns_label_ = new QLabel(QObject::tr("Custom DNS"), this);
   custom_dns_auto_checkbox_ = new QCheckBox(QObject::tr("Auto"), this);
   custom_dns_line_edit_ = new QLineEdit(this);
@@ -186,8 +211,8 @@ void SettingsWidget::SetupUi() {
   custom_dns_layout->setStretch(0, 0);
   custom_dns_layout->setStretch(1, 1);
 
-  grid_layout_->addWidget(custom_dns_label_, 4, 0, Qt::AlignLeft);
-  grid_layout_->addLayout(custom_dns_layout, 4, 1);
+  grid_layout_->addWidget(custom_dns_label_, 6, 0, Qt::AlignLeft);
+  grid_layout_->addLayout(custom_dns_layout, 6, 1);
 
   connection_strategy_label_ =
       new QLabel(QObject::tr("Connection strategy"), this);
@@ -213,8 +238,8 @@ void SettingsWidget::SetupUi() {
             connection_strategy_combo_box_->currentData().toString());
       });
 
-  grid_layout_->addWidget(connection_strategy_label_, 5, 0, Qt::AlignLeft);
-  grid_layout_->addWidget(connection_strategy_combo_box_, 5, 1);
+  grid_layout_->addWidget(connection_strategy_label_, 7, 0, Qt::AlignLeft);
+  grid_layout_->addWidget(connection_strategy_combo_box_, 7, 1);
 
   bypass_method_label_ =
       new QLabel(QObject::tr("Bypass blocking method"), this);
@@ -321,8 +346,8 @@ void SettingsWidget::SetupUi() {
   connect(bypass_method_combo_box_, &QComboBox::currentTextChanged, this,
       &SettingsWidget::onBypassMethodChanged);
 
-  grid_layout_->addWidget(bypass_method_label_, 6, 0, Qt::AlignLeft);
-  grid_layout_->addWidget(bypass_method_combo_box_, 6, 1);
+  grid_layout_->addWidget(bypass_method_label_, 8, 0, Qt::AlignLeft);
+  grid_layout_->addWidget(bypass_method_combo_box_, 8, 1);
 
   sni_label_ = new QLabel(this);
   if (settings_->BypassMethod() == SettingsModel::kBypassMethodSniReality) {
@@ -350,8 +375,8 @@ void SettingsWidget::SetupUi() {
         settings_->SetSNI(normalized);
       });
 
-  grid_layout_->addWidget(sni_label_, 7, 0, Qt::AlignLeft | Qt::AlignVCenter);
-  grid_layout_->addWidget(sni_line_edit_, 7, 1);
+  grid_layout_->addWidget(sni_label_, 8, 0, Qt::AlignLeft | Qt::AlignVCenter);
+  grid_layout_->addWidget(sni_line_edit_, 8, 1);
 
   sni_files_list_widget_ = new QListWidget(this);
   sni_files_list_widget_->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
@@ -370,8 +395,8 @@ void SettingsWidget::SetupUi() {
   sni_autoscan_button_->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
   sni_import_button_->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
 
-  grid_layout_->addLayout(sni_buttons_layout_, 8, 0, 1, 2);
-  grid_layout_->addWidget(sni_files_list_widget_, 9, 0, 1, 2);
+  grid_layout_->addLayout(sni_buttons_layout_, 9, 0, 1, 2);
+  grid_layout_->addWidget(sni_files_list_widget_, 10, 0, 1, 2);
   connect(sni_autoscan_button_, &QPushButton::clicked, this,
       &SettingsWidget::onAutoscanClicked);
 
@@ -1558,10 +1583,10 @@ void SettingsWidget::onBypassMethodChanged(const QString& method) {
   sni_import_button_->setVisible(is_reality_mode);
 
   if (is_reality_mode) {
-    grid_layout_->addWidget(sni_label_, 7, 0, Qt::AlignLeft | Qt::AlignVCenter);
-    grid_layout_->addWidget(sni_line_edit_, 7, 1, 1, 2);
-    grid_layout_->addLayout(sni_buttons_layout_, 8, 0);
-    grid_layout_->addWidget(sni_files_list_widget_, 8, 1, 1, 2);
+    grid_layout_->addWidget(sni_label_, 8, 0, Qt::AlignLeft | Qt::AlignVCenter);
+    grid_layout_->addWidget(sni_line_edit_, 8, 1, 1, 2);
+    grid_layout_->addLayout(sni_buttons_layout_, 9, 0);
+    grid_layout_->addWidget(sni_files_list_widget_, 9, 1, 1, 2);
   } else {
     grid_layout_->removeWidget(sni_label_);
     grid_layout_->removeWidget(sni_line_edit_);

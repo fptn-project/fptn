@@ -63,7 +63,7 @@ bool VpnManager::IsReconnecting() const { return reconnecting_; }
 int VpnManager::ReconnectAttempt() const { return reconnect_attempt_; }
 
 // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
-int VpnManager::MaxReconnectAttempts() const { return kMaxFullRestarts_; }
+int VpnManager::MaxReconnectAttempts() const { return config_.max_reconnect_attempts; }
 
 bool VpnManager::Start() {
   if (running_) {
@@ -219,6 +219,15 @@ void VpnManager::HandleOnPacketsFromVirtualNetworkInterface(
 
   const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
+  if (running_ && config_.ad_blocker && packet && packet->IsDns()) {
+    if (auto response = config_.ad_blocker->ProcessOutgoingDns(*packet)) {
+      if (config_.virtual_net_interface) {
+        config_.virtual_net_interface->Send(std::move(response));
+      }
+      return;
+    }
+  }
+
   if (running_ && config_.http_client) {
     for (auto& packet : packets) {
       config_.http_client->Send(std::move(packet));
@@ -322,9 +331,8 @@ void VpnManager::Supervise() {
       continue;
     }
 
-    if (full_restart_count >= kMaxFullRestarts_) {
-      SPDLOG_ERROR("VPN reconnection failed after {} full restarts. Giving up.",
-          kMaxFullRestarts_);
+    if (config_.max_reconnect_attempts > 0 && full_restart_count >= config_.max_reconnect_attempts) {
+        SPDLOG_ERROR("VPN reconnection failed after {} full restarts. Giving up.", config_.max_reconnect_attempts);
       config_.route_manager->Clean();
       reconnecting_ = false;
       gave_up_ = true;
@@ -332,8 +340,11 @@ void VpnManager::Supervise() {
     }
     ++full_restart_count;
     reconnect_attempt_ = full_restart_count;
-    SPDLOG_WARN(
-        "Full VPN restart {}/{}", full_restart_count, kMaxFullRestarts_);
+    if (config_.max_reconnect_attempts > 0) {
+        SPDLOG_WARN("Full VPN restart {}/{}", full_restart_count, config_.max_reconnect_attempts);
+    } else {
+        SPDLOG_WARN("Full VPN restart {}/infinite", full_restart_count);
+    }
 
     config_.http_client->Stop();
     config_.route_manager->Clean();

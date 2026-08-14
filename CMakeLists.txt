@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.18)
 project(fptn VERSION "${FPTN_VERSION}" LANGUAGES CXX)
 
 # project settings
