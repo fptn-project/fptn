@@ -51,13 +51,14 @@ class Session : public std::enable_shared_from_this<Session> {
 
   void SendBatch(common::network::BatchIPPacketPtr pkts);
 
-  boost::asio::strand<boost::asio::any_io_executor> GetExecutor()
-      const noexcept;
+  boost::asio::any_io_executor GetExecutor() const noexcept;
 
   // async
   boost::asio::awaitable<void> Run();
 
  protected:
+  void DoClose();
+
   boost::asio::awaitable<void> RunReader();
   boost::asio::awaitable<void> RunSender();
   boost::asio::awaitable<void> WriteFrame(
@@ -117,8 +118,6 @@ class Session : public std::enable_shared_from_this<Session> {
           request);
 
  private:
-  mutable std::mutex mutex_;
-
   fptn::ClientID client_id_ = MAX_CLIENT_ID;
 
   const bool enable_detect_probing_;
@@ -136,7 +135,7 @@ class Session : public std::enable_shared_from_this<Session> {
 
   websocket_type ws_;
 
-  boost::asio::strand<boost::asio::any_io_executor> strand_;
+  boost::asio::any_io_executor strand_;
   boost::asio::experimental::concurrent_channel<void(
       boost::system::error_code, fptn::common::network::BatchIPPacketPtr)>
       write_channel_;

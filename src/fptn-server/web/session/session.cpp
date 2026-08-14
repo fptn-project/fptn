@@ -270,7 +270,7 @@ Session::Session(bool enable_detect_probing,
       server_external_ips_(std::move(server_external_ips)),
       ws_(ssl_stream_type(
           obfuscator_socket_type(tcp_stream_type(std::move(socket))), ctx)),
-      strand_(boost::asio::make_strand(ws_.get_executor())),
+      strand_(ws_.get_executor()),
       // Capacity is counted in batches, not packets.
       write_channel_(strand_, 32),
       api_handles_(api_handles),
@@ -321,10 +321,13 @@ Session::Session(bool enable_detect_probing,
   }
 }
 
-Session::~Session() { Close(); }
+Session::~Session() {
+  if (running_.exchange(false)) {
+    DoClose();
+  }
+}
 
-boost::asio::strand<boost::asio::any_io_executor> Session::GetExecutor()
-    const noexcept {
+boost::asio::any_io_executor Session::GetExecutor() const noexcept {
   return strand_;
 }
 
@@ -1282,18 +1285,15 @@ boost::asio::awaitable<bool> Session::HandleWebSocket2(
 }
 
 void Session::Close() {
-  if (!running_) {
+  if (!running_.exchange(false)) {
     return;
   }
 
-  const std::unique_lock<std::mutex> lock(mutex_);  // mutex
+  boost::asio::dispatch(
+      strand_, [self = shared_from_this()]() { self->DoClose(); });
+}
 
-  // cppcheck-suppress identicalConditionAfterEarlyExit
-  if (!running_) {  // Double-check after acquiring lock
-    return;
-  }
-
-  running_ = false;
+void Session::DoClose() {
   try {
     cancel_signal_.emit(boost::asio::cancellation_type::all);
     write_channel_.close();
@@ -1310,7 +1310,7 @@ void Session::Close() {
     auto& tcp_layer = boost::beast::get_lowest_layer(ws_);
     if (tcp_layer.socket().is_open()) {
       boost::system::error_code ec;
-      tcp_layer.expires_after(std::chrono::milliseconds(50));
+      tcp_layer.expires_never();
 
       tcp_layer.socket().shutdown(
           boost::asio::ip::tcp::socket::shutdown_both, ec);
@@ -1322,20 +1322,6 @@ void Session::Close() {
   } catch (...) {
     SPDLOG_WARN(
         "Session::Close TCP socket unknown error (client_id={})", client_id_);
-  }
-
-  // Close WebSocket
-  try {
-    if (ws_.is_open()) {
-      boost::system::error_code ec;
-      ws_.close(boost::beast::websocket::close_code::normal, ec);
-    }
-  } catch (const std::exception& err) {
-    SPDLOG_WARN("Session::Close WebSocket error (client_id={}): {}", client_id_,
-        err.what());
-  } catch (...) {
-    SPDLOG_WARN(
-        "Session::Close WebSocket unknown error (client_id={})", client_id_);
   }
 
   // Close SSL

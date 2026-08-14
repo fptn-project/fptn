@@ -82,7 +82,7 @@ boost::asio::awaitable<void> Listener::Run() {
   boost::system::error_code ec;
   while (running_) {
     try {
-      boost::asio::ip::tcp::socket socket(ioc_);
+      boost::asio::ip::tcp::socket socket(boost::asio::make_strand(ioc_));
       co_await acceptor_.async_accept(
           socket, boost::asio::redirect_error(boost::asio::use_awaitable, ec));
 
