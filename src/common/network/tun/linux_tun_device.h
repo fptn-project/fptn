@@ -7,9 +7,14 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #pragma once
 
+#include <linux/if_tun.h>  // NOLINT(build/include_order)
+#include <sys/ioctl.h>  // NOLINT(build/include_order)
+
 #include <atomic>
+
 #include <memory>
 #include <string>
+
 #include <tuntap++.hh>  // NOLINT(build/include_order)
 
 namespace fptn::common::network {
@@ -20,6 +25,7 @@ class LinuxTunDevice {
     tun_ = std::make_unique<tuntap::tun>();
     tun_->name(name);
     name_ = tun_->name();
+    DisableKernelMessages();
     return true;
   }
 
@@ -64,6 +70,14 @@ class LinuxTunDevice {
 
   // cppcheck-suppress functionStatic
   static void SetStopFlag(const std::atomic<bool>* /*running*/) {}
+
+ protected:
+  void DisableKernelMessages() const {
+    const int fd = tun_->native_handle();
+    if (fd >= 0) {
+      ::ioctl(fd, TUNSETDEBUG, 0);
+    }
+  }
 
  private:
   std::unique_ptr<tuntap::tun> tun_;
