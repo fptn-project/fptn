@@ -16,6 +16,8 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "common/logger/logger.h"
 #include "common/network/ip_address.h"
 
+#include "fptn-protocol-lib/time/time_provider.h"
+
 #include "config/server_config.h"
 #include "filter/filters/antiscan/antiscan.h"
 #include "filter/filters/bittorrent/bittorrent.h"
@@ -65,6 +67,8 @@ int main(int argc, char* argv[]) {
                 << std::endl;
       return EXIT_FAILURE;
     }
+
+    fptn::time::TimeProvider::Instance();
 
     /* Init route manager */
     auto route_manager = std::make_unique<fptn::routing::RouteManager>(

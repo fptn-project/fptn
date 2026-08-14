@@ -9,6 +9,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <string>
 #include <utility>
 
+#include <boost/asio/executor_work_guard.hpp>
 #include <spdlog/spdlog.h>  // NOLINT(build/include_order)
 
 namespace fptn::protocol::connection::strategies {
@@ -52,18 +53,29 @@ void BaseStrategyConnection::SetRunningStatus(const bool value) {
 
 void BaseStrategyConnection::RunEventLoop() {
   try {
-    constexpr std::chrono::milliseconds kTimeout(1);
+    // Without the guard run_one() would return before the first async
+    // operation is posted. The loop re-checks running_ after every handler, so
+    // a missed StopEventLoop() cannot park the thread forever while the
+    // connection is still producing events.
+    auto guard = boost::asio::make_work_guard(ioc_);
     while (running_) {
-      const std::size_t processed = ioc_.poll_one();
-      if (processed == 0) {
-        std::this_thread::sleep_for(kTimeout);
-      }
-    }
-    if (!ioc_.stopped()) {
-      ioc_.stop();
+      ioc_.run_one();
     }
   } catch (...) {
     SPDLOG_WARN("Exception while running");
+  }
+  StopEventLoop();
+}
+
+void BaseStrategyConnection::StopEventLoop() {
+  try {
+    if (!ioc_.stopped()) {
+      ioc_.stop();
+    }
+  } catch (const boost::system::system_error& err) {
+    SPDLOG_ERROR("Exception while stopping io_context: {}", err.what());
+  } catch (...) {
+    SPDLOG_ERROR("Unknown exception while stopping io_context");
   }
 }
 

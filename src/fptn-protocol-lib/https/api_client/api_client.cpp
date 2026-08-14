@@ -382,16 +382,25 @@ boost::asio::awaitable<Response> ApiClient::AsyncPost(const std::string& handle,
       std::chrono::seconds(timeout));
 
   try {
-    boost::asio::ip::tcp::resolver resolver(executor);
     const std::string port_str = std::to_string(port_);
     boost::system::error_code ec;
 
-    auto results = co_await resolver.async_resolve(host_, port_str,
-        boost::asio::redirect_error(boost::asio::use_awaitable, ec));
-    if (ec) {
-      SPDLOG_ERROR("AsyncPost [{}] - DNS failed for {}:{}: {}", handle, host_,
-          port_, ec.message());
-      co_return Response{"", 603, ec.message()};
+    boost::asio::ip::tcp::resolver::results_type results;
+    if (const auto addr = boost::asio::ip::make_address(host_, ec); !ec) {
+      results = boost::asio::ip::tcp::resolver::results_type::create(
+          boost::asio::ip::tcp::endpoint(
+              addr, static_cast<boost::asio::ip::port_type>(port_)),
+          host_, port_str);
+    } else {
+      ec.clear();
+      boost::asio::ip::tcp::resolver resolver(executor);
+      results = co_await resolver.async_resolve(host_, port_str,
+          boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+      if (ec) {
+        SPDLOG_ERROR("AsyncPost [{}] - DNS failed for {}:{}: {}", handle, host_,
+            port_, ec.message());
+        co_return Response{"", 603, ec.message()};
+      }
     }
 
     co_await boost::beast::get_lowest_layer(stream).async_connect(
@@ -515,7 +524,7 @@ bool ApiClient::PerformFakeHandshake2(
 
     /* Wait for server answer. */
     const auto server_hello = common::network::WaitForServerTlsHello(
-        socket, std::chrono::seconds(3));
+        socket, std::chrono::seconds(5));
     if (!server_hello.has_value()) {
       SPDLOG_ERROR("Failed to receive ServerHello from {}", sni_);
       return false;

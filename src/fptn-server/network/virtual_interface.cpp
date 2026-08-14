@@ -22,8 +22,8 @@ VirtualInterface::VirtualInterface(const std::string& name,
       route_manager_(std::move(route_manager)),
       config_(std::move(config)),
       from_network_("packets_from_network_interface") {
-  const auto callback = [this](auto&& pkt) {
-    VirtualInterface::IPPacketFromNetwork(std::forward<decltype(pkt)>(pkt));
+  const auto callback = [this](fptn::common::network::BatchIPPacketPtr pkts) {
+    VirtualInterface::IPPacketsFromNetwork(std::move(pkts));
   };
   virtual_network_interface_ = std::make_unique<TunInterface>(
       fptn::common::network::TunInterface::Config{.name = name,
@@ -34,7 +34,7 @@ VirtualInterface::VirtualInterface(const std::string& name,
           .ipv6_addr = config_.ipv6_addr,
           .ipv6_netmask = config_.ipv6_netmask});
 
-  virtual_network_interface_->SetRecvIPPacketCallback(callback);
+  virtual_network_interface_->SetRecvBatchIPPacketCallback(callback);
 }
 
 VirtualInterface::~VirtualInterface() { Stop(); }
@@ -76,7 +76,7 @@ fptn::common::network::IPPacketPtr VirtualInterface::WaitForPacket(
   return from_network_.WaitForPacket(duration);
 }
 
-void VirtualInterface::IPPacketFromNetwork(
-    fptn::common::network::IPPacketPtr packet) noexcept {
-  from_network_.Push(std::move(packet));
+void VirtualInterface::IPPacketsFromNetwork(
+    fptn::common::network::BatchIPPacketPtr packets) noexcept {
+  from_network_.PushBatch(std::move(packets));
 }

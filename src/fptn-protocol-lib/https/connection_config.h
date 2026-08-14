@@ -23,6 +23,9 @@ using IPv6Address = fptn::common::network::IPv6Address;
 using OnIPRecvPacketCallback = std::function<void(
   fptn::common::network::IPPacketPtr packet)>;
 
+using OnIPRecvBatchPacketCallback = std::function<void(
+  fptn::common::network::BatchIPPacketPtr packets)>;
+
 using OnConnectedCallback = std::function<void()>;
 
 using OnSocketOpenedCallback = std::function<void(int socket_fd)>;
@@ -56,6 +59,7 @@ struct ConnectionConfig {
 
     OnConnectedCallback on_connected_callback = nullptr;
     OnIPRecvPacketCallback recv_ip_packet_callback = nullptr;
+    OnIPRecvBatchPacketCallback recv_ip_packet_batch_callback = nullptr;
     OnSocketOpenedCallback on_socket_opened_callback = nullptr;
   } common;
 
@@ -64,7 +68,7 @@ struct ConnectionConfig {
   } pool;
 
   bool Validate() const {
-    if (common.server_ip.ToString().empty() || pool.size == 0) {
+    if (common.server_ip.IsEmpty() || pool.size == 0) {
       return false;
     }
     return true;

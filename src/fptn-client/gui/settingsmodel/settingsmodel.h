@@ -151,8 +151,6 @@ class SettingsModel : public QObject {
   static constexpr const char* kBypassMethodSniRealitySafari26_4 =
       "SNI-REALITY-SAFARI-26-4";
 
-  static constexpr const char* kConnectionStrategyPersistent =
-      "persistent-tunnel";
   static constexpr const char* kConnectionStrategyRolling = "rolling-tunnel";
   static constexpr const char* kConnectionStrategyDual =
       "dual-rolling-tunnel";

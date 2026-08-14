@@ -81,14 +81,14 @@ bool VpnManager::Start() {
   running_ = true;
 
   // NOLINTNEXTLINE(modernize-avoid-bind)
-  config_.http_client->SetRecvIPPacketCallback(std::bind(
-      &VpnManager::HandleOnPacketFromWebSocket, this, std::placeholders::_1));
+  config_.http_client->SetRecvBatchIPPacketCallback(std::bind(
+      &VpnManager::HandleOnPacketsFromWebSocket, this, std::placeholders::_1));
 
   bool tun_opened = false;
   if (config_.virtual_net_interface) {
-    config_.virtual_net_interface->SetRecvIPPacketCallback(
+    config_.virtual_net_interface->SetRecvBatchIPPacketCallback(
         // NOLINTNEXTLINE(modernize-avoid-bind)
-        std::bind(&VpnManager::HandleOnPacketFromVirtualNetworkInterface, this,
+        std::bind(&VpnManager::HandleOnPacketsFromVirtualNetworkInterface, this,
             std::placeholders::_1));
     constexpr int kMaxTunOpenAttempts = 5;
     constexpr auto kTunOpenRetryDelay = std::chrono::milliseconds(100);
@@ -211,8 +211,8 @@ std::string VpnManager::GetInterfaceName() const {
   return {};
 }
 
-void VpnManager::HandleOnPacketFromVirtualNetworkInterface(
-    fptn::common::network::IPPacketPtr packet) {
+void VpnManager::HandleOnPacketsFromVirtualNetworkInterface(
+    fptn::common::network::BatchIPPacketPtr packets) {
   if (!running_) {
     return;
   }
@@ -220,13 +220,15 @@ void VpnManager::HandleOnPacketFromVirtualNetworkInterface(
   const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
   if (running_ && config_.http_client) {
-    config_.http_client->Send(std::move(packet));
+    for (auto& packet : packets) {
+      config_.http_client->Send(std::move(packet));
+    }
   }
 }
 
-void VpnManager::HandleOnPacketFromWebSocket(
-    fptn::common::network::IPPacketPtr packet) {
-  if (!running_ || !packet) {
+void VpnManager::HandleOnPacketsFromWebSocket(
+    fptn::common::network::BatchIPPacketPtr packets) {
+  if (!running_ || packets.empty()) {
     return;
   }
 
@@ -235,11 +237,15 @@ void VpnManager::HandleOnPacketFromWebSocket(
   std::unique_lock<std::mutex> lock(queue_mutex_);
 
   if (ws_packet_queue_.size() >= kMaxQueueSize) {
-    SPDLOG_WARN("WebSocket packet queue is full, dropping packet");
+    SPDLOG_WARN("WebSocket packet queue is full, dropping packets");
     return;
   }
 
-  ws_packet_queue_.push(std::move(packet));
+  for (auto& packet : packets) {
+    if (packet) {
+      ws_packet_queue_.push(std::move(packet));
+    }
+  }
   lock.unlock();
   ws_queue_cv_.notify_one();
 }

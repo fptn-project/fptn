@@ -14,7 +14,7 @@ start_unbound() {
     echo "  IPv6: $DO_IP6"
 
     if [ "${DNS_IPV6_ENABLE:-false}" = "true" ]; then
-        cat > "$CONFIG_FILE" << 'EOF'
+        cat > "$CONFIG_FILE" << EOF
 server:
     interface: 0.0.0.0
     interface: ::0
@@ -34,9 +34,19 @@ server:
 
     hide-identity: yes
     hide-version: yes
+
+forward-zone:
+    name: "."
+    forward-addr: ${DNS_IPV4_PRIMARY:-8.8.8.8}
+    forward-addr: ${DNS_IPV4_SECONDARY:-8.8.4.4}
+    forward-addr: 1.1.1.1
+    forward-addr: 1.0.0.1
+    forward-addr: 9.9.9.9
+    forward-addr: ${DNS_IPV6_PRIMARY:-2001:4860:4860::8888}
+    forward-addr: ${DNS_IPV6_SECONDARY:-2001:4860:4860::8844}
 EOF
     else
-        cat > "$CONFIG_FILE" << 'EOF'
+        cat > "$CONFIG_FILE" << EOF
 server:
     interface: 0.0.0.0
     port: 53
@@ -60,6 +70,14 @@ server:
     private-address: ::/0
     do-not-query-localhost: no
     unwanted-reply-threshold: 0
+
+forward-zone:
+    name: "."
+    forward-addr: ${DNS_IPV4_PRIMARY:-8.8.8.8}
+    forward-addr: ${DNS_IPV4_SECONDARY:-8.8.4.4}
+    forward-addr: 1.1.1.1
+    forward-addr: 1.0.0.1
+    forward-addr: 9.9.9.9
 EOF
     fi
 

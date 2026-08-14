@@ -24,52 +24,35 @@ namespace fptn::common::data {
 
 class Channel {
  public:
-  explicit Channel(std::string name, std::size_t max_capacity = 1024 * 8)
+  explicit Channel(std::string name, std::size_t max_capacity = 1024 * 4)
       : name_(std::move(name)), max_capacity_(max_capacity) {}
 
   bool Push(network::IPPacketPtr pkt) noexcept {
     {
       const std::lock_guard<std::mutex> lock(mutex_);  // mutex
 
-      if (queue_.size() <= max_capacity_) {
-        if (is_full_) {
-          is_full_ = false;
-          SPDLOG_WARN("Channel '{}' is no longer full, dropped {} packets",
-              name_, dropped_);
-          dropped_ = 0;
-        }
-        queue_.push(std::move(pkt));
-      } else {
+      if (queue_.size() >= max_capacity_) {
         ++dropped_;
-        if (!is_full_) {
-          is_full_ = true;
-          SPDLOG_WARN("Channel '{}' is full, dropping packets", name_);
-        }
+        SetFull(true);
         return false;
       }
+      SetFull(false);
+      queue_.push(std::move(pkt));
     }
     cv_.notify_one();
     return true;
   }
 
-  bool PushBatch(network::BatchIPPacketPtr packets) {
+  bool PushBatch(network::BatchIPPacketPtr packets) noexcept {
     {
       const std::lock_guard<std::mutex> lock(mutex_);  // mutex
 
       if (queue_.size() >= max_capacity_) {
         dropped_ += packets.size();
-        if (!is_full_) {
-          is_full_ = true;
-          SPDLOG_WARN("Channel '{}' is full, dropping packets", name_);
-        }
+        SetFull(true);
         return false;
       }
-      if (is_full_) {
-        is_full_ = false;
-        SPDLOG_WARN("Channel '{}' is no longer full, dropped {} packets", name_,
-            dropped_);
-        dropped_ = 0;
-      }
+      SetFull(false);
       for (auto& packet : packets) {
         queue_.push(std::move(packet));
       }
@@ -117,6 +100,20 @@ class Channel {
   }
 
  private:
+  void SetFull(const bool full) noexcept {
+    if (full == is_full_) {
+      return;
+    }
+    is_full_ = full;
+    if (full) {
+      SPDLOG_WARN("Channel '{}' is full, dropping packets", name_);
+    } else {
+      SPDLOG_WARN("Channel '{}' is no longer full, dropped {} packets", name_,
+          dropped_);
+      dropped_ = 0;
+    }
+  }
+
   const std::string name_;
   const std::size_t max_capacity_;
 

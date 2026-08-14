@@ -263,8 +263,7 @@ void SettingsModel::Load(bool dont_load_server) {
   if (service_obj.contains("connection_strategy")) {
     connection_strategy_ = service_obj["connection_strategy"].toString();
   }
-  if (connection_strategy_ != kConnectionStrategyPersistent &&
-      connection_strategy_ != kConnectionStrategyRolling &&
+  if (connection_strategy_ != kConnectionStrategyRolling &&
       connection_strategy_ != kConnectionStrategyDual &&
       connection_strategy_ != kConnectionStrategyTriple) {
     connection_strategy_ = kConnectionStrategyDual;

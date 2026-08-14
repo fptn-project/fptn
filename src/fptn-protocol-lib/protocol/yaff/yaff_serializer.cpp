@@ -237,6 +237,13 @@ ProtoPayloadOpt SerializeBatchIPPacket(
     return std::nullopt;
   }
 
+#ifdef FPTN_ENABLE_PACKET_PADDING
+  // A multi-packet frame exposes only the sum of its packets, so padding
+  // inside it hides nothing.
+  constexpr std::size_t kMaxPaddedBatchSize = 2;
+  const bool with_padding = packets.size() <= kMaxPaddedBatchSize;
+#endif
+
   fptn::protocol::Message message;
   message.set_protocol_version(FPTN_PROTOBUF_PROTOCOL_VERSION);
   message.set_msg_type(fptn::protocol::MSG_BATCH_IP_PACKET);
@@ -258,7 +265,7 @@ ProtoPayloadOpt SerializeBatchIPPacket(
     ip_packet->set_payload(data.data(), static_cast<int>(data.size()));
 
 #ifdef FPTN_ENABLE_PACKET_PADDING
-    if (data.size() < FPTN_IP_PACKET_MAX_SIZE) {
+    if (with_padding && data.size() < FPTN_IP_PACKET_MAX_SIZE) {
       // Random-length padding to obscure packet size (TLS-inside-TLS).
       constexpr std::size_t kMinPaddingBytes = 64;
       constexpr std::size_t kMaxPaddingBytes = 128;

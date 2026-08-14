@@ -115,7 +115,8 @@ boost::asio::awaitable<HandshakeResponse> HandshakeCacheManager::GetHandshake(
     const std::string& sni,
     const std::uint8_t* buffer_ptr,
     std::size_t size,
-    const std::chrono::seconds& timeout) {
+    const std::chrono::seconds& target_timeout,
+    const std::chrono::seconds& fallback_timeout) {
   std::vector<std::uint8_t> client_handshake_data(
       buffer_ptr, buffer_ptr + size);
 
@@ -137,7 +138,7 @@ boost::asio::awaitable<HandshakeResponse> HandshakeCacheManager::GetHandshake(
   }
 
   HandshakeResponse response =
-      co_await FetchRealHandshake(sni, client_handshake_data, timeout);
+      co_await FetchRealHandshake(sni, client_handshake_data, target_timeout);
   if (!response) {
     SPDLOG_WARN(
         "Failed to fetch handshake from original SNI: {}, trying default "
@@ -159,8 +160,8 @@ boost::asio::awaitable<HandshakeResponse> HandshakeCacheManager::GetHandshake(
     const auto fallback_hello =
         fptn::protocol::https::utils::GenerateDecoyTlsHandshake(
             default_domain_);
-    response =
-        co_await FetchRealHandshake(default_domain_, fallback_hello, timeout);
+    response = co_await FetchRealHandshake(
+        default_domain_, fallback_hello, fallback_timeout);
     if (response && !response->empty()) {
       const std::unique_lock<std::mutex> lock(mutex_);  // mutex
       cache_[default_domain_] = CacheEntry{

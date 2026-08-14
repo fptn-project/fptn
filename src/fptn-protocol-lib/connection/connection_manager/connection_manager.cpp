@@ -18,8 +18,6 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <spdlog/spdlog.h>  // NOLINT(build/include_order)
 
 #include "fptn-protocol-lib/connection/strategies/browser_mimicry/browser_mimicry.h"
-#include "fptn-protocol-lib/connection/strategies/parallel_tunnels/parallel_tunnels.h"
-#include "fptn-protocol-lib/connection/strategies/persistent_tunnel/persistent_tunnel.h"
 #include "fptn-protocol-lib/connection/strategies/rolling_tunnel/rolling_tunnel.h"
 #include "fptn-protocol-lib/https/api_client/api_client.h"
 #include "fptn-protocol-lib/https/connection_config.h"
@@ -48,6 +46,11 @@ ConnectionManager::~ConnectionManager() {
 void ConnectionManager::SetRecvIPPacketCallback(
     const fptn::protocol::https::OnIPRecvPacketCallback& callback) {
   config_.common.recv_ip_packet_callback = callback;
+}
+
+void ConnectionManager::SetRecvBatchIPPacketCallback(
+    const fptn::protocol::https::OnIPRecvBatchPacketCallback& callback) {
+  config_.common.recv_ip_packet_batch_callback = callback;
 }
 
 void ConnectionManager::SetAccessToken(const std::string& token) {
@@ -245,29 +248,24 @@ void ConnectionManager::Run() {
       // cppcheck-suppress identicalInnerCondition
       if (running_ &&
           connection_strategy_type_ ==
-              strategies::ConnectionStrategy::kPersistentTunnel) {
-        strategy_connection_ = strategies::PersistentTunnel::Create(
-            jwt_access_token_, config_);
+              strategies::ConnectionStrategy::kSingleRollingTunnel) {
+        strategy_connection_ =
+            strategies::SingleRollingTunnel::Create(jwt_access_token_, config_);
       } else if (running_ &&
                  connection_strategy_type_ ==
                      strategies::ConnectionStrategy::kBrowserMimicry) {
         strategy_connection_ =
             strategies::BrowserMimicry::Create(jwt_access_token_, config_);
-      } else if (running_ && connection_strategy_type_ ==
-                                 strategies::ConnectionStrategy::
-                                     kDualTunnel) {
-        strategy_connection_ =
-            strategies::DualTunnel::Create(jwt_access_token_, config_);
-      } else if (running_ && connection_strategy_type_ ==
-                                 strategies::ConnectionStrategy::
-                                     kTripleTunnel) {
-        strategy_connection_ =
-            strategies::TripleTunnel::Create(jwt_access_token_, config_);
       } else if (running_ &&
                  connection_strategy_type_ ==
-                     strategies::ConnectionStrategy::kRollingTunnel) {
-        strategy_connection_ = strategies::RollingTunnel::Create(
-            jwt_access_token_, config_);
+                     strategies::ConnectionStrategy::kDualRollingTunnel) {
+        strategy_connection_ =
+            strategies::DualRollingTunnel::Create(jwt_access_token_, config_);
+      } else if (running_ &&
+                 connection_strategy_type_ ==
+                     strategies::ConnectionStrategy::kTripleRollingTunnel) {
+        strategy_connection_ =
+            strategies::TripleRollingTunnel::Create(jwt_access_token_, config_);
       }
     }
 

@@ -283,14 +283,17 @@ TEST_F(GenericTunInterfaceTest, ReceiveIPv4Packet) {
   std::mutex callback_mutex;
   std::vector<fptn::common::network::IPPacketData> received;
 
-  iface.SetRecvIPPacketCallback([&](fptn::common::network::IPPacketPtr packet) {
-    if (packet) {
-      std::scoped_lock lock(callback_mutex);
+  iface.SetRecvBatchIPPacketCallback(
+      [&](const fptn::common::network::BatchIPPacketPtr& packets) {
+        const std::scoped_lock lock(callback_mutex);
 
-      const auto& data = packet->Data();
-      received.emplace_back(data.data(), data.data() + data.size());
-    }
-  });
+        for (const auto& packet : packets) {
+          if (packet) {
+            const auto& data = packet->Data();
+            received.emplace_back(data.data(), data.data() + data.size());
+          }
+        }
+      });
 
   ASSERT_TRUE(iface.Start());
 
@@ -319,14 +322,17 @@ TEST_F(GenericTunInterfaceTest, ReceiveIPv6Packet) {
   std::mutex callback_mutex;
   std::vector<fptn::common::network::IPPacketData> received;
 
-  iface.SetRecvIPPacketCallback([&](fptn::common::network::IPPacketPtr packet) {
-    if (packet) {
-      std::scoped_lock lock(callback_mutex);
+  iface.SetRecvBatchIPPacketCallback(
+      [&](const fptn::common::network::BatchIPPacketPtr& packets) {
+        const std::scoped_lock lock(callback_mutex);
 
-      const auto& data = packet->Data();
-      received.emplace_back(data.data(), data.data() + data.size());
-    }
-  });
+        for (const auto& packet : packets) {
+          if (packet) {
+            const auto& data = packet->Data();
+            received.emplace_back(data.data(), data.data() + data.size());
+          }
+        }
+      });
 
   ASSERT_TRUE(iface.Start());
 

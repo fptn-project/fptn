@@ -6,9 +6,11 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include "web/session/session.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cctype>
 #include <chrono>
+#include <iterator>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -83,8 +85,8 @@ std::string ApplyAllowedSniList(std::string sni,
     return sni;
   }
 
-  const bool sni_allowed = std::ranges::any_of(
-      allowed_sni_list, [&sni](const std::string& entry) {
+  const bool sni_allowed =
+      std::ranges::any_of(allowed_sni_list, [&sni](const std::string& entry) {
         const std::string allowed_sni = NormalizeSni(entry);
         if (sni == allowed_sni) {
           return true;
@@ -249,6 +251,8 @@ boost::asio::awaitable<std::size_t> PeekClientHelloWithTimeout(
 
 namespace fptn::web {
 
+using BatchIPPacketPtr = common::network::BatchIPPacketPtr;
+
 Session::Session(bool enable_detect_probing,
     std::string default_proxy_domain,
     std::vector<std::string> allowed_sni_list,
@@ -266,8 +270,9 @@ Session::Session(bool enable_detect_probing,
       server_external_ips_(std::move(server_external_ips)),
       ws_(ssl_stream_type(
           obfuscator_socket_type(tcp_stream_type(std::move(socket))), ctx)),
-      strand_(boost::asio::make_strand(ws_.get_executor())),
-      write_channel_(strand_, 1024),
+      strand_(ws_.get_executor()),
+      // Capacity is counted in batches, not packets.
+      write_channel_(strand_, 32),
       api_handles_(api_handles),
       handshake_cache_manager_(std::move(handshake_cache_manager)),
       ws_open_callback_(std::move(ws_open_callback)),
@@ -316,10 +321,13 @@ Session::Session(bool enable_detect_probing,
   }
 }
 
-Session::~Session() { Close(); }
+Session::~Session() {
+  if (running_.exchange(false)) {
+    DoClose();
+  }
+}
 
-boost::asio::strand<boost::asio::any_io_executor> Session::GetExecutor()
-    const noexcept {
+boost::asio::any_io_executor Session::GetExecutor() const noexcept {
   return strand_;
 }
 
@@ -403,8 +411,8 @@ boost::asio::awaitable<void> Session::Run() {
 
   // Check for Reality Mode handshake (only when no obfuscator is detected)
   if (obfuscator_opt.value() == nullptr) {
-    const auto result = IsRealityHandshake(
-        client_hello.data(), client_hello_size, client_sni);
+    const auto result =
+        IsRealityHandshake(client_hello.data(), client_hello_size, client_sni);
     if (result.should_close) {
       SPDLOG_WARN(
           "Reality Mode handshake check failed. Redirecting to proxy "
@@ -485,10 +493,6 @@ boost::asio::awaitable<void> Session::Run() {
   const bool status = co_await ProcessRequest();
   if (status && tcp_socket.is_open()) {
     tcp_socket.set_option(boost::asio::ip::tcp::no_delay(true), ec);
-    tcp_socket.set_option(
-        boost::asio::socket_base::send_buffer_size(1024 * 1024), ec);
-    tcp_socket.set_option(
-        boost::asio::socket_base::receive_buffer_size(1024 * 1024), ec);
     tcp_socket.set_option(boost::asio::socket_base::keep_alive(true), ec);
 
     auto self = shared_from_this();
@@ -666,8 +670,7 @@ Session::RealityResult Session::IsRealityHandshake(
             .sni = std::move(sni),
             .should_close = false};
       }
-      SPDLOG_WARN(
-          "Session ID does not match FPTN client format (client_id={})",
+      SPDLOG_WARN("Session ID does not match FPTN client format (client_id={})",
           client_id_);
     }
   } catch (const std::exception& e) {
@@ -696,8 +699,8 @@ boost::asio::awaitable<bool> Session::PerformFakeHandshake(
     buffer.resize(bytes_read);
 
     const auto handshake_answer =
-        co_await handshake_cache_manager_->GetHandshake(
-            sni, buffer.data(), bytes_read, std::chrono::seconds(3));
+        co_await handshake_cache_manager_->GetHandshake(sni, buffer.data(),
+            bytes_read, std::chrono::seconds(2), std::chrono::seconds(3));
 
     if (!handshake_answer) {
       co_return false;
@@ -739,7 +742,7 @@ boost::asio::awaitable<bool> Session::PerformFakeHandshake2(
     const auto handshake_answer =
         co_await handshake_cache_manager_->GetHandshake(sni,
             client_hello.value().data(), client_hello_size,
-            std::chrono::seconds(5));
+            std::chrono::seconds(2), std::chrono::seconds(5));
     if (!handshake_answer) {
       co_return false;
     }
@@ -935,58 +938,68 @@ boost::asio::awaitable<void> Session::RunReader() {
   co_return;
 }
 
+boost::asio::awaitable<void> Session::WriteFrame(BatchIPPacketPtr frame) {
+  if (!support_batch_sending_) {
+    // DEPRECATED
+    // The old protocol carries one packet per message.
+    for (auto& packet : frame) {
+      auto msg = fptn::protocol::protobuf::SerializeIPPacket(std::move(packet));
+      if (msg.has_value()) {
+        co_await ws_.async_write(
+            boost::asio::buffer(msg.value()), boost::asio::use_awaitable);
+      }
+    }
+    co_return;
+  }
+
+  auto data =
+      use_yaff_serializer_
+          ? fptn::protocol::yaff::SerializeBatchIPPacket(std::move(frame))
+          : fptn::protocol::protobuf::SerializeBatchIPPacket(std::move(frame));
+  if (data.has_value()) {
+    co_await ws_.async_write(
+        boost::asio::buffer(data.value()), boost::asio::use_awaitable);
+  }
+}
+
 boost::asio::awaitable<void> Session::RunSender() {
-  constexpr std::size_t kMaxBatchSize = 64;
+  constexpr std::size_t kMaxBatchSize = 128;
   auto token = boost::asio::bind_cancellation_slot(
       cancel_signal_.slot(), boost::asio::as_tuple(boost::asio::use_awaitable));
   try {
+    BatchIPPacketPtr pending;
     while (running_) {
-      common::network::BatchIPPacketPtr packets;
+      BatchIPPacketPtr packets = std::move(pending);
+      pending.clear();
 
-      if (support_batch_sending_) {
-        // BATCH MODE
-        auto [ec, packet] = co_await write_channel_.async_receive(token);
-        if (!ec && packet) {
-          packets.push_back(std::move(packet));
-          while (packets.size() < kMaxBatchSize) {
-            const bool has_packet = write_channel_.try_receive(
-                [&packets](const boost::system::error_code& ec2,
-                    fptn::common::network::IPPacketPtr p) {
-                  if (!ec2 && p) {
-                    packets.push_back(std::move(p));
-                  }
-                });
-            if (!has_packet) {
-              break;
-            }
-          }
+      if (packets.empty()) {
+        auto [ec, batch] = co_await write_channel_.async_receive(token);
+        if (ec) {
+          break;
         }
-        if (!packets.empty()) {
-          auto batch_data =
-              use_yaff_serializer_
-                  ? fptn::protocol::yaff::SerializeBatchIPPacket(
-                        std::move(packets))
-                  : fptn::protocol::protobuf::SerializeBatchIPPacket(
-                        std::move(packets));
-          if (batch_data.has_value()) {
-            co_await ws_.async_write(boost::asio::buffer(batch_data.value()),
-                boost::asio::use_awaitable);
-          }
-        } else {
-          co_await boost::asio::post(boost::asio::use_awaitable);
+        packets = std::move(batch);
+      }
+
+      const auto merge = [&packets](auto ec2, auto more) {
+        if (!ec2) {
+          packets.insert(packets.end(), std::make_move_iterator(more.begin()),
+              std::make_move_iterator(more.end()));
         }
-      } else {
-        // DEPRECATED
-        // SINGLE PACKET MODE
-        auto [ec, packet] = co_await write_channel_.async_receive(token);
-        if (!ec && packet) {
-          auto msg =
-              fptn::protocol::protobuf::SerializeIPPacket(std::move(packet));
-          if (msg.has_value()) {
-            co_await ws_.async_write(
-                boost::asio::buffer(msg.value()), boost::asio::use_awaitable);
-          }
-        }
+      };
+      while (
+          packets.size() < kMaxBatchSize && write_channel_.try_receive(merge)) {
+      }
+
+      if (packets.size() > kMaxBatchSize) {
+        const auto tail =
+            packets.begin() + static_cast<std::ptrdiff_t>(kMaxBatchSize);
+        pending.assign(std::make_move_iterator(tail),
+            std::make_move_iterator(packets.end()));
+        packets.erase(tail, packets.end());
+      }
+
+      if (!packets.empty()) {
+        co_await WriteFrame(std::move(packets));
       }
     }
   } catch (const boost::system::system_error& err) {
@@ -1272,18 +1285,15 @@ boost::asio::awaitable<bool> Session::HandleWebSocket2(
 }
 
 void Session::Close() {
-  if (!running_) {
+  if (!running_.exchange(false)) {
     return;
   }
 
-  const std::unique_lock<std::mutex> lock(mutex_);  // mutex
+  boost::asio::dispatch(
+      strand_, [self = shared_from_this()]() { self->DoClose(); });
+}
 
-  // cppcheck-suppress identicalConditionAfterEarlyExit
-  if (!running_) {  // Double-check after acquiring lock
-    return;
-  }
-
-  running_ = false;
+void Session::DoClose() {
   try {
     cancel_signal_.emit(boost::asio::cancellation_type::all);
     write_channel_.close();
@@ -1300,7 +1310,7 @@ void Session::Close() {
     auto& tcp_layer = boost::beast::get_lowest_layer(ws_);
     if (tcp_layer.socket().is_open()) {
       boost::system::error_code ec;
-      tcp_layer.expires_after(std::chrono::milliseconds(50));
+      tcp_layer.expires_never();
 
       tcp_layer.socket().shutdown(
           boost::asio::ip::tcp::socket::shutdown_both, ec);
@@ -1312,20 +1322,6 @@ void Session::Close() {
   } catch (...) {
     SPDLOG_WARN(
         "Session::Close TCP socket unknown error (client_id={})", client_id_);
-  }
-
-  // Close WebSocket
-  try {
-    if (ws_.is_open()) {
-      boost::system::error_code ec;
-      ws_.close(boost::beast::websocket::close_code::normal, ec);
-    }
-  } catch (const std::exception& err) {
-    SPDLOG_WARN("Session::Close WebSocket error (client_id={}): {}", client_id_,
-        err.what());
-  } catch (...) {
-    SPDLOG_WARN(
-        "Session::Close WebSocket unknown error (client_id={})", client_id_);
   }
 
   // Close SSL
@@ -1356,32 +1352,16 @@ void Session::Close() {
   }
 }
 
-void Session::Send(common::network::IPPacketPtr pkt) {
-  if (!running_.load(std::memory_order_acquire) && pkt != nullptr) {
+void Session::SendBatch(common::network::BatchIPPacketPtr pkts) {
+  if (!running_.load(std::memory_order_acquire) || pkts.empty()) {
     return;
   }
 
   boost::system::error_code ec;
-  const bool status = write_channel_.try_send(ec, std::move(pkt));
+  const bool status = write_channel_.try_send(ec, std::move(pkts));
   if (!status && !full_queue_) {
     full_queue_ = true;
     SPDLOG_WARN("Session::send queue is full (client_id={})", client_id_);
-  }
-}
-
-void Session::SendBatch(common::network::BatchIPPacketPtr pkts) {
-  if (!running_.load(std::memory_order_acquire)) {
-    return;
-  }
-
-  boost::system::error_code ec;
-  for (auto& pkt : pkts) {
-    if (!pkt) continue;
-    const bool status = write_channel_.try_send(ec, std::move(pkt));
-    if (!status && !full_queue_) {
-      full_queue_ = true;
-      SPDLOG_WARN("Session::send queue is full (client_id={})", client_id_);
-    }
   }
 }
 

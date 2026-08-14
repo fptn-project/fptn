@@ -17,11 +17,10 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 namespace fptn::protocol::connection::strategies {
 
 enum class ConnectionStrategy : int {
-  kPersistentTunnel = 0,
+  kSingleRollingTunnel = 0,
   kBrowserMimicry = 1,
-  kDualTunnel = 2,
-  kTripleTunnel = 3,
-  kRollingTunnel = 4
+  kDualRollingTunnel = 2,
+  kTripleRollingTunnel = 3
 };
 
 using IPv4Address = fptn::common::network::IPv4Address;
@@ -54,6 +53,8 @@ class BaseStrategyConnection {
 
   boost::asio::io_context& GetIOContext();
   void RunEventLoop();
+  // Wakes RunEventLoop(), which otherwise stays parked in the reactor.
+  void StopEventLoop();
 
  private:
   boost::asio::io_context ioc_;

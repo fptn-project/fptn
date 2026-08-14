@@ -216,42 +216,34 @@ class IPPacket {
     if (!IsIPv4() || data_.size() < detail::kMinIPv4) {
       return {};
     }
-    char buf[INET_ADDRSTRLEN] = {};
-    const std::uint32_t net = Ipv4GetSrc(data_.data());
-    ::inet_ntop(AF_INET, &net, buf, sizeof(buf));
-    return IPv4Address(buf);
+    const std::uint32_t addr = ntohl(Ipv4GetSrc(data_.data()));
+    return IPv4Address(addr);
   }
 
   IPv4Address GetDstIPv4Address() const noexcept {
     if (!IsIPv4() || data_.size() < detail::kMinIPv4) {
       return {};
     }
-    char buf[INET_ADDRSTRLEN] = {};
-    const std::uint32_t net = Ipv4GetDst(data_.data());
-    ::inet_ntop(AF_INET, &net, buf, sizeof(buf));
-    return IPv4Address(buf);
+    const std::uint32_t addr = ntohl(Ipv4GetDst(data_.data()));
+    return IPv4Address(addr);
   }
 
   IPv6Address GetSrcIPv6Address() const noexcept {
     if (!IsIPv6() || data_.size() < detail::kMinIPv6) {
       return {};
     }
-    char buf[INET6_ADDRSTRLEN] = {};
-    std::uint8_t addr[16] = {};
-    Ipv6GetSrc(data_.data(), addr);
-    ::inet_ntop(AF_INET6, addr, buf, sizeof(buf));
-    return IPv6Address(buf);
+    IPv6Address::Bytes addr{};
+    Ipv6GetSrc(data_.data(), addr.data());
+    return IPv6Address(addr);
   }
 
   IPv6Address GetDstIPv6Address() const noexcept {
     if (!IsIPv6() || data_.size() < detail::kMinIPv6) {
       return {};
     }
-    char buf[INET6_ADDRSTRLEN] = {};
-    std::uint8_t addr[16] = {};
-    Ipv6GetDst(data_.data(), addr);
-    ::inet_ntop(AF_INET6, addr, buf, sizeof(buf));
-    return IPv6Address(buf);
+    IPv6Address::Bytes addr{};
+    Ipv6GetDst(data_.data(), addr.data());
+    return IPv6Address(addr);
   }
 
   void SetDstIPv4Address(const IPv4Address& dst) noexcept {
@@ -286,12 +278,11 @@ class IPPacket {
     if (!IsIPv6() || data_.size() < detail::kMinIPv6) {
       return;
     }
-    std::uint8_t addr[16] = {};
-    if (::inet_pton(AF_INET6, dst.ToString().c_str(), addr) != 1) {
-      SPDLOG_WARN("IPPacket::SetDstIPv6Address – invalid '{}'", dst.ToString());
+    if (!dst.IsValid()) {
       return;
     }
-    Ipv6SetDst(data_.data(), addr);
+    const IPv6Address::Bytes addr = dst.ToBytes();
+    Ipv6SetDst(data_.data(), addr.data());
     RecalculateChecksums(data_.data(), data_.size());
   }
 
@@ -299,12 +290,11 @@ class IPPacket {
     if (!IsIPv6() || data_.size() < detail::kMinIPv6) {
       return;
     }
-    std::uint8_t addr[16] = {};
-    if (::inet_pton(AF_INET6, src.ToString().c_str(), addr) != 1) {
-      SPDLOG_WARN("IPPacket::SetSrcIPv6Address – invalid '{}'", src.ToString());
+    if (!src.IsValid()) {
       return;
     }
-    Ipv6SetSrc(data_.data(), addr);
+    const IPv6Address::Bytes addr = src.ToBytes();
+    Ipv6SetSrc(data_.data(), addr.data());
     RecalculateChecksums(data_.data(), data_.size());
   }
 

@@ -28,8 +28,8 @@ using IPv6Address = fptn::common::network::IPv6Address;
 // (and its logging) to the unified ConnectionManager.
 class Client final {
  public:
-  using NewIPPacketCallback =
-      std::function<void(fptn::common::network::IPPacketPtr packet)>;
+  using NewBatchIPPacketCallback =
+      std::function<void(fptn::common::network::BatchIPPacketPtr packets)>;
   using OnIPAssignedCallback =
       std::function<void(const IPv4Address& ip_v4, const IPv6Address& ip_v6)>;
 
@@ -37,7 +37,7 @@ class Client final {
   explicit Client(fptn::protocol::https::ConnectionConfig config,
       fptn::protocol::connection::strategies::ConnectionStrategy strategy =
           fptn::protocol::connection::strategies::ConnectionStrategy::
-              kPersistentTunnel);
+              kSingleRollingTunnel);
   ~Client();
   void SetAccessToken(const std::string& token);
   bool Login(const std::string& username,
@@ -47,7 +47,8 @@ class Client final {
   bool Start();
   bool Stop();
   bool Send(fptn::common::network::IPPacketPtr packet) const;
-  void SetRecvIPPacketCallback(const NewIPPacketCallback& callback) noexcept;
+  void SetRecvBatchIPPacketCallback(
+      const NewBatchIPPacketCallback& callback) noexcept;
   bool IsStarted() const;
   bool IsConnected() const;
 

@@ -70,6 +70,7 @@ void BrowserMimicry::Stop() {
 
   all_connections_.clear();
   sending_data_connections_.clear();
+  StopEventLoop();
   getting_data_connections_.clear();
 }
 
@@ -126,6 +127,7 @@ boost::asio::awaitable<void> BrowserMimicry::ManagePoolCoroutine() {
       if (IsPoolEmpty()) {
         SPDLOG_ERROR("All connections are lost. Reconnecting");
         SetRunningStatus(false);
+        StopEventLoop();
         break;
       }
 

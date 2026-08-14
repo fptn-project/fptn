@@ -24,7 +24,8 @@ using protocol::ProtoPayloadOpt;
 // DEPRECATED
 ProtoPayloadOpt DeserializeIPPacket(const boost::beast::flat_buffer& buffer);
 // DEPRECATED
-ProtoPayloadOpt SerializeIPPacket(fptn::common::network::IPPacketPtr packet);
+ProtoPayloadOpt SerializeIPPacket(
+    fptn::common::network::IPPacketPtr packet, bool with_padding = true);
 
 BatchProtoPayload DeserializeBatchIPPacket(
     const boost::beast::flat_buffer& buffer);

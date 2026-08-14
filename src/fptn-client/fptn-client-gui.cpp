@@ -16,6 +16,8 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include "common/logger/logger.h"
 
+#include "fptn-protocol-lib/time/time_provider.h"
+
 #include "gui/tray/tray.h"
 #include "routing/route_manager.h"
 
@@ -61,6 +63,8 @@ int main(int argc, char* argv[]) {
                 << std::endl;
       return EXIT_FAILURE;
     }
+
+    fptn::time::TimeProvider::Instance();
 
 #ifdef __linux__
     fptn::routing::HealStaleResolvConf();

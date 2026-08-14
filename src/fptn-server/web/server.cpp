@@ -50,7 +50,7 @@ Server::Server(std::uint16_t port,
       server_external_ips_(std::move(server_external_ips)),
       thread_number_(std::max<std::size_t>(1, thread_number)),
       ioc_(thread_number),
-      from_client_("packets_from_websockets", 1024 * 16) {
+      from_client_("packets_from_websockets", 1024 * 2) {
   using std::placeholders::_1;
   using std::placeholders::_2;
 
@@ -123,14 +123,15 @@ bool Server::Stop() {
 
     listener_->Stop();
 
-    const std::unique_lock<std::shared_mutex> lock(mutex_);  // mutex
+    {
+      const std::unique_lock<std::shared_mutex> lock(mutex_);  // mutex
 
-    for (auto& session : sessions_) {
-      if (session.second) {
-        session.second->Close();
+      for (auto& session : sessions_) {
+        if (session.second) {
+          session.second->Close();
+        }
       }
     }
-    sessions_.clear();
     if (!ioc_.stopped()) {
       ioc_.stop();
     }
@@ -139,6 +140,10 @@ bool Server::Stop() {
         th.join();
       }
     }
+
+    const std::unique_lock<std::shared_mutex> lock(mutex_);  // mutex
+
+    sessions_.clear();
     return true;
   }
   return false;

@@ -33,6 +33,7 @@ constexpr int kSessionLen = 32;
 constexpr std::size_t kFptnKeyLength = 4;
 constexpr int kDecoyHandshakeSessionIDShift = 10;
 constexpr int kDecoyHandshakeSessionIDShift2 = 14;
+constexpr std::uint32_t kTimeShiftSeconds = 240;
 
 std::string GetSHA1Hash(std::uint32_t number) {
   EVP_MD_CTX* mdctx = EVP_MD_CTX_new();
@@ -103,8 +104,6 @@ bool IsDecoyHandshakeSessionID(
   const auto now_timestamp =
       fptn::time::TimeProvider::Instance()->NowTimestamp();
 
-  constexpr std::uint32_t kTimeShiftSeconds = 10;  // ten seconds
-
   const std::uint32_t timestamp = now_timestamp + (kTimeShiftSeconds / 2);
 
   for (std::uint32_t shift = 0; shift <= kTimeShiftSeconds; shift++) {
@@ -125,8 +124,6 @@ bool IsDecoyHandshakeSessionID2(
 
   const auto now_timestamp =
       fptn::time::TimeProvider::Instance()->NowTimestamp();
-
-  constexpr std::uint32_t kTimeShiftSeconds = 10;  // ten seconds
 
   const std::uint32_t timestamp = now_timestamp + (kTimeShiftSeconds / 2);
 
@@ -163,8 +160,6 @@ bool IsFptnClientSessionID(
 
   const auto now_timestamp =
       fptn::time::TimeProvider::Instance()->NowTimestamp();
-
-  constexpr std::uint32_t kTimeShiftSeconds = 10;  // ten seconds
 
   const std::uint32_t timestamp = now_timestamp + (kTimeShiftSeconds / 2);
 

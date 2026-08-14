@@ -25,7 +25,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 namespace fptn::common::network {
 
-using NewIPPacketCallback = std::function<void(IPPacketPtr packet)>;
+using NewBatchIPPacketCallback = std::function<void(BatchIPPacketPtr packets)>;
 
 /**
  * @brief Base network interface class using CRTP (Curiously Recurring Template
@@ -82,9 +82,7 @@ class BaseNetInterface {
 
  private:
   explicit BaseNetInterface(Config config)
-      : config_(std::move(config)),
-        name_(config_.name),
-        recv_ip_packet_callback_(nullptr) {}
+      : config_(std::move(config)), name_(config_.name) {}
 
   Implementation* impl() { return static_cast<Implementation*>(this); }
 
@@ -113,18 +111,19 @@ class BaseNetInterface {
 
   int IPv6Netmask() const noexcept { return config_.ipv6_netmask; }
 
-  void SetRecvIPPacketCallback(const NewIPPacketCallback& callback) noexcept {
-    recv_ip_packet_callback_ = callback;
+  void SetRecvBatchIPPacketCallback(
+      const NewBatchIPPacketCallback& callback) noexcept {
+    recv_batch_ip_packet_callback_ = callback;
   }
 
-  [[nodiscard]] NewIPPacketCallback GetRecvIPPacketCallback() const {
-    return recv_ip_packet_callback_;
+  [[nodiscard]] NewBatchIPPacketCallback GetRecvBatchIPPacketCallback() const {
+    return recv_batch_ip_packet_callback_;
   }
 
  private:
   const Config config_;
   std::string name_;
-  NewIPPacketCallback recv_ip_packet_callback_;
+  NewBatchIPPacketCallback recv_batch_ip_packet_callback_;
 };
 
 /**
@@ -251,27 +250,47 @@ class GenericTunInterface final
   }
 
   void RunReader() {
+    constexpr std::size_t kMaxReadBatch = 64;
+
     const int mtu_size = this->MtuSize();
-    const auto callback = this->GetRecvIPPacketCallback();
+    const auto callback = this->GetRecvBatchIPPacketCallback();
     const bool rate_calc = this->UsingRateCalculator();
 
     IPPacketData buffer(mtu_size);
+    BatchIPPacketPtr batch;
+    batch.reserve(kMaxReadBatch);
+
+    const auto flush = [&]() {
+      if (batch.empty() || !callback) {
+        batch.clear();
+        return;
+      }
+      callback(std::move(batch));
+      batch.clear();
+      batch.reserve(kMaxReadBatch);
+    };
+
     while (running_) {
       const int size = device_.Read(buffer.data(), mtu_size);
       if (size > 0) {
         auto packet = IPPacket::Parse(buffer.data(), size);
         if (packet != nullptr && running_) {
-          if (callback) {
-            callback(std::move(packet));
-          }
+          batch.push_back(std::move(packet));
           if (rate_calc) {
             receive_rate_calculator_.Update(size);  // calculate rate
           }
         }
-      } else {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (batch.size() < kMaxReadBatch) {
+          continue;
+        }
       }
+      if (!batch.empty()) {
+        flush();
+        continue;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
+    flush();
   }
 
   void RunSender() {

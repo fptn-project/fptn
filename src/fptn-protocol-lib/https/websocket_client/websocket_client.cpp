@@ -270,16 +270,6 @@ boost::asio::awaitable<bool> WebsocketClient::RunInternal() {
       co_return false;
     }
 
-    // Optimize socket buffer sizes
-    try {
-      boost::beast::get_lowest_layer(ws_).socket().set_option(
-          boost::asio::socket_base::receive_buffer_size(1 * 1024 * 1024));
-      boost::beast::get_lowest_layer(ws_).socket().set_option(
-          boost::asio::socket_base::send_buffer_size(1 * 1024 * 1024));
-    } catch (const boost::system::system_error& e) {
-      SPDLOG_WARN("Failed to set socket options: {}", e.what());
-    }
-
     boost::beast::get_lowest_layer(ws_).expires_after(std::chrono::hours(3));
 
     // Start timer
@@ -398,17 +388,6 @@ boost::asio::awaitable<bool> WebsocketClient::Connect() {
           reinterpret_cast<const char*>(&maxrt), sizeof(maxrt));
     }
 #endif
-
-    // Optimize socket buffers
-    try {
-      constexpr int kBufferSize = 4 * 1024 * 1024;
-      socket.set_option(
-          boost::asio::socket_base::receive_buffer_size(kBufferSize));
-      socket.set_option(
-          boost::asio::socket_base::send_buffer_size(kBufferSize));
-    } catch (...) {
-      SPDLOG_WARN("Failed to set socket buffer sizes in Connect()");
-    }
 
     // Reality Mode: Enhanced stealth connection protocol
     // First, establishes a genuine TLS handshake as a decoy to bypass deep
@@ -607,22 +586,28 @@ boost::asio::awaitable<void> WebsocketClient::RunReader() {
       auto batch_packets =
           fptn::protocol::yaff::DeserializeBatchIPPacket(buffer);
       if (!batch_packets.empty()) {
+        fptn::common::network::BatchIPPacketPtr packets;
+        packets.reserve(batch_packets.size());
         for (auto& raw_ip_opt : batch_packets) {
           auto packet =
               fptn::common::network::IPPacket::Parse(std::move(raw_ip_opt));
-          if (running_ && packet && config_.common.recv_ip_packet_callback) {
-            // change IP addresses
-            if (packet->IsIPv4()) {
-              packet->SetDstIPv4Address(
-                  config_.common.tun_interface_address_ipv4);
-            } else if (packet->IsIPv6()) {
-              packet->SetDstIPv6Address(
-                  config_.common.tun_interface_address_ipv6);
-            } else {
-              continue;
-            }
-            config_.common.recv_ip_packet_callback(std::move(packet));
+          if (!running_ || !packet) {
+            continue;
           }
+          // change IP addresses
+          if (packet->IsIPv4()) {
+            packet->SetDstIPv4Address(
+                config_.common.tun_interface_address_ipv4);
+          } else if (packet->IsIPv6()) {
+            packet->SetDstIPv6Address(
+                config_.common.tun_interface_address_ipv6);
+          } else {
+            continue;
+          }
+          packets.push_back(std::move(packet));
+        }
+        if (!packets.empty() && config_.common.recv_ip_packet_batch_callback) {
+          config_.common.recv_ip_packet_batch_callback(std::move(packets));
         }
       }
       buffer.consume(buffer.size());
@@ -734,12 +719,10 @@ boost::asio::awaitable<bool> WebsocketClient::PerformFakeHandshake2() {
 
     /* Wait for server answer. On a handshake-cache miss the server fetches the
      * real ServerHello from the decoy domain (up to 5s) and falls back to the
-     * default domain (5s more), so the client must outwait that worst case —
-     * with 1.5s here every cold-cache connection died before the server could
-     * possibly answer. */
+     * default domain (5s more), so a cold cache can still outlast this wait. */
     const auto server_hello =
         co_await common::network::WaitForServerTlsHelloAsync(
-            tcp_socket, std::chrono::seconds(2));
+            tcp_socket, std::chrono::seconds(4));
     if (!server_hello.has_value()) {
       SPDLOG_ERROR("Failed to receive ServerHello from {}", config_.common.sni);
       co_return false;
