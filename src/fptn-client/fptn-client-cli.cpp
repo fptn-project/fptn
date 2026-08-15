@@ -30,6 +30,8 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "adblock/adblock.h"
 #include "plugins/blacklist/domain_blacklist.h"
 #include "routing/route_manager.h"
+// cppcheck-suppress missingInclude
+#include "split_tunnel_domains.generated.h"  // NOLINT
 #include "utils/signal/main_loop.h"
 #include "vpn/vpn_manager.h"
 
@@ -231,14 +233,15 @@ int main(int argc, char* argv[]) {
           return v;
         });
     args.add_argument("--split-tunnel-domains")
-        .default_value(FPTN_CLIENT_DEFAULT_SPLIT_TUNNEL_DOMAINS)
+        .default_value(std::string(""))
         .help(
             "List websites that should either use or bypass VPN\n"
             "\n"
             "How it works:\n"
             "  If --tunnel-mode=exclude: VPN skips these sites\n"
             "  If --tunnel-mode=include: VPN only for these sites\n"
-            "Format: domain:com,domain:another.com,domain:sub.domainname.com");
+            "Format: com,another.com,sub.domainname.com\n"
+            "Empty (default) uses the built-in list");
     // parse cmd arguments
     try {
       args.parse_args(argc, argv);
@@ -387,8 +390,12 @@ int main(int argc, char* argv[]) {
     const auto blacklist_domains_str =
         args.get<std::string>("--blacklist-domains");
 
-    const std::vector<std::string> split_domains =
+    std::vector<std::string> split_domains =
         fptn::common::utils::SplitCommaSeparated(split_domains_str);
+    if (split_domains.empty()) {
+      split_domains.assign(std::begin(fptn::defaults::kSplitTunnelDomains),
+          std::end(fptn::defaults::kSplitTunnelDomains));
+    }
     const std::vector<std::string> blacklist_domains =
         fptn::common::utils::SplitCommaSeparated(blacklist_domains_str);
 

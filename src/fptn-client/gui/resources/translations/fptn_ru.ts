@@ -487,8 +487,8 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>Введите корректный IPv4-адрес DNS или включите «Авто».</translation>
         </message>
         <message>
-            <source>Completely block access to the main domain AND all its subdomains. Format: domain:example.com (one per line)</source>
-            <translation>Полностью блокировать доступ к основному домену и всем его поддоменам. Формат: domain:example.com (по одному в строке)</translation>
+            <source>Completely block access to the main domain AND all its subdomains. Format: example.com (one per line)</source>
+            <translation>Полностью блокировать доступ к основному домену и всем его поддоменам. Формат: example.com (по одному в строке)</translation>
         </message>
         <message>
             <source>Exclude tunnel networks</source>

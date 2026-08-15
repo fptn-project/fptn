@@ -41,6 +41,18 @@ add_custom_command(
 set_source_files_properties(
   "${ADBLOCK_GENERATED}" PROPERTIES GENERATED TRUE SKIP_CLANG_TIDY ON)
 
+set(SPLIT_TUNNEL_DOMAINS_LIST "${CMAKE_SOURCE_DIR}/deploy/domain_blacklist/russia.txt")
+set(SPLIT_TUNNEL_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/split_tunnel_domains.generated.h")
+add_custom_command(
+  OUTPUT "${SPLIT_TUNNEL_GENERATED}"
+  COMMAND ${CMAKE_COMMAND} -DINPUT=${SPLIT_TUNNEL_DOMAINS_LIST} -DOUTPUT=${SPLIT_TUNNEL_GENERATED}
+          -DBASE=${FPTN_CLIENT_DEFAULT_SPLIT_TUNNEL_DOMAINS} -P
+          "${CMAKE_SOURCE_DIR}/depends/cmake/GenerateSplitTunnelDomains.cmake"
+  DEPENDS "${SPLIT_TUNNEL_DOMAINS_LIST}" "${CMAKE_SOURCE_DIR}/depends/cmake/GenerateSplitTunnelDomains.cmake"
+  COMMENT "Embedding default split-tunnel domain list"
+  VERBATIM)
+set_source_files_properties("${SPLIT_TUNNEL_GENERATED}" PROPERTIES GENERATED TRUE SKIP_CLANG_TIDY ON)
+
 # fptn-client-cli
 add_executable(
   "${PROJECT_NAME}-cli"
@@ -60,6 +72,7 @@ add_executable(
   adblock/adblock.h
   adblock/adblock.cpp
   "${ADBLOCK_GENERATED}"
+  "${SPLIT_TUNNEL_GENERATED}"
   utils/speed_estimator/speed_estimator.cpp
   utils/speed_estimator/speed_estimator.h
   utils/speed_estimator/server_info.h)
@@ -173,6 +186,7 @@ WarningsAsErrors: ''
     adblock/adblock.h
     adblock/adblock.cpp
     "${ADBLOCK_GENERATED}"
+    "${SPLIT_TUNNEL_GENERATED}"
     utils/windows/vpn_conflict.h
     utils/macos/admin.h
     utils/speed_estimator/speed_estimator.cpp

@@ -487,8 +487,8 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>یک نشانی IPv4 معتبر برای DNS وارد کنید یا «خودکار» را فعال کنید.</translation>
         </message>
         <message>
-            <source>Completely block access to the main domain AND all its subdomains. Format: domain:example.com (one per line)</source>
-            <translation>مسدودیت کامل دسترسی به دامنه اصلی و همه زیردامنه‌های آن. قالب: domain:example.com (هر خط یک مورد)</translation>
+            <source>Completely block access to the main domain AND all its subdomains. Format: example.com (one per line)</source>
+            <translation>مسدودیت کامل دسترسی به دامنه اصلی و همه زیردامنه‌های آن. قالب: example.com (هر خط یک مورد)</translation>
         </message>
         <message>
             <source>Exclude tunnel networks</source>

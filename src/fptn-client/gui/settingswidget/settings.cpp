@@ -490,7 +490,7 @@ void SettingsWidget::SetupUi() {
   blacklist_domains_label_ = new QLabel(QObject::tr("Blacklist domains"), this);
   blacklist_domains_info_label_ = new QLabel(
       QObject::tr("Completely block access to the main domain AND all its "
-                  "subdomains. Format: domain:example.com (one per line)"),
+                  "subdomains. Format: example.com (one per line)"),
       this);
   blacklist_domains_info_label_->setWordWrap(true);
   blacklist_domains_info_label_->setMinimumHeight(60);
@@ -733,7 +733,7 @@ void SettingsWidget::SetupUi() {
       QSizePolicy::Expanding, QSizePolicy::Expanding);
   split_tunnel_domains_text_edit_->setMinimumHeight(80);
   split_tunnel_domains_text_edit_->setPlaceholderText(
-      QObject::tr("domain:com\ndomain:another.com\ndomain:sub.domainname.com"));
+      QObject::tr("com\nanother.com\nsub.domainname.com"));
   connect(
       split_tunnel_domains_text_edit_, &QTextEdit::textChanged, this, [this]() {
         settings_->SetSplitTunnelDomains(
@@ -1371,11 +1371,11 @@ void SettingsWidget::onLanguageChanged(const QString&) {
   if (blacklist_domains_info_label_) {
     blacklist_domains_info_label_->setText(
         QObject::tr("Completely block access to the main domain AND all its "
-                    "subdomains. Format: domain:example.com (one per line)"));
+                    "subdomains. Format: example.com (one per line)"));
   }
   if (blacklist_domains_text_edit_) {
     blacklist_domains_text_edit_->setPlaceholderText(
-        QObject::tr("domain:example.com\ndomain:another.com"));
+        QObject::tr("example.com\nanother.com"));
   }
 
   if (exclude_tunnel_networks_label_) {
@@ -1447,8 +1447,8 @@ void SettingsWidget::onLanguageChanged(const QString&) {
     }
   }
   if (split_tunnel_domains_text_edit_) {
-    split_tunnel_domains_text_edit_->setPlaceholderText(QObject::tr(
-        "domain:com\ndomain:another.com\ndomain:sub.domainname.com"));
+    split_tunnel_domains_text_edit_->setPlaceholderText(
+        QObject::tr("com\nanother.com\nsub.domainname.com"));
   }
 
   if (custom_dns_label_) {

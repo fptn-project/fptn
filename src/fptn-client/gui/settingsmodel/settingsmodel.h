@@ -107,6 +107,8 @@ class SettingsModel : public QObject {
   Q_OBJECT
 
  public:
+  static constexpr int kSettingsVersion = 2;
+
   static constexpr const char* kSplitTunnelModeExclude = "exclude";
   static constexpr const char* kSplitTunnelModeInclude = "include";
 

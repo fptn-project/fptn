@@ -11,9 +11,13 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <shared_mutex>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace fptn::filter {
+
+using fptn::common::network::IPv4Address;
+using fptn::common::network::IPv6Address;
 
 namespace {
 // Strips inline comments and whitespace, lowercases and drops a trailing dot.
@@ -60,9 +64,8 @@ bool DomainBlacklist::IsBlacklisted(const std::string& domain) const {
 }
 
 void DomainBlacklist::RememberAddresses(
-    const std::vector<fptn::common::network::IPv4Address>& ipv4_addresses,
-    const std::vector<fptn::common::network::IPv6Address>& ipv6_addresses)
-    const {
+    const std::vector<IPv4Address>& ipv4_addresses,
+    const std::vector<IPv6Address>& ipv6_addresses) const {
   {
     const std::shared_lock<std::shared_mutex> lock(mutex_);  // mutex
 

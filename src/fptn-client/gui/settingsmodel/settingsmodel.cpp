@@ -33,6 +33,8 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <QTcpSocket>         // NOLINT(build/include_order)
 
 #include "routing//route_manager.h"
+// cppcheck-suppress missingInclude
+#include "split_tunnel_domains.generated.h"  // NOLINT
 #include "utils/brotli/brotli.h"
 
 using fptn::gui::ServerConfig;
@@ -56,6 +58,19 @@ QVector<ServerConfig> ParseServers(const QJsonArray& servers_array) {
     }
   }
   return servers;
+}
+
+QString DefaultSplitTunnelDomains() {
+  static const QString kDomains = []() {
+    QStringList list;
+    list.reserve(std::size(fptn::defaults::kSplitTunnelDomains));
+    for (const auto domain : fptn::defaults::kSplitTunnelDomains) {
+      list.append(QString::fromUtf8(
+          domain.data(), static_cast<qsizetype>(domain.size())));
+    }
+    return list.join(',');
+  }();
+  return kDomains;
 }
 
 QVector<QString> SplitStringToVector(const QString& str) {
@@ -91,7 +106,9 @@ SettingsModel::SettingsModel(const QMap<QString, QString>& languages,
 #endif
       client_autostart_(false),
       enable_ad_block_(true),
-      enable_split_tunnel_(false) {
+      blacklist_domains_(FPTN_CLIENT_DEFAULT_BLACKLIST_DOMAINS),
+      enable_split_tunnel_(true),
+      split_tunnel_domains_(DefaultSplitTunnelDomains()) {
 #if _WIN32
   wchar_t exe_path[MAX_PATH] = {};
   if (GetModuleFileNameW(nullptr, exe_path, MAX_PATH) != 0) {
@@ -277,11 +294,6 @@ void SettingsModel::Load(bool dont_load_server) {
   if (service_obj.contains("blacklist_domains")) {
     blacklist_domains_ = service_obj["blacklist_domains"].toString();
   }
-  if (blacklist_domains_.isEmpty()) {
-    blacklist_domains_ =
-        "domain:solovev-live.ru,domain:ria.ru,domain:tass.ru,domain:1tv.ru,"
-        "domain:ntv.ru,domain:rt.com";
-  }
 
   if (service_obj.contains("exclude_tunnel_networks")) {
     exclude_tunnel_networks_ =
@@ -296,7 +308,10 @@ void SettingsModel::Load(bool dont_load_server) {
         service_obj["include_tunnel_networks"].toString();
   }
 
-  if (service_obj.contains("enable_split_tunnel")) {
+  const bool outdated_settings =
+      service_obj["version"].toInt() < kSettingsVersion;
+
+  if (service_obj.contains("enable_split_tunnel") && !outdated_settings) {
     enable_split_tunnel_ = service_obj["enable_split_tunnel"].toBool();
   }
 
@@ -309,13 +324,8 @@ void SettingsModel::Load(bool dont_load_server) {
     split_tunnel_mode_ = kSplitTunnelModeExclude;
   }
 
-  if (service_obj.contains("split_tunnel_domains")) {
+  if (service_obj.contains("split_tunnel_domains") && !outdated_settings) {
     split_tunnel_domains_ = service_obj["split_tunnel_domains"].toString();
-  }
-  if (split_tunnel_domains_.isEmpty()) {
-    split_tunnel_domains_ =
-        "domain:ru,domain:su,domain:рф,domain:vk.com,domain:yandex.com,"
-        "domain:userapi.com,domain:yandex.net,domain:clstorage.net";
   }
 
   if (service_obj.contains("custom_dns")) {
@@ -420,6 +430,7 @@ bool SettingsModel::Save() {
     services_array.append(service_obj);
   }
 
+  json_object["version"] = kSettingsVersion;
   json_object["language"] = selected_language_;
   json_object["services"] = services_array;
   json_object["network_interface"] = network_interface_;
@@ -595,9 +606,6 @@ void SettingsModel::SetEnableAdBlock(bool enable) {
 }
 
 QVector<QString> SettingsModel::BlacklistDomains() const {
-  if (blacklist_domains_.isEmpty()) {
-    return SplitStringToVector(FPTN_CLIENT_DEFAULT_BLACKLIST_DOMAINS);
-  }
   return SplitStringToVector(blacklist_domains_);
 }
 
@@ -647,9 +655,6 @@ void SettingsModel::SetSplitTunnelMode(const QString& mode) {
 QVector<QString> SettingsModel::SplitTunnelDomains() {
   const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
-  if (split_tunnel_domains_.isEmpty()) {
-    return SplitStringToVector(FPTN_CLIENT_DEFAULT_SPLIT_TUNNEL_DOMAINS);
-  }
   return SplitStringToVector(split_tunnel_domains_);
 }
 

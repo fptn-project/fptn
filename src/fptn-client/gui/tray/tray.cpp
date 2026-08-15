@@ -397,6 +397,7 @@ void TrayApp::UpdateTrayMenu() {
                     cfg_server.password = service.password.toStdString();
                     cfg_server.md5_fingerprint =
                         server.md5_fingerprint.toStdString();
+                    cfg_server.censored_zone = true;
                   }
                   selected_server_ = cfg_server;
                   onConnectToServer();
@@ -1017,28 +1018,32 @@ bool TrayApp::startVpn(QString& err_msg) {
 
   /* plugins */
   std::vector<fptn::plugin::BasePluginPtr> client_plugins;
-  if (!blacklist_domains.empty()) {
-    std::vector<std::string> blacklist_domains_std;
-    for (const auto& domain : blacklist_domains) {
-      blacklist_domains_std.push_back(domain.toStdString());
+  if (selected_server_.censored_zone) {
+    SPDLOG_INFO("Limited access server: domain rules are not applied");
+  } else {
+    if (!blacklist_domains.empty()) {
+      std::vector<std::string> blacklist_domains_std;
+      for (const auto& domain : blacklist_domains) {
+        blacklist_domains_std.push_back(domain.toStdString());
+      }
+      auto blacklist_plugin = std::make_unique<fptn::plugin::DomainBlacklist>(
+          blacklist_domains_std, route_manager);
+      client_plugins.push_back(std::move(blacklist_plugin));
     }
-    auto blacklist_plugin = std::make_unique<fptn::plugin::DomainBlacklist>(
-        blacklist_domains_std, route_manager);
-    client_plugins.push_back(std::move(blacklist_plugin));
-  }
-  if (enable_split_tunnel) {
-    std::vector<std::string> split_domains_std;
-    for (const auto& domain : split_tunnel_domains) {
-      split_domains_std.push_back(domain.toStdString());
+    if (enable_split_tunnel) {
+      std::vector<std::string> split_domains_std;
+      for (const auto& domain : split_tunnel_domains) {
+        split_domains_std.push_back(domain.toStdString());
+      }
+
+      const auto policy = (split_tunnel_mode == "exclude")
+                              ? fptn::routing::RoutingPolicy::kExcludeFromVpn
+                              : fptn::routing::RoutingPolicy::kIncludeInVpn;
+
+      auto split_tunnel_plugin = std::make_unique<fptn::plugin::Tunneling>(
+          split_domains_std, route_manager, policy);
+      client_plugins.push_back(std::move(split_tunnel_plugin));
     }
-
-    const auto policy = (split_tunnel_mode == "exclude")
-                            ? fptn::routing::RoutingPolicy::kExcludeFromVpn
-                            : fptn::routing::RoutingPolicy::kIncludeInVpn;
-
-    auto split_tunnel_plugin = std::make_unique<fptn::plugin::Tunneling>(
-        split_domains_std, route_manager, policy);
-    client_plugins.push_back(std::move(split_tunnel_plugin));
   }
 
   fptn::adblock::AdBlockerPtr ad_blocker;
