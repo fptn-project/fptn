@@ -45,6 +45,6 @@ file(WRITE "${OUTPUT}"
 extern const unsigned char ${SYMBOL}[] = {
 ${bytes}
 };
-extern const unsigned int ${SYMBOL}Len = ${num_bytes}u;
+extern const unsigned int ${SYMBOL}Len = ${num_bytes};
 }  // namespace fptn::adblock
 ")

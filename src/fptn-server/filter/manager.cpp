@@ -22,9 +22,10 @@ void Manager::Add(BaseFilterSPtr filter) noexcept {
   }
 }
 
-IPPacketPtr Manager::Apply(IPPacketPtr packet) const noexcept {
+IPPacketPtr Manager::Apply(
+    IPPacketPtr packet, Direction direction) const noexcept {
   for (const auto& filter : filters_) {
-    packet = filter->apply(std::move(packet));
+    packet = filter->Apply(std::move(packet), direction);
     if (!packet) {
       return nullptr;  // packet was filtered
     }

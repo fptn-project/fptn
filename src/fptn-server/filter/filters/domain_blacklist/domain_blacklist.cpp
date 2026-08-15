@@ -8,6 +8,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include <algorithm>
 #include <cctype>
+#include <shared_mutex>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -58,27 +59,52 @@ bool DomainBlacklist::IsBlacklisted(const std::string& domain) const {
   return false;
 }
 
-IPPacketPtr DomainBlacklist::apply(IPPacketPtr packet) const {
-  if (packet->IsDns()) {
-    const auto domain_opt = packet->GetDnsDomain();
+void DomainBlacklist::RememberAddresses(
+    const std::vector<fptn::common::network::IPv4Address>& ipv4_addresses,
+    const std::vector<fptn::common::network::IPv6Address>& ipv6_addresses)
+    const {
+  {
+    const std::shared_lock<std::shared_mutex> lock(mutex_);  // mutex
+
+    const bool known =
+        std::ranges::all_of(ipv4_addresses,
+            [this](const auto& address) {
+              return ipv4_addresses_.contains(address.ToInt());
+            }) &&
+        std::ranges::all_of(ipv6_addresses, [this](const auto& address) {
+          return ipv6_addresses_.contains(address.ToBytes());
+        });
+    if (known) {
+      return;
+    }
+  }
+
+  const std::unique_lock<std::shared_mutex> lock(mutex_);  // mutex
+
+  for (const auto& address : ipv4_addresses) {
+    ipv4_addresses_.insert(address.ToInt());
+  }
+  for (const auto& address : ipv6_addresses) {
+    ipv6_addresses_.insert(address.ToBytes());
+  }
+}
+
+IPPacketPtr DomainBlacklist::Apply(
+    IPPacketPtr packet, Direction direction) const {
+  if (direction == Direction::kToClient) {
+    if (!packet->IsDns()) {
+      return packet;
+    }
+    auto domain_opt = packet->GetDnsDomain();
     if (domain_opt.has_value()) {
-      std::string domain = domain_opt.value();
-      std::transform(domain.begin(), domain.end(), domain.begin(),
+      std::string domain = std::move(domain_opt).value();
+      std::ranges::transform(domain, domain.begin(),
           [](unsigned char c) { return std::tolower(c); });
 
       if (IsBlacklisted(domain)) {
         // Remember the real resolved IPs before rewriting the answer.
-        const auto ipv4_addresses = packet->GetDnsIPv4Addresses();
-        const auto ipv6_addresses = packet->GetDnsIPv6Addresses();
-        {
-          const std::unique_lock<std::mutex> lock(mutex_);
-          for (const auto& ipv4_address : ipv4_addresses) {
-            ipv4_addresses_.insert(ipv4_address.ToInt());
-          }
-          for (const auto& ipv6_address : ipv6_addresses) {
-            ipv6_addresses_.insert(ipv6_address.ToString());
-          }
-        }
+        RememberAddresses(
+            packet->GetDnsIPv4Addresses(), packet->GetDnsIPv6Addresses());
         if (packet->RewriteDnsAnswersToLoopback()) {
           SPDLOG_INFO("Domain {} is blacklisted -> loopback", domain);
         }
@@ -87,20 +113,23 @@ IPPacketPtr DomainBlacklist::apply(IPPacketPtr packet) const {
     return packet;
   }
 
-  // Non-DNS: drop packets coming from a blacklisted IP.
   if (packet->IsIPv4()) {
-    const std::uint32_t src_ipv4 = packet->GetSrcIPv4Address().ToInt();
-    const std::unique_lock<std::mutex> lock(mutex_);
-    if (ipv4_addresses_.contains(src_ipv4)) {
-      SPDLOG_INFO("Blocked IPv4 packet from {}",
-          packet->GetSrcIPv4Address().ToString());
+    const std::uint32_t dst_ipv4 = packet->GetDstIPv4Address().ToInt();
+
+    const std::shared_lock<std::shared_mutex> lock(mutex_);  // mutex
+
+    if (ipv4_addresses_.contains(dst_ipv4)) {
+      SPDLOG_INFO(
+          "Blocked IPv4 packet to {}", packet->GetDstIPv4Address().ToString());
       return nullptr;
     }
   } else if (packet->IsIPv6()) {
-    const std::string src_ipv6 = packet->GetSrcIPv6Address().ToString();
-    const std::unique_lock<std::mutex> lock(mutex_);
-    if (ipv6_addresses_.contains(src_ipv6)) {
-      SPDLOG_INFO("Blocked IPv6 packet from {}", src_ipv6);
+    const auto dst_ipv6 = packet->GetDstIPv6Address();
+
+    const std::shared_lock<std::shared_mutex> lock(mutex_);  // mutex
+
+    if (ipv6_addresses_.contains(dst_ipv6.ToBytes())) {
+      SPDLOG_INFO("Blocked IPv6 packet to {}", dst_ipv6.ToString());
       return nullptr;
     }
   }

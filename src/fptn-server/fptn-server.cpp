@@ -19,8 +19,6 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "common/logger/logger.h"
 #include "common/network/ip_address.h"
 
-#include "fptn-protocol-lib/time/time_provider.h"
-
 #include "config/server_config.h"
 #include "filter/filters/antiscan/antiscan.h"
 #include "filter/filters/bittorrent/bittorrent.h"
@@ -33,6 +31,8 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "user/user_manager.h"
 #include "vpn/manager.h"
 #include "web/server.h"
+
+#include "fptn-protocol-lib/time/time_provider.h"
 
 namespace {
 
@@ -120,13 +120,14 @@ int main(int argc, char* argv[]) {
         /* External IPs */
         config->ServerExternalIPs());
 
-    /* init packet filter */
-    auto filter_manager = std::make_shared<fptn::filter::Manager>();
+    /* init from-client packet filter */
+    auto from_client_filter_manager = std::make_shared<fptn::filter::Manager>();
     if (config->DisableBittorrent()) {  // block bittorrent traffic
-      filter_manager->Add(std::make_shared<fptn::filter::BitTorrent>());
+      from_client_filter_manager->Add(
+          std::make_shared<fptn::filter::BitTorrent>());
     }
     // Prevent sending requests to the VPN virtual network from the client
-    filter_manager->Add(std::make_shared<fptn::filter::AntiScan>(
+    from_client_filter_manager->Add(std::make_shared<fptn::filter::AntiScan>(
         /* IPv4 */
         config->TunInterfaceIPv4(), config->TunInterfaceNetworkIPv4Address(),
         config->TunInterfaceNetworkIPv4Mask(),
@@ -137,6 +138,7 @@ int main(int argc, char* argv[]) {
     /* init to-client packet filter (domain blacklist) */
     auto to_client_filter_manager = std::make_shared<fptn::filter::Manager>();
     const std::string blacklist_file = config->DomainBlacklistFile();
+    std::string domain_blacklist_status = "DISABLED";
     if (!blacklist_file.empty()) {
       if (std::filesystem::exists(blacklist_file)) {
         std::vector<std::string> domains;
@@ -145,10 +147,18 @@ int main(int argc, char* argv[]) {
         while (std::getline(in, line)) {
           domains.push_back(line);
         }
-        to_client_filter_manager->Add(
-            std::make_shared<fptn::filter::DomainBlacklist>(domains));
+        auto domain_blacklist =
+            std::make_shared<fptn::filter::DomainBlacklist>(domains);
+        domain_blacklist_status = fmt::format(
+            "{} ({} domains)", blacklist_file, domain_blacklist->Size());
+        // one filter in both directions: filled on the to-client path,
+        // read on the from-client path
+        to_client_filter_manager->Add(domain_blacklist);
+        from_client_filter_manager->Add(std::move(domain_blacklist));
         SPDLOG_INFO("Domain blacklist file loaded: {}", blacklist_file);
       } else {
+        domain_blacklist_status =
+            fmt::format("DISABLED (file not found: {})", blacklist_file);
         SPDLOG_WARN("Domain blacklist file not found: {}", blacklist_file);
       }
     }
@@ -163,6 +173,8 @@ int main(int argc, char* argv[]) {
         "DETECT_PROBING:    {}\n"
         "DEFAULT_PROXY_DOMAIN: {}\n"
         "ALLOWED_SNI_LIST:     {}\n"
+        "DOMAIN BLACKLIST:     {}\n"
+        "BLOCK BITTORRENT:     {}\n"
         "MAX_ACTIVE_SESSIONS_PER_USER: {}\n",
         FPTN_VERSION,
         // Network settings
@@ -174,13 +186,19 @@ int main(int argc, char* argv[]) {
         config->EnableDetectProbing() ? "YES" : "NO",
         config->DefaultProxyDomain(),
         fmt::format("[{}]", fmt::join(config->AllowedSniList(), ", ")),
+        // Packet filters
+        domain_blacklist_status, config->DisableBittorrent() ? "YES" : "NO",
         // max session
         config->MaxActiveSessionsPerUser());
 
     // Init vpn manager
-    fptn::vpn::Manager manager(std::move(web_server),
-        std::move(virtual_network_interface), nat_table, filter_manager,
-        to_client_filter_manager, prometheus);
+    fptn::vpn::Manager manager(
+        fptn::vpn::Manager::Config{.web_server = std::move(web_server),
+            .network_interface = std::move(virtual_network_interface),
+            .nat = nat_table,
+            .from_client_filter = from_client_filter_manager,
+            .to_client_filter = to_client_filter_manager,
+            .prometheus = prometheus});
 
     /* start/wait/stop */
     manager.Start();
