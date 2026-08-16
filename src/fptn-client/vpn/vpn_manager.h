@@ -73,6 +73,14 @@ class VpnManager final {
   std::atomic<bool> reconnecting_;
   std::atomic<int> reconnect_attempt_;
 
+  std::atomic<std::size_t> last_send_rate_{0};
+  std::atomic<std::size_t> last_receive_rate_{0};
+
+  std::atomic<std::uint64_t> to_server_sent_{0};
+  std::atomic<std::uint64_t> to_server_dropped_{0};
+  std::atomic<std::uint64_t> to_tun_sent_{0};
+  std::atomic<std::uint64_t> to_tun_dropped_{0};
+
   Config config_;
 
   std::thread thread_;
@@ -85,5 +93,5 @@ class VpnManager final {
   std::vector<std::future<void>> pending_tasks_;
 };
 
-using VpnClientPtr = std::unique_ptr<fptn::vpn::VpnManager>;
+using VpnClientPtr = std::shared_ptr<fptn::vpn::VpnManager>;
 }  // namespace fptn::vpn

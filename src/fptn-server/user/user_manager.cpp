@@ -17,6 +17,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include "common/api/handle.h"
 
+using fptn::user::LoginStatus;
 using fptn::user::UserManager;
 
 UserManager::UserManager(const std::string& userfile,
@@ -38,7 +39,7 @@ UserManager::UserManager(const std::string& userfile,
   }
 }
 
-boost::asio::awaitable<bool> UserManager::LoginAsync(
+boost::asio::awaitable<LoginStatus> UserManager::LoginAsync(
     const std::string& username,
     const std::string& password,
     int& bandwidth_bit) const {
@@ -57,7 +58,7 @@ boost::asio::awaitable<bool> UserManager::LoginAsync(
         const auto msg = resp.Json();
         if (msg.contains("access_token") && msg.contains("bandwidth_bit")) {
           bandwidth_bit = msg["bandwidth_bit"].get<int>();
-          co_return true;
+          co_return LoginStatus::kSuccess;
         }
         SPDLOG_INFO(
             "LoginAsync: access_token not found in response. "
@@ -66,15 +67,20 @@ boost::asio::awaitable<bool> UserManager::LoginAsync(
         SPDLOG_INFO(
             "LoginAsync: JSON parse error: {}\n{}", e.what(), resp.body);
       }
-    } else {
-      SPDLOG_INFO("LoginAsync: request failed. Code: {} Msg: {}", resp.code,
-          resp.errmsg);
+      co_return LoginStatus::kAuthServerUnavailable;
     }
-  } else if (common_manager_->Authenticate(username, password)) {
-    bandwidth_bit = common_manager_->GetUserBandwidthBit(username);
-    co_return true;
+    if (resp.code == 401 || resp.code == 403) {
+      co_return LoginStatus::kInvalidCredentials;
+    }
+    SPDLOG_INFO(
+        "LoginAsync: request failed. Code: {} Msg: {}", resp.code, resp.errmsg);
+    co_return LoginStatus::kAuthServerUnavailable;
   }
-  co_return false;
+  if (common_manager_->Authenticate(username, password)) {
+    bandwidth_bit = common_manager_->GetUserBandwidthBit(username);
+    co_return LoginStatus::kSuccess;
+  }
+  co_return LoginStatus::kInvalidCredentials;
 }
 
 bool UserManager::Login(const std::string& username,

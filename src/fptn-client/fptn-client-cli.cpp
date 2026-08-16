@@ -486,7 +486,8 @@ int main(int argc, char* argv[]) {
     const bool status =
         http_client->Login(config.GetUsername(), config.GetPassword());
     if (!status) {
-      SPDLOG_ERROR("The username or password you entered is incorrect");
+      SPDLOG_ERROR("Login failed (code {}): {}", http_client->LatestErrorCode(),
+          http_client->LatestError());
       return EXIT_FAILURE;
     }
     const auto [dns_server_ipv4, dns_server_ipv6] = http_client->GetDns();

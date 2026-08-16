@@ -176,6 +176,10 @@ std::string ParseBlocklistLine(std::string line) {
   if (dot == std::string::npos || domain == "0.0.0.0") {
     return {};
   }
+  if (domain.ends_with(".local") || domain.ends_with(".localdomain") ||
+      domain.ends_with(".localhost")) {
+    return {};
+  }
   return domain;
 }
 

@@ -53,8 +53,11 @@ add_compile_definitions(FPTN_CLIENT_DEFAULT_EXCLUDE_NETWORKS=\"10.0.0.0/8,192.16
 set(FPTN_CLIENT_DEFAULT_SPLIT_TUNNEL_DOMAINS
     "ru,su,рф,xn--p1ai,vk.com,yandex.com,userapi.com,yandex.net,clstorage.net")
 add_compile_definitions(FPTN_CLIENT_DEFAULT_SPLIT_TUNNEL_DOMAINS=\"${FPTN_CLIENT_DEFAULT_SPLIT_TUNNEL_DOMAINS}\")
-add_compile_definitions(FPTN_CLIENT_DEFAULT_BLACKLIST_DOMAINS=\"solovev-live.ru,ria.ru,tass.ru,1tv.ru,ntv.ru,rt.com,lenta.ru\")
+set(FPTN_DEFAULT_BLACKLIST_DOMAINS
+    "solovev-live.ru,ria.ru,tass.ru,1tv.ru,ntv.ru,rt.com,lenta.ru")
+add_compile_definitions(FPTN_CLIENT_DEFAULT_BLACKLIST_DOMAINS=\"${FPTN_DEFAULT_BLACKLIST_DOMAINS}\")
 # server
+add_compile_definitions(FPTN_SERVER_DEFAULT_BLACKLIST_DOMAINS=\"${FPTN_DEFAULT_BLACKLIST_DOMAINS}\")
 add_compile_definitions(FPTN_SERVER_DEFAULT_ADDRESS_IP6=\"fc00:1::1\")
 add_compile_definitions(FPTN_SERVER_DEFAULT_NET_ADDRESS_IP6=\"fc00:1::\")
 add_compile_definitions(FPTN_SERVER_DEFAULT_ADDRESS_IP4=\"172.20.0.1\")

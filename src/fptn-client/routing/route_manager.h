@@ -7,11 +7,15 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #pragma once
 
 #include <atomic>
+#include <condition_variable>
 #include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <unordered_set>
 #include <vector>
+
+#include <queue>
 
 #include "common/network/ip_address.h"
 
@@ -96,8 +100,34 @@ class RouteManager final {
   bool AddIncludeNetworks(const std::vector<std::string>& networks);
 
  private:
+  struct PendingRoutes {
+    std::vector<fptn::common::network::IPv4Address> ipv4;
+    std::vector<fptn::common::network::IPv6Address> ipv6;
+    RoutingPolicy policy;
+  };
+
+  bool Enqueue(PendingRoutes routes);
+  void RunRouteWorker();
+  void StopRouteWorker();
+
+  bool ApplyDnsRoutesIPv4(
+      const std::vector<fptn::common::network::IPv4Address>& ips,
+      RoutingPolicy policy);
+
+  bool ApplyDnsRoutesIPv6(
+      const std::vector<fptn::common::network::IPv6Address>& ips,
+      RoutingPolicy policy);
+
   mutable std::mutex mutex_;
   std::atomic<bool> running_;
+
+  static constexpr std::size_t kRouteWorkers = 4;
+
+  std::mutex queue_mutex_;
+  std::condition_variable queue_cv_;
+  std::queue<PendingRoutes> route_queue_;
+  std::atomic<bool> worker_running_{true};
+  std::vector<std::thread> route_workers_;
 
   const Config config_;
 

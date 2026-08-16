@@ -107,7 +107,7 @@ SettingsModel::SettingsModel(const QMap<QString, QString>& languages,
       client_autostart_(false),
       enable_ad_block_(true),
       blacklist_domains_(FPTN_CLIENT_DEFAULT_BLACKLIST_DOMAINS),
-      enable_split_tunnel_(true),
+      enable_split_tunnel_(false),
       split_tunnel_domains_(DefaultSplitTunnelDomains()) {
 #if _WIN32
   wchar_t exe_path[MAX_PATH] = {};

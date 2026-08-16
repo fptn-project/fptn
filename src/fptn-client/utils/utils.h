@@ -8,6 +8,8 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include <algorithm>
 #include <string>
+#include <string_view>
+#include <unordered_set>
 
 #include <re2/re2.h>  // NOLINT(build/include_order)
 
@@ -30,6 +32,24 @@ inline std::string NormalizeDomainRule(const std::string& rule) {
     domain.pop_back();
   }
   return domain;
+}
+
+// Matches the domain and every parent suffix, so a single "vk.com" rule
+// matches "vk.com" and any "*.vk.com".
+inline bool IsDomainMatched(
+    const std::unordered_set<std::string>& domains, const std::string& domain) {
+  std::string_view suffix(domain);
+  while (!suffix.empty()) {
+    if (domains.contains(std::string(suffix))) {
+      return true;
+    }
+    const auto pos = suffix.find('.');
+    if (pos == std::string_view::npos) {
+      break;
+    }
+    suffix.remove_prefix(pos + 1);
+  }
+  return false;
 }
 
 inline std::string DomainToRegex(const std::string& pattern) {

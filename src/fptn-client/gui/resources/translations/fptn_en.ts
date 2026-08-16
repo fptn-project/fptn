@@ -62,6 +62,14 @@
             <translation>Unable to connect to the server. Please use the Telegram bot to generate a new TOKEN with your personal settings, then try again.</translation>
         </message>
         <message>
+            <source>The authorization server is temporarily unavailable. Please try again later.</source>
+            <translation>The authorization server is temporarily unavailable. Please try again later.</translation>
+        </message>
+        <message>
+            <source>The server did not respond in time (operation timeout). Please try again.</source>
+            <translation>The server did not respond in time (operation timeout). Please try again.</translation>
+        </message>
+        <message>
             <source>DNS server error! Check your connection!</source>
             <translation>DNS server error! Check your connection!</translation>
         </message>

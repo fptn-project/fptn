@@ -29,8 +29,6 @@ class Tunneling final : public BasePlugin {
   std::pair<fptn::common::network::IPPacketPtr, bool> HandlePacket(
       fptn::common::network::IPPacketPtr packet) override;
 
-  [[nodiscard]] bool IsMatched(const std::string& domain) const;
-
  private:
   const routing::RouteManagerSPtr route_manager_;
   const fptn::routing::RoutingPolicy policy_;

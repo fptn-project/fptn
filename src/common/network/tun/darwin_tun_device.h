@@ -143,9 +143,9 @@ class DarwinTunDevice {
     system(cmd.c_str());  // NOLINT(cert-env33-c)
   }
 
-  void BringUp() {
+  bool BringUp() {
     const std::string cmd = "ifconfig " + name_ + " up";
-    system(cmd.c_str());  // NOLINT(cert-env33-c)
+    return system(cmd.c_str()) == 0;  // NOLINT(cert-env33-c)
   }
 
   int Read(void* buffer, int size) {

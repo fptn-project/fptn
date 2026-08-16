@@ -24,9 +24,7 @@ target_link_libraries(AdBlockerTest PRIVATE ${LIBS})
 add_test(NAME AdBlockerTest COMMAND AdBlockerTest)
 
 # --- SplitTunneling test ---
-add_executable(SplitTunnelingTest
-  split/SplitTunnelingTest.cpp
-  "${FPTN_CLIENT_DIR}/plugins/split/tunneling.cpp")
+add_executable(SplitTunnelingTest split/SplitTunnelingTest.cpp)
 target_include_directories(SplitTunnelingTest PRIVATE "${FPTN_CLIENT_DIR}")
 target_link_libraries(SplitTunnelingTest PRIVATE ${LIBS} Boost::locale)
 add_test(NAME SplitTunnelingTest COMMAND SplitTunnelingTest)

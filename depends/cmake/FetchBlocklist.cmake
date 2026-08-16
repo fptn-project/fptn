@@ -1,33 +1,42 @@
 if(NOT EXISTS "${GZ}")
   set(SOURCES
-      "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/ultimate.txt"
+      "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/ultimate-onlydomains.txt"
       "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
   )
+
+  set(MAX_ATTEMPTS 10)
+  set(RETRY_DELAY 5)
 
   set(combined "${GZ}.txt")
   file(WRITE "${combined}" "")
 
-  set(any_success FALSE)
   foreach(src IN LISTS SOURCES)
     set(part "${GZ}.part")
-    message(STATUS "[blocklist] downloading ${src}")
-    file(DOWNLOAD "${src}" "${part}" STATUS status TLS_VERIFY ON)
-    list(GET status 0 code)
-    if(code EQUAL 0)
-      file(READ "${part}" content)
-      file(APPEND "${combined}" "${content}")
-      set(any_success TRUE)
-    else()
+    set(downloaded FALSE)
+    foreach(attempt RANGE 1 ${MAX_ATTEMPTS})
+      message(STATUS "[blocklist] downloading ${src} (attempt ${attempt}/${MAX_ATTEMPTS})")
+      file(DOWNLOAD "${src}" "${part}" STATUS status TLS_VERIFY ON)
+      list(GET status 0 code)
+      if(code EQUAL 0)
+        set(downloaded TRUE)
+        break()
+      endif()
       list(GET status 1 msg)
-      message(WARNING "[blocklist] failed ${src}: ${msg}")
+      message(STATUS "[blocklist] attempt ${attempt} failed: ${msg}")
+      file(REMOVE "${part}")
+      if(NOT attempt EQUAL MAX_ATTEMPTS)
+        execute_process(COMMAND ${CMAKE_COMMAND} -E sleep ${RETRY_DELAY})
+      endif()
+    endforeach()
+    if(NOT downloaded)
+      file(REMOVE "${part}" "${combined}")
+      message(FATAL_ERROR
+              "[blocklist] failed ${src} after ${MAX_ATTEMPTS} attempts")
     endif()
+    file(READ "${part}" content)
+    file(APPEND "${combined}" "${content}")
     file(REMOVE "${part}")
   endforeach()
-
-  if(NOT any_success)
-    file(REMOVE "${combined}")
-    message(FATAL_ERROR "[blocklist] all sources failed")
-  endif()
 
   file(ARCHIVE_CREATE OUTPUT "${GZ}" PATHS "${combined}"
        FORMAT raw COMPRESSION GZip)

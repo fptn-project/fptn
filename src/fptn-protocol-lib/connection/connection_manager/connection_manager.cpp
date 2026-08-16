@@ -93,20 +93,30 @@ bool ConnectionManager::Login(
       } catch (const nlohmann::json::parse_error& e) {
         jwt_access_token_ = "";
         latest_error_ = e.what();
+        latest_error_code_ = resp.code;
         SPDLOG_ERROR("Error parsing JSON response: {} ", e.what());
       } catch (const std::exception& ex) {
         jwt_access_token_ = "";
         latest_error_ = ex.what();
+        latest_error_code_ = resp.code;
         SPDLOG_ERROR("Exception: {}", ex.what());
       }
     } else if (resp.code == 401 || resp.code == 403) {
       jwt_access_token_ = "";
       latest_error_ = resp.errmsg;
+      latest_error_code_ = resp.code;
       SPDLOG_ERROR("Auth error ({}): wrong username or password", resp.code);
       return false;
+    } else if (resp.code == 503) {
+      // transient: the server could not reach the authorization service
+      jwt_access_token_ = "";
+      latest_error_ = "Authorization server is unavailable, try again later";
+      latest_error_code_ = resp.code;
+      SPDLOG_ERROR("Auth error (503): authorization server is unavailable");
     } else {
       jwt_access_token_ = "";
       latest_error_ = resp.errmsg;
+      latest_error_code_ = resp.code;
       SPDLOG_ERROR(
           "Error: Request failed code: {} msg: {}", resp.code, resp.errmsg);
     }
@@ -229,6 +239,8 @@ bool ConnectionManager::IsConnected() const {
 const std::string& ConnectionManager::LatestError() const {
   return latest_error_;
 }
+
+int ConnectionManager::LatestErrorCode() const { return latest_error_code_; }
 
 void ConnectionManager::Run() {
   // Time window for counting attempts (1 minute)

@@ -62,6 +62,14 @@
             <translation>اتصال به سرور امکان‌پذیر نیست. لطفاً از بات تلگرام برای تولید TOKEN جدید با تنظیمات شخصی خود استفاده کنید، سپس دوباره تلاش کنید.</translation>
         </message>
         <message>
+            <source>The authorization server is temporarily unavailable. Please try again later.</source>
+            <translation>سرور احراز هویت موقتاً در دسترس نیست. لطفاً بعداً دوباره تلاش کنید.</translation>
+        </message>
+        <message>
+            <source>The server did not respond in time (operation timeout). Please try again.</source>
+            <translation>سرور به‌موقع پاسخ نداد (اتمام زمان عملیات). لطفاً دوباره تلاش کنید.</translation>
+        </message>
+        <message>
             <source>DNS server error! Check your connection!</source>
             <translation>خطای سرور DNS! اتصال خود را بررسی کنید!</translation>
         </message>

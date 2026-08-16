@@ -18,6 +18,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "common/jwt_token/token_manager.h"
 #include "common/logger/logger.h"
 #include "common/network/ip_address.h"
+#include "common/utils/utils.h"
 
 #include "config/server_config.h"
 #include "filter/filters/antiscan/antiscan.h"
@@ -138,30 +139,33 @@ int main(int argc, char* argv[]) {
     /* init to-client packet filter (domain blacklist) */
     auto to_client_filter_manager = std::make_shared<fptn::filter::Manager>();
     const std::string blacklist_file = config->DomainBlacklistFile();
-    std::string domain_blacklist_status = "DISABLED";
+    std::vector<std::string> domains = fptn::common::utils::SplitCommaSeparated(
+        FPTN_SERVER_DEFAULT_BLACKLIST_DOMAINS);
+    std::string blacklist_source = "built-in";
     if (!blacklist_file.empty()) {
       if (std::filesystem::exists(blacklist_file)) {
-        std::vector<std::string> domains;
         std::ifstream in(blacklist_file);
         std::string line;
         while (std::getline(in, line)) {
           domains.push_back(line);
         }
-        auto domain_blacklist =
-            std::make_shared<fptn::filter::DomainBlacklist>(domains);
-        domain_blacklist_status = fmt::format(
-            "{} ({} domains)", blacklist_file, domain_blacklist->Size());
-        // one filter in both directions: filled on the to-client path,
-        // read on the from-client path
-        to_client_filter_manager->Add(domain_blacklist);
-        from_client_filter_manager->Add(std::move(domain_blacklist));
+        blacklist_source = fmt::format("built-in + {}", blacklist_file);
         SPDLOG_INFO("Domain blacklist file loaded: {}", blacklist_file);
       } else {
-        domain_blacklist_status =
-            fmt::format("DISABLED (file not found: {})", blacklist_file);
+        blacklist_source =
+            fmt::format("built-in (file not found: {})", blacklist_file);
         SPDLOG_WARN("Domain blacklist file not found: {}", blacklist_file);
       }
     }
+
+    auto domain_blacklist =
+        std::make_shared<fptn::filter::DomainBlacklist>(domains);
+    const std::string domain_blacklist_status = fmt::format(
+        "{} ({} domains)", blacklist_source, domain_blacklist->Size());
+    // one filter in both directions: filled on the to-client path,
+    // read on the from-client path
+    to_client_filter_manager->Add(domain_blacklist);
+    from_client_filter_manager->Add(std::move(domain_blacklist));
 
     SPDLOG_INFO(
         "\n--- Starting server---\n"
