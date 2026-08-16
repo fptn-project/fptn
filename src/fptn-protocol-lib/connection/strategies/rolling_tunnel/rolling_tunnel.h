@@ -144,10 +144,10 @@ class RollingTunnel : public BaseStrategyConnection {
 
         co_await RemoveClosedConnections();
 
-        co_await CreateMissingConnections();
+        StartRepairIfNeeded();
 
-        if (IsPoolEmpty()) {
-          SPDLOG_ERROR("All connections are lost. Reconnecting");
+        if (IsPoolEmpty() && !repair_in_flight_.load()) {
+          SPDLOG_ERROR("All connections lost, no repair in flight, stopping");
           SetRunningStatus(false);
           StopEventLoop();
           break;
@@ -185,7 +185,7 @@ class RollingTunnel : public BaseStrategyConnection {
       co_await boost::asio::post(boost::asio::use_awaitable);
 
       boost::asio::steady_timer timer(GetIOContext());
-      for (int i = 0; i < 10; i++) {
+      for (int i = 0; i < 20; i++) {
         if (channel->client->IsStarted()) {
           SPDLOG_INFO("Connection #{} READY (lifetime {}s)",
               channel->connection_id, lifetime_seconds);
@@ -241,9 +241,9 @@ class RollingTunnel : public BaseStrategyConnection {
     co_return;
   }
 
-  boost::asio::awaitable<void> CreateMissingConnections() {
-    if (!IsStarted()) {
-      co_return;
+  void StartRepairIfNeeded() {
+    if (!IsStarted() || repair_in_flight_.load()) {
+      return;
     }
 
     const auto lead = std::chrono::seconds(kReplacementLeadSeconds);
@@ -274,58 +274,71 @@ class RollingTunnel : public BaseStrategyConnection {
     }
 
     if (healthy_count >= ConnectionCount) {
-      co_return;
+      return;
     }
 
     if (StaggerSeconds > 0 &&
         std::chrono::steady_clock::now() - last_spawn_time_ <
             std::chrono::seconds(StaggerSeconds)) {
-      co_return;
+      return;
     }
 
-    auto channel = co_await CreateNewConnection(NextLifetimeSeconds());
-    if (!channel) {
-      co_return;
-    }
-    if (!IsStarted()) {
-      // Stop() ran while this one was coming up. It never entered the pool, so
-      // nothing else is going to close it.
-      if (channel->client) {
+    repair_in_flight_ = true;
+    const int lifetime_seconds = NextLifetimeSeconds();
+    boost::asio::co_spawn(
+        GetIOContext(),
+        [this, lifetime_seconds,
+            replaced_id]() -> boost::asio::awaitable<void> {
+          co_await RepairConnection(lifetime_seconds, replaced_id);
+        },
+        boost::asio::detached);
+  }
+
+  boost::asio::awaitable<void> RepairConnection(
+      int lifetime_seconds, std::uint64_t replaced_id) {
+    try {
+      auto channel = co_await CreateNewConnection(lifetime_seconds);
+      if (channel && IsStarted()) {
+        // The replacement is ready, so the connection it was created for
+        // leaves the pool now instead of lingering until its own deadline.
+        std::shared_ptr<Channel> retired;
+        {
+          const std::unique_lock lock(mutex_);  // mutex
+
+          const auto it = std::ranges::find_if(
+              connections_, [replaced_id](const auto& candidate) {
+                return replaced_id != 0 && candidate &&
+                       candidate->connection_id == replaced_id;
+              });
+          if (it != connections_.end()) {
+            // In place: Send() maps a flow onto a slot, so shifting the
+            // slots would migrate flows that have nothing to do with this
+            // replacement.
+            retired = std::exchange(*it, std::move(channel));
+          } else {
+            connections_.push_back(std::move(channel));
+          }
+        }
+
+        if (retired && retired->client) {
+          boost::asio::co_spawn(
+              GetIOContext(),
+              [retired]() -> boost::asio::awaitable<void> {
+                retired->client->Stop();
+                co_return;
+              },
+              boost::asio::detached);
+        }
+      } else if (channel && channel->client) {
+        // Stop() ran while this one was coming up. It never entered the
+        // pool, so nothing else is going to close it.
         channel->client->Stop();
       }
-      co_return;
+    } catch (const std::exception& e) {
+      SPDLOG_ERROR("Error in RepairConnection: {}", e.what());
     }
-
-    // The replacement is ready, so the connection it was created for leaves
-    // the pool now instead of lingering until its own deadline.
-    std::shared_ptr<Channel> retired;
-    {
-      const std::unique_lock lock(mutex_);  // mutex
-
-      const auto it = std::ranges::find_if(
-          connections_, [replaced_id](const auto& candidate) {
-            return replaced_id != 0 && candidate &&
-                   candidate->connection_id == replaced_id;
-          });
-      if (it != connections_.end()) {
-        // In place: Send() maps a flow onto a slot, so shifting the slots
-        // would migrate flows that have nothing to do with this replacement.
-        retired = std::exchange(*it, std::move(channel));
-      } else {
-        connections_.push_back(std::move(channel));
-      }
-      last_spawn_time_ = std::chrono::steady_clock::now();
-    }
-
-    if (retired && retired->client) {
-      boost::asio::co_spawn(
-          GetIOContext(),
-          [retired]() -> boost::asio::awaitable<void> {
-            retired->client->Stop();
-            co_return;
-          },
-          boost::asio::detached);
-    }
+    last_spawn_time_ = std::chrono::steady_clock::now();
+    repair_in_flight_ = false;
     co_return;
   }
 
@@ -405,6 +418,7 @@ class RollingTunnel : public BaseStrategyConnection {
   mutable std::shared_mutex mutex_;
 
   std::atomic<bool> connected_notified_{false};
+  std::atomic<bool> repair_in_flight_{false};
   std::atomic<std::uint64_t> connection_id_counter_{0};
   std::atomic<std::size_t> round_robin_cursor_{0};
 

@@ -67,7 +67,7 @@ std::uint32_t NetworkToHost32(const std::uint32_t value) {
 
 bool IsValidTimestamp(const std::uint32_t timestamp) {
   const auto now = fptn::time::TimeProvider::Instance()->NowTimestamp();
-  constexpr std::uint32_t kTimeShiftSeconds = 10;
+  constexpr std::uint32_t kTimeShiftSeconds = 120;
 
   return (timestamp <= now + kTimeShiftSeconds) &&
          (timestamp + kTimeShiftSeconds >= now);

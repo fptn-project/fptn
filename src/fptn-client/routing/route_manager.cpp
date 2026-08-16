@@ -611,12 +611,8 @@ pass out on {tunInterfaceName} proto tcp from any to any port 53
           config_.tun_interface_address_ipv4.ToString(),
           interface_info),  // via TUN
       // DNS
-      config_.enable_advanced_dns_management
-          ? backup_dns_cmd
-          : "echo \"No advanced DNS management\" ",
-      config_.enable_advanced_dns_management
-          ? configure_dns_cmd
-          : "echo \"No advanced DNS management\" ",
+      config_.enable_advanced_dns_management ? backup_dns_cmd : "",
+      config_.enable_advanced_dns_management ? configure_dns_cmd : "",
       fmt::format(
           "netsh interface ip set dns name=\"{}\" static {} validate=no",
           tun_interface_name_, win_tun_dns4),
@@ -644,6 +640,9 @@ pass out on {tunInterfaceName} proto tcp from any to any port 53
 #endif
   try {
     for (const auto& cmd : commands) {
+      if (cmd.empty()) {
+        continue;
+      }
       fptn::common::system::command::run(cmd);
     }
   } catch (const std::exception& e) {
@@ -928,9 +927,7 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
     }")PSHELL";
 
   std::vector<std::string> commands = {
-      config_.enable_advanced_dns_management
-          ? restore_dns_cmd
-          : "echo \"No advanced DNS management\" ",
+      config_.enable_advanced_dns_management ? restore_dns_cmd : "",
       // Remove routes
       fmt::format("route delete {} mask 255.255.255.255",
           config_.vpn_server_ip.ToString()),
@@ -954,6 +951,9 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
 #endif
   try {
     for (const auto& cmd : commands) {
+      if (cmd.empty()) {
+        continue;
+      }
       fptn::common::system::command::run(cmd);
     }
   } catch (const std::exception& e) {

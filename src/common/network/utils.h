@@ -17,8 +17,6 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <boost/asio.hpp>
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/co_spawn.hpp>
-#include <openssl/bio.h>    // NOLINT(build/include_order)
-#include <openssl/ssl.h>    // NOLINT(build/include_order)
 #include <spdlog/spdlog.h>  // NOLINT(build/include_order)
 
 #if defined(__APPLE__)
@@ -43,41 +41,6 @@ inline std::vector<std::string> GetServerIpAddresses() {
   return cmd_stdout;
 }
 #endif
-
-inline void CleanSocket(boost::asio::ip::tcp::socket& socket) {
-  try {
-    while (socket.available() != 0) {
-      boost::system::error_code ec;
-      std::array<std::uint8_t, 4096> buffer{};
-      const std::size_t bytes =
-          socket.read_some(boost::asio::buffer(buffer), ec);
-      (void)bytes;
-      if (ec == boost::asio::error::eof) {
-        break;
-      }
-      if (ec) {
-        SPDLOG_ERROR("CleanSocket error: {}", ec.message());
-        break;
-      }
-    }
-  } catch (const std::exception& e) {
-    SPDLOG_ERROR("CleanSocket exception: {}", e.what());
-  }
-}
-
-inline bool CleanSsl(const SSL* ssl) {
-  if (ssl == nullptr) {
-    return false;
-  }
-  if (BIO* rb = SSL_get_rbio(ssl)) {
-    BIO_flush(rb);
-    char buf[4096] = {};
-    while (BIO_pending(rb) > 0) {
-      BIO_read(rb, buf, sizeof(buf));
-    }
-  }
-  return true;
-}
 
 namespace detail {
 

@@ -23,7 +23,7 @@ using HandshakeResponse = std::shared_ptr<std::vector<std::uint8_t>>;
 class HandshakeCacheManager final {
  public:
   explicit HandshakeCacheManager(std::string default_domain,
-      std::chrono::seconds cache_ttl = std::chrono::seconds(3600));
+      std::chrono::seconds cache_ttl = std::chrono::seconds(86400));
 
   boost::asio::awaitable<HandshakeResponse> GetHandshake(const std::string& sni,
       const std::uint8_t* buffer_ptr,

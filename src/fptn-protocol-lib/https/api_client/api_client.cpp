@@ -40,6 +40,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <boost/asio/ssl/detail/openssl_types.hpp>
 #include <boost/asio/ssl/error.hpp>
 #include <boost/asio/ssl/stream.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <boost/asio/strand.hpp>
 #include <boost/asio/this_coro.hpp>
 #include <boost/asio/use_awaitable.hpp>
@@ -68,19 +69,6 @@ bool IsPortOpen(const std::string& host, const int port) {
     boost::asio::ip::tcp::socket socket(ioc);
     socket.open(boost::asio::ip::tcp::v4());
 
-    const auto native = socket.native_handle();
-#ifdef _WIN32
-    DWORD timeout_ms = 700;
-    ::setsockopt(native, SOL_SOCKET, SO_SNDTIMEO,
-        reinterpret_cast<const char*>(&timeout_ms), sizeof(timeout_ms));
-#else
-    timeval tv{};
-    tv.tv_sec = 0;
-    tv.tv_usec = 700000;
-    ::setsockopt(native, SOL_SOCKET, SO_SNDTIMEO,
-        reinterpret_cast<const char*>(&tv), sizeof(tv));
-#endif
-
     boost::asio::ip::tcp::endpoint endpoint;
     boost::system::error_code addr_ec;
     const auto addr = boost::asio::ip::make_address(host, addr_ec);
@@ -93,12 +81,40 @@ bool IsPortOpen(const std::string& host, const int port) {
       endpoint = *results.begin();
     }
 
-    boost::system::error_code ec;
-    socket.connect(endpoint, ec);
-    if (socket.is_open()) {
-      socket.close();
+    boost::asio::steady_timer timer(ioc);
+    timer.expires_after(std::chrono::milliseconds(700));
+
+    bool operation_completed = false;
+    bool connected = false;
+
+    socket.async_connect(
+        endpoint, [&](const boost::system::error_code& ec) {
+          if (!operation_completed) {
+            operation_completed = true;
+            connected = !ec;
+            timer.cancel();
+          }
+        });
+
+    timer.async_wait([&](const boost::system::error_code& ec) {
+      if (!ec && !operation_completed) {
+        operation_completed = true;
+        connected = false;
+        boost::system::error_code close_ec;
+        socket.close(close_ec);
+      }
+    });
+
+    ioc.restart();
+    while (!operation_completed) {
+      ioc.run_one();
     }
-    return !ec;
+
+    if (socket.is_open()) {
+      boost::system::error_code close_ec;
+      socket.close(close_ec);
+    }
+    return connected;
   } catch (...) {
     return false;
   }
@@ -522,16 +538,12 @@ bool ApiClient::PerformFakeHandshake2(
       return false;
     }
 
-    /* Wait for server answer. */
     const auto server_hello = common::network::WaitForServerTlsHello(
-        socket, std::chrono::seconds(5));
+        socket, std::chrono::seconds(6));
     if (!server_hello.has_value()) {
       SPDLOG_ERROR("Failed to receive ServerHello from {}", sni_);
       return false;
     }
-
-    // clean
-    common::network::CleanSocket(socket);
 
     /* Send change cipher spec */
     const auto change_cipher_spec =
@@ -640,9 +652,6 @@ Response ApiClient::GetImpl(const std::string& handle, int timeout) const {
       // Reset obfuscator after TLS-handshake
       stream.next_layer().set_obfuscator(nullptr);
 
-      // Clean
-      common::network::CleanSocket(socket);
-      common::network::CleanSsl(ssl);
       // timeout
       std::this_thread::sleep_for(std::chrono::milliseconds(150));
 
@@ -808,9 +817,6 @@ Response ApiClient::PostImpl(const std::string& handle,
       // Reset obfuscator after TLS-handshake
       stream.next_layer().set_obfuscator(nullptr);
 
-      // Clean
-      common::network::CleanSocket(socket);
-      common::network::CleanSsl(ssl);
       // timeout
       std::this_thread::sleep_for(std::chrono::milliseconds(150));
 

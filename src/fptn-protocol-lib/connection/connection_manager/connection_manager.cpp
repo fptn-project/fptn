@@ -70,7 +70,7 @@ bool ConnectionManager::Login(
   ApiClient cli(ip, config_.common.server_port, config_.common.sni,
       config_.common.md5_fingerprint, config_.common.censorship_strategy);
 
-  constexpr int kMaxRetries = 3;
+  constexpr int kMaxRetries = 5;
   for (int attempt = 0; attempt < kMaxRetries; ++attempt) {
     if (attempt > 0) {
       SPDLOG_WARN("Login retry attempt {}/{}", attempt, kMaxRetries);
@@ -136,7 +136,7 @@ std::pair<IPv4Address, IPv6Address> ConnectionManager::GetDns() {
   ApiClient cli(ip, config_.common.server_port, config_.common.sni,
       config_.common.md5_fingerprint, config_.common.censorship_strategy);
 
-  constexpr int kMaxRetries = 3;
+  constexpr int kMaxRetries = 5;
   for (int attempt = 0; attempt < kMaxRetries; ++attempt) {
     if (attempt > 0) {
       SPDLOG_WARN("GetDns retry attempt {}/{}", attempt, kMaxRetries);

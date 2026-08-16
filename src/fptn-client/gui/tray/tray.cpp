@@ -626,9 +626,8 @@ void TrayApp::handleDisconnecting() {
 
     connection_state_ = ConnectionState::None;
     UpdateTrayMenu();
-
-    stopVpn();
   }
+  stopVpn();
   emit defaultState();
 }
 
