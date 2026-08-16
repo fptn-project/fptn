@@ -2,7 +2,7 @@ find_package(GTest REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(fmt REQUIRED)
 find_package(ZLIB REQUIRED)
-find_package(Boost REQUIRED COMPONENTS random filesystem process locale)
+find_package(Boost REQUIRED COMPONENTS random filesystem locale)
 
 set(FPTN_CLIENT_DIR "${CMAKE_SOURCE_DIR}/src/fptn-client")
 
@@ -26,9 +26,7 @@ add_test(NAME AdBlockerTest COMMAND AdBlockerTest)
 # --- SplitTunneling test ---
 add_executable(SplitTunnelingTest
   split/SplitTunnelingTest.cpp
-  "${FPTN_CLIENT_DIR}/plugins/split/tunneling.cpp"
-  "${FPTN_CLIENT_DIR}/routing/route_manager.cpp")
+  "${FPTN_CLIENT_DIR}/plugins/split/tunneling.cpp")
 target_include_directories(SplitTunnelingTest PRIVATE "${FPTN_CLIENT_DIR}")
-target_link_libraries(SplitTunnelingTest PRIVATE ${LIBS} Boost::locale
-                                              Boost::process)
+target_link_libraries(SplitTunnelingTest PRIVATE ${LIBS} Boost::locale)
 add_test(NAME SplitTunnelingTest COMMAND SplitTunnelingTest)

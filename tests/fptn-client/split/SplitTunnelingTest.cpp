@@ -11,6 +11,24 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include "plugins/split/tunneling.h"
 
+// Routes are not touched by the matcher, so the test links these stubs instead
+// of route_manager.cpp with its platform-specific TUN headers.
+namespace fptn::routing {
+
+// NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+bool RouteManager::AddDnsRoutesIPv4(
+    const std::vector<fptn::common::network::IPv4Address>&, RoutingPolicy) {
+  return true;
+}
+
+// NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+bool RouteManager::AddDnsRoutesIPv6(
+    const std::vector<fptn::common::network::IPv6Address>&, RoutingPolicy) {
+  return true;
+}
+
+}  // namespace fptn::routing
+
 namespace {
 
 fptn::plugin::Tunneling MakeTunneling(const std::vector<std::string>& rules) {
