@@ -6,8 +6,6 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include "adblock/adblock.h"
 
-#include <algorithm>
-#include <cstdint>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -16,7 +14,6 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <spdlog/spdlog.h>  // NOLINT(build/include_order)
 #include <zlib.h>           // NOLINT(build/include_order)
 
-#include "common/network/ip_utils.h"
 #include "common/utils/utils.h"
 
 namespace fptn::adblock {
@@ -25,105 +22,6 @@ extern const unsigned char kBlocklistGz[];
 extern const unsigned int kBlocklistGzLen;
 
 namespace {
-
-namespace net = fptn::common::network;
-
-constexpr std::size_t kUdpHdr = net::detail::kUdpHdr;
-constexpr std::size_t kDnsHdr = net::detail::kDnsHdr;
-constexpr std::size_t kMinIPv6 = net::detail::kMinIPv6;
-constexpr std::uint16_t kQTypeA = 0x0001;
-constexpr std::uint16_t kQTypeAAAA = 0x001C;
-
-net::IPPacketPtr BuildResponse(const net::IPPacketData& in) {
-  const std::uint8_t ver = in[0] >> 4;
-  const std::size_t ip_hdr_len =
-      (ver == 4) ? static_cast<std::size_t>(net::detail::Ipv4Ihl(in.data()))
-                 : kMinIPv6;
-  const std::size_t udp_off = ip_hdr_len;
-  const std::size_t dns_off = udp_off + kUdpHdr;
-
-  const std::uint8_t* base = in.data() + dns_off;
-  const std::uint8_t* end = in.data() + in.size();
-
-  const std::uint8_t* cur = base + kDnsHdr;
-  net::detail::ParseDnsName(base, end, cur);
-  const auto name_end = static_cast<std::size_t>(cur - in.data());
-  if (name_end + 4 > in.size()) {
-    return nullptr;
-  }
-  const std::uint16_t qtype = net::ReadU16Be(in.data() + name_end);
-  const std::size_t question_end = name_end + 4;
-
-  std::vector<std::uint8_t> rdata;
-  bool null_route = true;
-  if (qtype == kQTypeA) {
-    rdata = {127, 0, 0, 1};
-  } else if (qtype == kQTypeAAAA) {
-    rdata = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
-  } else {
-    null_route = false;
-  }
-
-  net::IPPacketData resp;
-  if (null_route) {
-    const std::size_t answer_len = 12 + rdata.size();
-    resp.assign(in.begin(), in.begin() + question_end);
-    resp.resize(question_end + answer_len);
-
-    std::size_t off = question_end;
-    resp[off++] = 0xC0;
-    resp[off++] = static_cast<std::uint8_t>(kDnsHdr);
-    net::WriteU16Be(resp.data() + off, qtype);
-    off += 2;
-    net::WriteU16Be(resp.data() + off, 0x0001);
-    off += 2;
-    net::WriteU16Be(resp.data() + off, 0);
-    off += 2;
-    net::WriteU16Be(resp.data() + off, 600);
-    off += 2;
-    net::WriteU16Be(
-        resp.data() + off, static_cast<std::uint16_t>(rdata.size()));
-    off += 2;
-    std::ranges::copy(rdata, resp.begin() + off);
-
-    resp[dns_off + 2] =
-        static_cast<std::uint8_t>((resp[dns_off + 2] & 0x01) | 0x80);
-    resp[dns_off + 3] = 0x80;
-    net::WriteU16Be(resp.data() + dns_off + 6, 1);
-    net::WriteU16Be(resp.data() + dns_off + 8, 0);
-    net::WriteU16Be(resp.data() + dns_off + 10, 0);
-  } else {
-    resp.assign(in.begin(), in.end());
-    resp[dns_off + 2] =
-        static_cast<std::uint8_t>((resp[dns_off + 2] & 0x01) | 0x80);
-    resp[dns_off + 3] = 0x83;
-  }
-
-  const std::size_t new_len = resp.size();
-
-  if (ver == 4) {
-    for (int i = 0; i < 4; ++i) {
-      std::swap(resp[12 + i], resp[16 + i]);
-    }
-    net::detail::Ipv4Ttl(resp.data()) = 64;
-    net::WriteU16Be(resp.data() + 2, static_cast<std::uint16_t>(new_len));
-  } else {
-    for (int i = 0; i < 16; ++i) {
-      std::swap(resp[8 + i], resp[24 + i]);
-    }
-    resp[7] = 64;
-    net::WriteU16Be(
-        resp.data() + 4, static_cast<std::uint16_t>(new_len - ip_hdr_len));
-  }
-
-  std::swap(resp[udp_off], resp[udp_off + 2]);
-  std::swap(resp[udp_off + 1], resp[udp_off + 3]);
-  net::WriteU16Be(
-      resp.data() + udp_off + 4, static_cast<std::uint16_t>(new_len - udp_off));
-
-  net::RecalculateChecksums(resp.data(), resp.size());
-  return net::IPPacket::Parse(std::move(resp));
-}
 
 std::string Gunzip(const unsigned char* data, unsigned int size) {
   constexpr std::size_t kChunkSize = 64 * 1024;
@@ -239,7 +137,7 @@ fptn::common::network::IPPacketPtr AdBlocker::ProcessOutgoingDns(
   }
 
   SPDLOG_INFO("Blocked DNS query [domain={}]", *domain);
-  return BuildResponse(packet.Data());
+  return packet.MakeDnsNullRouteResponse();
 }
 
 }  // namespace fptn::adblock

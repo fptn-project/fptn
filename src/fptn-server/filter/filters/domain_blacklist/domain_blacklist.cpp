@@ -105,12 +105,9 @@ IPPacketPtr DomainBlacklist::Apply(
           [](unsigned char c) { return std::tolower(c); });
 
       if (IsBlacklisted(domain)) {
-        // Remember the real resolved IPs before rewriting the answer.
         RememberAddresses(
             packet->GetDnsIPv4Addresses(), packet->GetDnsIPv6Addresses());
-        if (packet->RewriteDnsAnswersToLoopback()) {
-          SPDLOG_INFO("Domain {} is blacklisted -> loopback", domain);
-        }
+        SPDLOG_INFO("Domain {} is blacklisted", domain);
       }
     }
     return packet;

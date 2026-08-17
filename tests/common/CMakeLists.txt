@@ -64,6 +64,11 @@ add_executable(TokenManagerTest jwt_token/TokenManagerTest.cpp)
 target_link_libraries(TokenManagerTest PRIVATE ${LIBS})
 add_test(NAME TokenManagerTest COMMAND TokenManagerTest)
 
+# --- TLS handshake parsing test ---
+add_executable(TlsHandshakeParsingTest network/TlsHandshakeParsingTest.cpp)
+target_link_libraries(TlsHandshakeParsingTest PRIVATE ${LIBS} Boost::process)
+add_test(NAME TlsHandshakeParsingTest COMMAND TlsHandshakeParsingTest)
+
 # --- Client Stop race condition test ---
 add_executable(ClientStopRaceTest network/ClientStopRaceTest.cpp)
 target_link_libraries(ClientStopRaceTest PRIVATE GTest::gtest GTest::gtest_main)

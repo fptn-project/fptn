@@ -86,7 +86,10 @@ WebsocketClient::WebsocketClient(std::string jwt_access_token,
 
 WebsocketClient::~WebsocketClient() {
   try {
-    Stop();
+    running_ = false;
+    was_connected_ = false;
+    was_stopped_ = true;
+    DoStop();  // no owners left, so nothing can run on strand_ concurrently
   } catch (...) {
     SPDLOG_WARN("Unknown error in ~WebsocketClient");
   }
@@ -126,17 +129,39 @@ bool WebsocketClient::Stop() {
     return false;
   }
 
-  const std::unique_lock<std::mutex> lock(mutex_);  // mutex
+  {
+    const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
-  // cppcheck-suppress identicalConditionAfterEarlyExit
-  if (!running_) {  // Double-check after acquiring lock
-    return false;
+    // cppcheck-suppress identicalConditionAfterEarlyExit
+    if (!running_) {  // Double-check after acquiring lock
+      return false;
+    }
+
+    SPDLOG_INFO("Marked client as stopped and disconnected");
+
+    running_ = false;
+    was_connected_ = false;
+    was_stopped_ = true;
   }
 
-  SPDLOG_INFO("Marked client as stopped and disconnected");
+  // The socket, the SSL layer and the cancellation signal belong to strand_:
+  // tearing them down from the caller's thread races with the reader and the
+  // sender coroutines. When nothing drives the io_context any more the posted
+  // teardown is dropped and the destructor performs it instead.
+  if (strand_.running_in_this_thread()) {
+    DoStop();
+  } else {
+    boost::asio::dispatch(
+        strand_, [self = shared_from_this()]() { self->DoStop(); });
+  }
 
-  running_ = false;
-  was_connected_ = false;
+  return true;
+}
+
+void WebsocketClient::DoStop() {
+  if (teardown_done_.exchange(true)) {
+    return;
+  }
 
   boost::system::error_code ec;
 
@@ -236,10 +261,7 @@ bool WebsocketClient::Stop() {
     https::utils::AttachCertificateVerificationCallbackDelete(ssl);
   }
 
-  was_stopped_ = true;
   SPDLOG_INFO("WebSocket client stopped successfully");
-
-  return true;
 }
 
 bool WebsocketClient::Send(fptn::common::network::IPPacketPtr packet) {

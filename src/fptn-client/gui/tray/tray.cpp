@@ -670,6 +670,9 @@ void TrayApp::handleTimer() {
           disconnect_action_->setVisible(false);
         }
       } else {
+        // Re-arm the check: the tunnel is healthy again, so the next
+        // unexpected close has to be reported too.
+        reconnection_in_progress = false;
         if (reconnecting_label_action_) {
           reconnecting_label_action_->setVisible(false);
         }

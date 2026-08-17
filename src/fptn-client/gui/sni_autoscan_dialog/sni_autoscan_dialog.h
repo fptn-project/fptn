@@ -6,11 +6,8 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #pragma once
 
-#include <atomic>
-#include <mutex>
-#include <random>
+#include <memory>
 #include <string>
-#include <thread>
 #include <vector>
 
 #include <QComboBox>    // NOLINT(build/include_order)
@@ -39,36 +36,25 @@ class SniAutoscanDialog : public QDialog {
   void onUpdateProgress();
 
  protected:
+  /* Scan state is owned by the worker threads, so the dialog can be closed
+   * without waiting for the network operations still in flight. */
+  struct ScanContext;
+  using ScanContextPtr = std::shared_ptr<ScanContext>;
+
   void SetupUi();
 
   void StartScanning();
   void StopScanning();
-  void WorkerThread(int thread_id);
+  void FlushLog();
+
+  static void WorkerThread(const ScanContextPtr& ctx);
 
   std::vector<std::string> CollectAllSni() const;
   std::vector<std::string> CollectSniFromSelectedFile() const;
   QVector<ServerConfig> CollectTargetServers() const;
-  std::string GetNextSni();
-
-  void AddLogEntry(const QString& server,
-      const QString& sni,
-      bool handshake_ok,
-      bool http_ok);
 
  private:
-  mutable std::mutex mutex_;
-
-  std::vector<std::string> sni_vector_;
-  std::size_t current_sni_index_ = 0;
-
-  std::atomic<bool> is_scanning_{false};
-  std::atomic<bool> stop_requested_{false};
-  std::atomic<int> tested_count_{0};
-  std::atomic<int> working_sni_found_{0};
-  std::string found_working_sni_;
-
-  QVector<ServerConfig> target_servers_;
-  std::vector<std::thread> worker_threads_;
+  ScanContextPtr ctx_;
 
   SettingsModelPtr settings_;
 

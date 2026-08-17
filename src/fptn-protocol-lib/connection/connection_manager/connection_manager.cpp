@@ -28,6 +28,24 @@ using fptn::common::network::IPv4Address;
 using fptn::common::network::IPv6Address;
 using fptn::protocol::https::ApiClient;
 
+namespace {
+
+std::string ExtractErrorMessage(const fptn::protocol::https::Response& resp) {
+  if (!resp.errmsg.empty()) {
+    return resp.errmsg;
+  }
+  try {
+    const auto msg = resp.Json();
+    if (msg.contains("message")) {
+      return msg["message"].get<std::string>();
+    }
+  } catch (const std::exception&) {  // NOLINT(bugprone-empty-catch)
+  }
+  return resp.body;
+}
+
+}  // namespace
+
 ConnectionManager::ConnectionManager(
     strategies::ConnectionStrategy connection_strategy_type,
     fptn::protocol::https::ConnectionConfig config)
@@ -36,12 +54,7 @@ ConnectionManager::ConnectionManager(
       connection_strategy_type_(connection_strategy_type),
       config_(std::move(config)) {}  // NOLINT
 
-ConnectionManager::~ConnectionManager() {
-  if (strategy_connection_) {
-    strategy_connection_->Stop();
-    strategy_connection_.reset();
-  }
-}
+ConnectionManager::~ConnectionManager() { Stop(); }
 
 void ConnectionManager::SetRecvIPPacketCallback(
     const fptn::protocol::https::OnIPRecvPacketCallback& callback) {
@@ -103,7 +116,7 @@ bool ConnectionManager::Login(
       }
     } else if (resp.code == 401 || resp.code == 403) {
       jwt_access_token_ = "";
-      latest_error_ = resp.errmsg;
+      latest_error_ = ExtractErrorMessage(resp);
       latest_error_code_ = resp.code;
       SPDLOG_ERROR("Auth error ({}): wrong username or password", resp.code);
       return false;
@@ -115,10 +128,10 @@ bool ConnectionManager::Login(
       SPDLOG_ERROR("Auth error (503): authorization server is unavailable");
     } else {
       jwt_access_token_ = "";
-      latest_error_ = resp.errmsg;
+      latest_error_ = ExtractErrorMessage(resp);
       latest_error_code_ = resp.code;
       SPDLOG_ERROR(
-          "Error: Request failed code: {} msg: {}", resp.code, resp.errmsg);
+          "Error: Request failed code: {} msg: {}", resp.code, latest_error_);
     }
   }
   return false;
@@ -175,24 +188,22 @@ std::pair<IPv4Address, IPv6Address> ConnectionManager::GetDns() {
 }
 
 bool ConnectionManager::Start() {
+  Stop();
   running_ = true;
   th_ = std::thread(&ConnectionManager::Run, this);
   return th_.joinable();
 }
 
 bool ConnectionManager::Stop() {
-  if (!running_) {
-    return false;
-  }
-
-  SPDLOG_INFO("Stopping client");
+  bool was_running = false;
   {
     const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
-    if (!running_) {  // Double-check after acquiring lock
-      return false;
-    }
-    running_ = false;
+    was_running = running_.exchange(false);
+  }
+
+  if (was_running) {
+    SPDLOG_INFO("Stopping client");
   }
 
   if (strategy_connection_) {
@@ -207,8 +218,13 @@ bool ConnectionManager::Stop() {
     }
   }
 
-  strategy_connection_.reset();
-  return true;
+  {
+    const std::unique_lock<std::mutex> lock(mutex_);  // mutex
+
+    strategy_connection_.reset();
+  }
+
+  return was_running;
 }
 
 bool ConnectionManager::Send(fptn::common::network::IPPacketPtr packet) const {

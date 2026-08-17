@@ -7,6 +7,10 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "gui/sni_autoscan_dialog/sni_autoscan_dialog.h"
 
 #include <algorithm>
+#include <atomic>
+#include <deque>
+#include <memory>
+#include <mutex>
 #include <random>
 #include <string>
 #include <thread>
@@ -17,20 +21,68 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <QFontDatabase>  // NOLINT(build/include_order)
 #include <QMessageBox>    // NOLINT(build/include_order)
 #include <QScrollBar>     // NOLINT(build/include_order)
+#include <QTextDocument>  // NOLINT(build/include_order)
 #include <QVBoxLayout>    // NOLINT(build/include_order)
 
 #include "common/api/handle.h"
 
 #include "fptn-protocol-lib/https/api_client/api_client.h"
 
+namespace {
+
+QString StatusHtml(bool ok) {
+  return ok ? QStringLiteral(R"(<font color="green">YES</font>)")
+            : QStringLiteral(R"(<font color="red">NO</font>)");
+}
+
+QString FormatLogEntry(const QString& server,
+    const QString& sni,
+    bool handshake_ok,
+    bool http_ok) {
+  constexpr int kServerWidth = 22;
+  constexpr int kSniWidth = 42;
+
+  QString columns = QStringLiteral("%1%2")
+                        .arg(server, -kServerWidth)
+                        .arg(sni, -kSniWidth)
+                        .toHtmlEscaped();
+  columns.replace(QLatin1Char(' '), QLatin1String("&nbsp;"));
+
+  return QStringLiteral("<div>%1Handshake: %2&nbsp;&nbsp;HTTP: %3</div>")
+      .arg(columns, StatusHtml(handshake_ok), StatusHtml(http_ok));
+}
+
+}  // namespace
+
 namespace fptn::gui {
+
+struct SniAutoscanDialog::ScanContext {
+  std::mutex mutex;
+
+  /* set before the workers start, read-only afterwards */
+  std::vector<std::string> sni_list;
+  QVector<ServerConfig> servers;
+
+  /* guarded by mutex */
+  std::size_t next_index = 0;
+  std::string found_sni;
+  std::deque<QString> pending_log;
+
+  std::atomic<bool> stop{false};
+  std::atomic<int> tested{0};
+  std::atomic<int> active_workers{0};
+};
 
 SniAutoscanDialog::SniAutoscanDialog(SettingsModelPtr settings, QWidget* parent)
     : QDialog(parent), settings_(std::move(settings)) {
   SetupUi();
 }
 
-SniAutoscanDialog::~SniAutoscanDialog() { StopScanning(); }
+SniAutoscanDialog::~SniAutoscanDialog() {
+  if (ctx_) {
+    ctx_->stop = true;
+  }
+}
 
 void SniAutoscanDialog::SetupUi() {
   setMinimumSize(650, 400);
@@ -73,9 +125,7 @@ void SniAutoscanDialog::SetupUi() {
 
   close_button_ = new QPushButton(QObject::tr("Close"), this);
   connect(close_button_, &QPushButton::clicked, this, [this]() {
-    if (is_scanning_) {
-      StopScanning();
-    }
+    StopScanning();
     reject();
   });
 
@@ -85,16 +135,19 @@ void SniAutoscanDialog::SetupUi() {
   top_layout->addWidget(start_stop_button_);
   top_layout->addWidget(close_button_);
 
+  constexpr int kMaxLogLines = 2000;
+
   log_text_edit_ = new QTextEdit(this);
   log_text_edit_->setReadOnly(true);
   log_text_edit_->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
+  log_text_edit_->document()->setMaximumBlockCount(kMaxLogLines);
   QFont log_font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
   log_font.setPointSize(8);
   log_text_edit_->setFont(log_font);
   connect(log_text_edit_->verticalScrollBar(), &QScrollBar::rangeChanged, this,
       [this](int min, int max) {
         (void)min;
-        if (auto_scroll_ && is_scanning_) {
+        if (auto_scroll_ && ctx_) {
           log_text_edit_->verticalScrollBar()->setValue(max);
         }
       });
@@ -113,7 +166,7 @@ void SniAutoscanDialog::SetupUi() {
 }
 
 void SniAutoscanDialog::onStartStopClicked() {
-  if (!is_scanning_) {
+  if (!ctx_) {
     StartScanning();
   } else {
     StopScanning();
@@ -121,55 +174,57 @@ void SniAutoscanDialog::onStartStopClicked() {
 }
 
 void SniAutoscanDialog::onUpdateProgress() {
-  if (!is_scanning_) {
+  if (!ctx_) {
     return;
   }
 
-  const auto total = sni_vector_.size();
-  const auto tested = static_cast<std::size_t>(tested_count_);
+  FlushLog();
 
-  if (total > 0) {
-    progress_label_->setText(QString("%1/%2").arg(tested).arg(total));
-  } else {
-    progress_label_->setText("0/0");
+  progress_label_->setText(
+      QString("%1/%2").arg(ctx_->tested.load()).arg(ctx_->sni_list.size()));
+
+  std::string found;
+  {
+    const std::unique_lock<std::mutex> lock(ctx_->mutex);
+    found = ctx_->found_sni;
   }
 
-  if (working_sni_found_ > 0 && !found_working_sni_.empty()) {
-    StopScanning();
+  const bool all_workers_done = (ctx_->active_workers == 0);
+  if (found.empty() && !all_workers_done) {
+    return;
+  }
 
-    settings_->SetSNI(QString::fromStdString(found_working_sni_));
+  StopScanning();
+
+  if (!found.empty()) {
+    settings_->SetSNI(QString::fromStdString(found));
     settings_->Save();
 
     QMessageBox::information(this, QObject::tr("Scan completed"),
         QObject::tr("Working SNI found: %1")
-            .arg(QString::fromStdString(found_working_sni_)));
-    return;
-  }
-
-  if (static_cast<std::size_t>(tested_count_) >= sni_vector_.size()) {
-    StopScanning();
-    if (working_sni_found_ == 0) {
-      QMessageBox::information(this, QObject::tr("Scan completed"),
-          QObject::tr("No working SNI found."));
-    }
+            .arg(QString::fromStdString(found)));
+  } else {
+    QMessageBox::information(this, QObject::tr("Scan completed"),
+        QObject::tr("No working SNI found."));
   }
 }
 
 void SniAutoscanDialog::StartScanning() {
+  std::vector<std::string> sni_vector;
   if (sni_file_combo_box_->currentText() == QObject::tr("All")) {
-    sni_vector_ = CollectAllSni();
+    sni_vector = CollectAllSni();
   } else {
-    sni_vector_ = CollectSniFromSelectedFile();
+    sni_vector = CollectSniFromSelectedFile();
   }
 
-  if (sni_vector_.empty()) {
+  if (sni_vector.empty()) {
     QMessageBox::warning(this, QObject::tr("Error"),
         QObject::tr("No SNI available for scanning."));
     return;
   }
 
-  target_servers_ = CollectTargetServers();
-  if (target_servers_.isEmpty()) {
+  auto target_servers = CollectTargetServers();
+  if (target_servers.isEmpty()) {
     QMessageBox::warning(this, QObject::tr("Error"),
         QObject::tr("No servers available for scanning."));
     return;
@@ -177,14 +232,11 @@ void SniAutoscanDialog::StartScanning() {
 
   std::random_device rd;
   std::mt19937 g(rd());
-  std::ranges::shuffle(sni_vector_, g);
+  std::ranges::shuffle(sni_vector, g);
 
-  is_scanning_ = true;
-  stop_requested_ = false;
-  tested_count_ = 0;
-  working_sni_found_ = 0;
-  current_sni_index_ = 0;
-  found_working_sni_.clear();
+  ctx_ = std::make_shared<ScanContext>();
+  ctx_->sni_list = std::move(sni_vector);
+  ctx_->servers = std::move(target_servers);
 
   start_stop_button_->setText(QObject::tr("Cancel"));
   server_combo_box_->setEnabled(false);
@@ -192,25 +244,25 @@ void SniAutoscanDialog::StartScanning() {
   progress_label_->setText("0/0");
 
   constexpr int kThreadCount = 8;
+  ctx_->active_workers = kThreadCount;
   for (int i = 0; i < kThreadCount; ++i) {
-    worker_threads_.emplace_back(&SniAutoscanDialog::WorkerThread, this, i);
+    /* every thread keeps its own share of the context alive */
+    std::thread([ctx = ctx_]() { SniAutoscanDialog::WorkerThread(ctx); })
+        .detach();
   }
   progress_timer_->start(100);
 }
 
 void SniAutoscanDialog::StopScanning() {
-  if (!is_scanning_) return;
+  if (!ctx_) return;
 
-  stop_requested_ = true;
+  FlushLog();
 
-  for (auto& thread : worker_threads_) {
-    if (thread.joinable()) {
-      thread.join();
-    }
-  }
-  worker_threads_.clear();
+  /* The workers own the context, so there is nothing to wait for here: they
+   * drop out on the next stop check and release it. */
+  ctx_->stop = true;
+  ctx_.reset();
 
-  is_scanning_ = false;
   progress_timer_->stop();
 
   start_stop_button_->setText(QObject::tr("Start"));
@@ -218,32 +270,44 @@ void SniAutoscanDialog::StopScanning() {
   sni_file_combo_box_->setEnabled(true);
 }
 
-std::string SniAutoscanDialog::GetNextSni() {
-  const std::unique_lock<std::mutex> lock(mutex_);
-
-  if (current_sni_index_ >= sni_vector_.size()) {
-    return std::string();
+void SniAutoscanDialog::FlushLog() {
+  std::deque<QString> pending;
+  {
+    const std::unique_lock<std::mutex> lock(ctx_->mutex);
+    pending.swap(ctx_->pending_log);
   }
-  return sni_vector_[current_sni_index_++];
+
+  if (pending.empty()) {
+    return;
+  }
+
+  QString html;
+  for (const auto& entry : pending) {
+    html += entry;
+  }
+
+  log_text_edit_->moveCursor(QTextCursor::End);
+  log_text_edit_->insertHtml(html);
 }
 
-void SniAutoscanDialog::WorkerThread(int thread_id) {
-  (void)thread_id;
-
-  while (!stop_requested_) {
-    std::string sni = GetNextSni();
-    if (sni.empty()) {
-      break;
+void SniAutoscanDialog::WorkerThread(const ScanContextPtr& ctx) {
+  while (!ctx->stop) {
+    std::string sni;
+    {
+      const std::unique_lock<std::mutex> lock(ctx->mutex);
+      if (ctx->next_index >= ctx->sni_list.size()) {
+        break;
+      }
+      sni = ctx->sni_list[ctx->next_index++];
     }
 
     bool sni_works = false;
 
-    for (const auto& server : target_servers_) {
-      if (stop_requested_) {
+    for (const auto& server : ctx->servers) {
+      if (ctx->stop) {
         break;
       }
 
-      bool handshake_ok = false;
       bool http_ok = false;
 
       constexpr int kHandshakeTimeout = 2;
@@ -251,7 +315,7 @@ void SniAutoscanDialog::WorkerThread(int thread_id) {
           server.port, sni, server.md5_fingerprint.toStdString(),
           protocol::https::CensorshipStrategy::kSni);
 
-      handshake_ok = client.TestHandshake(kHandshakeTimeout);
+      const bool handshake_ok = client.TestHandshake(kHandshakeTimeout);
       if (handshake_ok) {
         constexpr int kHttpTimeout = 5;
         const auto response = client.Get(common::api::kApiDnsUrl, kHttpTimeout);
@@ -262,22 +326,32 @@ void SniAutoscanDialog::WorkerThread(int thread_id) {
         }
       }
 
-      AddLogEntry(
-          server.name, QString::fromStdString(sni), handshake_ok, http_ok);
+      {
+        const std::unique_lock<std::mutex> lock(ctx->mutex);
+        ctx->pending_log.push_back(FormatLogEntry(server.name,
+            QString::fromStdString(sni), handshake_ok, http_ok));
+      }
 
       if (sni_works) {
         break;
       }
     }
 
-    ++tested_count_;
+    ++ctx->tested;
 
     if (sni_works) {
-      found_working_sni_ = sni;
-      ++working_sni_found_;
+      {
+        const std::unique_lock<std::mutex> lock(ctx->mutex);
+        if (ctx->found_sni.empty()) {
+          ctx->found_sni = sni;
+        }
+      }
+      ctx->stop = true;
       break;
     }
   }
+
+  --ctx->active_workers;
 }
 
 std::vector<std::string> SniAutoscanDialog::CollectAllSni() const {
@@ -343,56 +417,6 @@ QVector<ServerConfig> SniAutoscanDialog::CollectTargetServers() const {
     }
   }
   return servers;
-}
-
-void SniAutoscanDialog::AddLogEntry(const QString& server,
-    const QString& sni,
-    bool handshake_ok,
-    bool http_ok) {
-  QMetaObject::invokeMethod(this, [this, server, sni, handshake_ok, http_ok]() {
-    const QString handshake_status =
-        handshake_ok ? QString("<font color=\"green\">YES</font>")
-                     : QString("<font color=\"red\">NO</font>");
-
-    const QString http_status =
-        http_ok ? QString("<font color=\"green\">YES</font>")
-                : QString("<font color=\"red\">NO</font>");
-
-    const QString log_entry = QString(R"(
-        <table style="width: 100%; font-family: monospace; table-layout: fixed; font-size: 9px;">
-            <tr>
-                <td width="25%" style="white-space: nowrap;">%1</td>
-                <td width="45%" style="white-space: nowrap;">%2</td>
-                <td width="15%">Handshake: %3</td>
-                <td width="15%" style="padding-left: 10px;">HTTP: %4</td>
-            </tr>
-        </table>
-    )")
-                                  .arg(server.toHtmlEscaped())
-                                  .arg(sni.toHtmlEscaped())
-                                  .arg(handshake_status)
-                                  .arg(http_status);
-
-    {
-      const std::unique_lock<std::mutex> lock(mutex_);
-
-      constexpr int kMaxLogSize = 2048;
-
-      if (log_text_edit_->document()->lineCount() > kMaxLogSize) {
-        QTextCursor cursor(log_text_edit_->document());
-        cursor.movePosition(QTextCursor::Start);
-        cursor.select(QTextCursor::LineUnderCursor);
-        cursor.removeSelectedText();
-      }
-
-      log_text_edit_->moveCursor(QTextCursor::End);
-      log_text_edit_->insertHtml(log_entry);
-
-      QTextCursor cursor(log_text_edit_->textCursor());
-      cursor.movePosition(QTextCursor::End);
-      log_text_edit_->setTextCursor(cursor);
-    }
-  });
 }
 
 }  // namespace fptn::gui

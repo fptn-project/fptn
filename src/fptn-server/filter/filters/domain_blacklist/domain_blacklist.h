@@ -22,13 +22,6 @@ namespace fptn::filter {
  * @class DomainBlacklist
  * @brief Blocks blacklisted domains by the IPs they resolve to.
  *
- * To the client: on a DNS response for a blacklisted domain (or any of its
- * subdomains) it remembers the real resolved IP addresses and rewrites all
- * A/AAAA answers to loopback (127.0.0.1 / ::1).
- *
- * From the client: drops packets addressed to one of those remembered IPs -
- * a backstop for clients that resolved the domain out of band.
- *
  * @note This filter is applied on both paths and shared across their thread
  * pools, so its mutable state is guarded by a read-write mutex.
  */

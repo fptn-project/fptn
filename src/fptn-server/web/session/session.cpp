@@ -706,9 +706,16 @@ boost::asio::awaitable<bool> Session::PerformFakeHandshake(
       co_return false;
     }
 
-    const std::size_t bytes_wrote =
-        co_await boost::asio::async_write(tcp_socket,
-            boost::asio::buffer(*handshake_answer), boost::asio::use_awaitable);
+    std::vector<std::uint8_t> answer = *handshake_answer;
+    const auto client_session_id =
+        common::network::GetTlsSessionId(buffer.data(), bytes_read);
+    if (!common::network::SetTlsSessionId(answer, client_session_id)) {
+      SPDLOG_WARN("Could not restamp session id for {} (client_id={})", sni,
+          client_id_);
+    }
+
+    const std::size_t bytes_wrote = co_await boost::asio::async_write(
+        tcp_socket, boost::asio::buffer(answer), boost::asio::use_awaitable);
 
     SPDLOG_INFO(
         "Reality mode completed, ready for real handshake (client_id={}) "
@@ -745,9 +752,22 @@ boost::asio::awaitable<bool> Session::PerformFakeHandshake2(
       co_return false;
     }
 
+    // The cached ServerHello was fetched with our own ClientHello, so its
+    // legacy_session_id echo belongs to that fetch, not to this client. Every
+    // real TLS server echoes the client's value; leaving a stale one makes the
+    // pair trivially distinguishable by comparing two plaintext fields.
+    std::vector<std::uint8_t> answer = *handshake_answer;
+    const auto client_session_id = common::network::GetTlsSessionId(
+        client_hello.value().data(), client_hello_size);
+    if (!common::network::SetTlsSessionId(answer, client_session_id)) {
+      SPDLOG_WARN("Could not restamp session id for {} (client_id={})", sni,
+          client_id_);
+    }
+
     const std::size_t handshake_answer_size =
-        co_await boost::asio::async_write(tcp_socket,
-            boost::asio::buffer(*handshake_answer), boost::asio::use_awaitable);
+        co_await boost::asio::async_write(
+            tcp_socket, boost::asio::buffer(answer),
+            boost::asio::use_awaitable);
 
     /* Wait for ChangeCipherSpec */
     const bool change_cipher_spec_size =
@@ -783,17 +803,46 @@ boost::asio::awaitable<bool> Session::HandleProxy(
   try {
     const std::string port_str = std::to_string(port);
 
-    auto resolve_result =
-        co_await fptn::common::network::AsyncResolve(sni, port_str);
+    // Neither AsyncResolve nor async_connect carries a deadline of its own,
+    // and the beast timer on ws_ does not cover target_socket. Without this
+    // race a decoy host that silently drops packets pins the session open
+    // indefinitely, and a handful of such sessions stops the server from
+    // accepting new connections.
+    bool setup_completed = false;
+    auto setup = [&]() -> boost::asio::awaitable<void> {
+      const auto resolve_result =
+          co_await fptn::common::network::AsyncResolve(sni, port_str);
+      if (!resolve_result.success()) {
+        SPDLOG_ERROR("Proxy DNS resolution failed for {}:{}: {}", sni, port_str,
+            resolve_result.error.message());
+        co_return;
+      }
+      boost::system::error_code connect_ec;
+      co_await boost::asio::async_connect(target_socket, resolve_result.results,
+          boost::asio::redirect_error(boost::asio::use_awaitable, connect_ec));
+      if (connect_ec) {
+        SPDLOG_ERROR("Proxy connect failed for {}:{}: {}", sni, port_str,
+            connect_ec.message());
+        co_return;
+      }
+      setup_completed = true;
+    };
 
-    if (!resolve_result.success()) {
-      SPDLOG_ERROR("Proxy DNS resolution failed for {}:{}: {}", sni, port_str,
-          resolve_result.error.message());
+    {
+      boost::asio::steady_timer setup_deadline(
+          co_await boost::asio::this_coro::executor,
+          std::chrono::seconds(kTimeout));
+      using boost::asio::experimental::awaitable_operators::operator||;
+      const auto race = co_await(  // NOLINT(whitespace/parens)
+          setup() || setup_deadline.async_wait(boost::asio::use_awaitable));
+      if (race.index() == 1) {
+        SPDLOG_WARN("Proxy setup to {}:{} timed out after {}s (client_id={})",
+            sni, port_str, kTimeout, client_id_);
+      }
+    }
+    if (!setup_completed) {
       co_return false;
     }
-
-    co_await boost::asio::async_connect(
-        target_socket, resolve_result.results, boost::asio::use_awaitable);
 
     const auto ep = target_socket.remote_endpoint();
     SPDLOG_INFO("Proxying {}:{} <-> {}:{} (client_id={})",

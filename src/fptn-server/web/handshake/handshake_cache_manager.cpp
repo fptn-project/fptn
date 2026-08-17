@@ -6,6 +6,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include "web/handshake/handshake_cache_manager.h"
 
+#include <array>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -26,42 +27,66 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 namespace {
 
-boost::asio::awaitable<fptn::web::HandshakeResponse> FetchRealHandshake(
+// Forwards the client's own ClientHello to the decoy and returns its answer.
+//
+// This is the Reality property itself: the decoy must see the genuine browser
+// fingerprint the client produced, not one of ours. The price is that the
+// client's private key is not ours, so the flight cannot be decrypted and its
+// end cannot be derived by parsing. The only sound stopping condition left is
+// structural plus silence: the buffer holds a whole number of TLS records and
+// the decoy has stopped writing. A short answer is not fatal — the client's
+// obfuscator resynchronises past whatever it did not consume.
+boost::asio::awaitable<fptn::web::HandshakeResponse> FetchForwardedHandshake(
     const std::string& sni,
-    const std::vector<std::uint8_t>& client_handshake_data,
+    const std::vector<std::uint8_t>& client_hello,
     const std::chrono::seconds& timeout) {
   auto executor = co_await boost::asio::this_coro::executor;
   boost::asio::ip::tcp::socket target_socket(executor);
 
   constexpr std::size_t kMaxTotalSize = 65536;
+  constexpr auto kQuietPeriod = std::chrono::milliseconds(300);
   auto full_response = std::make_shared<std::vector<std::uint8_t>>();
-  full_response->reserve(kMaxTotalSize);
   try {
     auto fetch = [&]() -> boost::asio::awaitable<void> {
-      // DNS resolution
       const auto resolve_result =
           co_await fptn::common::network::AsyncResolve(sni, "443");
-
       if (!resolve_result.success()) {
         SPDLOG_WARN(
             "DNS failed for {}: {}", sni, resolve_result.error.message());
         co_return;
       }
-
-      // Connect to real server
       co_await boost::asio::async_connect(
           target_socket, resolve_result.results, boost::asio::use_awaitable);
-
-      // Send client handshake
       co_await boost::asio::async_write(target_socket,
-          boost::asio::buffer(client_handshake_data),
-          boost::asio::use_awaitable);
+          boost::asio::buffer(client_hello), boost::asio::use_awaitable);
 
-      const auto server_response =
-          co_await fptn::common::network::WaitForServerTlsHelloAsync(
-              target_socket, timeout);
-      if (server_response.has_value()) {
-        *full_response = server_response.value();
+      std::vector<std::uint8_t> data;
+      data.reserve(kMaxTotalSize);
+      std::array<std::uint8_t, 8192> buf{};
+      using boost::asio::experimental::awaitable_operators::operator||;
+      while (data.size() < kMaxTotalSize) {
+        boost::asio::steady_timer quiet(executor, kQuietPeriod);
+        boost::system::error_code read_ec;
+        const auto race = co_await(  // NOLINT(whitespace/parens)
+            target_socket.async_read_some(boost::asio::buffer(buf),
+                boost::asio::redirect_error(
+                    boost::asio::use_awaitable, read_ec)) ||
+            quiet.async_wait(boost::asio::use_awaitable));
+        if (race.index() == 1) {
+          break;
+        }
+        const std::size_t bytes = std::get<0>(race);
+        if (read_ec || bytes == 0) {
+          break;
+        }
+        data.insert(data.end(), buf.begin(), buf.begin() + bytes);
+      }
+
+      if (fptn::common::network::IsRecordAlignedServerFlight(data)) {
+        *full_response = std::move(data);
+      } else {
+        SPDLOG_WARN("Decoy {} answered {} bytes that do not form whole TLS "
+                    "records", sni, data.size());
       }
     };
 
@@ -70,11 +95,10 @@ boost::asio::awaitable<fptn::web::HandshakeResponse> FetchRealHandshake(
     const auto race = co_await(  // NOLINT(whitespace/parens)
         fetch() || deadline.async_wait(boost::asio::use_awaitable));
     if (race.index() == 1) {
-      SPDLOG_WARN("Timeout fetching handshake from {}", sni);
+      SPDLOG_WARN("Timeout forwarding handshake to {}", sni);
     }
-    SPDLOG_INFO("Received {} bytes from {}", full_response->size(), sni);
   } catch (const std::exception& e) {
-    SPDLOG_ERROR("Error fetching handshake from {}: {}", sni, e.what());
+    SPDLOG_ERROR("Error forwarding handshake to {}: {}", sni, e.what());
   }
 
   boost::system::error_code close_ec;
@@ -84,8 +108,11 @@ boost::asio::awaitable<fptn::web::HandshakeResponse> FetchRealHandshake(
   if (full_response->empty()) {
     co_return nullptr;
   }
+  SPDLOG_INFO(
+      "Forwarded handshake to {}: {} bytes", sni, full_response->size());
   co_return full_response;
 }
+
 }  // namespace
 
 namespace fptn::web {
@@ -117,8 +144,7 @@ boost::asio::awaitable<HandshakeResponse> HandshakeCacheManager::GetHandshake(
     std::size_t size,
     const std::chrono::seconds& target_timeout,
     const std::chrono::seconds& fallback_timeout) {
-  std::vector<std::uint8_t> client_handshake_data(
-      buffer_ptr, buffer_ptr + size);
+  const std::vector<std::uint8_t> client_hello(buffer_ptr, buffer_ptr + size);
 
   const auto cached_response = CheckCache(sni);
   if (cached_response && !cached_response->empty()) {
@@ -127,18 +153,8 @@ boost::asio::awaitable<HandshakeResponse> HandshakeCacheManager::GetHandshake(
     co_return cached_response;
   }
 
-  const auto client_sni = fptn::common::network::GetTlsSNI(buffer_ptr, size);
-  if (client_sni != sni) {
-    SPDLOG_INFO(
-        "ClientHello SNI '{}' differs from target '{}', generating a matching "
-        "handshake",
-        client_sni.value_or(""), sni);
-    client_handshake_data =
-        fptn::protocol::https::utils::GenerateDecoyTlsHandshake(sni);
-  }
-
   HandshakeResponse response =
-      co_await FetchRealHandshake(sni, client_handshake_data, target_timeout);
+      co_await FetchForwardedHandshake(sni, client_hello, target_timeout);
   if (!response) {
     SPDLOG_WARN(
         "Failed to fetch handshake from original SNI: {}, trying default "
@@ -157,11 +173,10 @@ boost::asio::awaitable<HandshakeResponse> HandshakeCacheManager::GetHandshake(
     // Generate fresh ClientHello with correct SNI for fallback domain.
     // Do NOT forward client_handshake_data here — it contains the fake SNI
     // which causes the fallback server to send only a partial ServerHello.
-    const auto fallback_hello =
+    response = co_await FetchForwardedHandshake(default_domain_,
         fptn::protocol::https::utils::GenerateDecoyTlsHandshake(
-            default_domain_);
-    response = co_await FetchRealHandshake(
-        default_domain_, fallback_hello, fallback_timeout);
+            default_domain_),
+        fallback_timeout);
     if (response && !response->empty()) {
       const std::unique_lock<std::mutex> lock(mutex_);  // mutex
       cache_[default_domain_] = CacheEntry{

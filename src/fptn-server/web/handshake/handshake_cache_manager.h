@@ -22,8 +22,11 @@ using HandshakeResponse = std::shared_ptr<std::vector<std::uint8_t>>;
 
 class HandshakeCacheManager final {
  public:
+  // A cached ServerHello is replayed verbatim, so every client served from one
+  // entry sees the same ServerHello.random. The TTL bounds how long that
+  // repetition is observable; refetching costs one TLS handshake per SNI.
   explicit HandshakeCacheManager(std::string default_domain,
-      std::chrono::seconds cache_ttl = std::chrono::seconds(86400));
+      std::chrono::seconds cache_ttl = std::chrono::seconds(3600));
 
   boost::asio::awaitable<HandshakeResponse> GetHandshake(const std::string& sni,
       const std::uint8_t* buffer_ptr,

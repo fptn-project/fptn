@@ -174,15 +174,30 @@ inline bool IsClientHelloComplete(const std::vector<std::uint8_t>& data) {
 //     1. ServerHello           (content_type = 22, msg_type = 2)
 //     2. ChangeCipherSpec      (content_type = 20) — compat shim, RFC 8446 §D.4
 //     3. At least one ApplicationData (content_type = 23) — encrypted handshake
-//        AND that AppData is the last complete record currently in the buffer.
+//        totalling at least kMinTls13ServerFlightAppDataBytes, and the buffer
+//        ending exactly on a record boundary.
 //
-//   IMPORTANT: "last in buffer" means the server is no longer writing.
-//   Because AppData records may arrive in bursts, the caller (WaitForServer*)
-//   MUST use a quiet-period strategy: keep reading until 150ms of silence
-//   AFTER IsServerHelloComplete first returns true, to capture the full
-//   encrypted flight (EncryptedExtensions + Certificate + CertVerify +
-//   Finished).
+//   The inner handshake messages are ENCRYPTED, so their types are invisible
+//   and the record layer carries no end-of-flight marker. A server may put the
+//   whole flight in one record or split it across many; both are legal and
+//   both occur in practice. "Last complete record currently in the buffer"
+//   therefore does NOT mean the server stopped writing, and the end of the
+//   flight cannot be derived from parsing alone.
+//
+//   What the plaintext record layer does decide: the buffer ends exactly on a
+//   record boundary, and how many AppData bytes have arrived. Certificate,
+//   CertificateVerify and Finished are mandatory (RFC 8446 4.4), and Finished
+//   alone is 53 bytes (SHA-256) or 69 (SHA-384), so a few hundred bytes cannot
+//   carry a certificate chain.
+//
+//   ChangeCipherSpec is NOT required: the TLS 1.3 compatibility CCS
+//   (RFC 8446 D.4) is optional and some servers omit it.
+//
+//   The caller (WaitForServer*) still applies a quiet period after this first
+//   returns true; that is what decides "the server stopped writing".
 // ---------------------------------------------------------------------------
+inline constexpr std::size_t kMinTls13ServerFlightAppDataBytes = 512;
+
 inline bool IsServerHelloComplete(const std::vector<std::uint8_t>& data) {
   if (data.size() < 5) {
     return false;
@@ -191,6 +206,7 @@ inline bool IsServerHelloComplete(const std::vector<std::uint8_t>& data) {
   bool found_server_hello = false;
   bool is_tls13 = false;
   bool handshake_done = false;
+  std::size_t app_data_bytes = 0;
 
   while (pos + 5 <= data.size()) {
     const std::uint8_t content_type = data[pos];
@@ -240,30 +256,47 @@ inline bool IsServerHelloComplete(const std::vector<std::uint8_t>& data) {
 
     // TLS 1.3: ApplicationData (type 23) carries the encrypted server flight:
     // EncryptedExtensions, Certificate, CertificateVerify, Finished.
-    // We declare "potentially done" when this AppData record is the last
-    // complete record currently in the buffer. We deliberately do NOT require
-    // a preceding ChangeCipherSpec: the TLS 1.3 compatibility CCS
-    // (RFC 8446 §D.4) is OPTIONAL, and servers that omit it previously left
-    // handshake_done false forever -> the decoy read timed out and Reality
-    // failed only for those SNIs (looked flaky/intermittent). The caller's
-    // quiet-period loop still captures any further AppData records.
+    // Their inner types are encrypted, so only the byte count is observable.
     if (found_server_hello && is_tls13 && content_type == 23) {
-      if (pos + 5 + record_len >= data.size()) {
-        handshake_done = true;
-        SPDLOG_INFO(
-            "IsServerHelloComplete: TLS 1.3 last AppData in buffer ({} bytes "
-            "total)",
-            data.size());
-      }
+      app_data_bytes += record_len;
     }
 
     pos += 5 + record_len;
+  }
+
+  if (found_server_hello && is_tls13) {
+    handshake_done = (pos == data.size()) &&
+                     (app_data_bytes >= kMinTls13ServerFlightAppDataBytes);
+    if (handshake_done) {
+      SPDLOG_INFO(
+          "IsServerHelloComplete: TLS 1.3 flight of {} AppData bytes "
+          "({} total)",
+          app_data_bytes, data.size());
+    }
   }
 
   return found_server_hello && handshake_done;
 }
 
 using TlsData = std::optional<std::vector<std::uint8_t>>;
+
+inline bool IsRecordAlignedServerFlight(
+    const std::vector<std::uint8_t>& data) {
+  std::size_t pos = 0;
+  bool found_server_hello = false;
+  while (pos + 5 <= data.size()) {
+    const std::size_t len =
+        (static_cast<std::size_t>(data[pos + 3]) << 8) | data[pos + 4];
+    if (pos + 5 + len > data.size()) {
+      return false;
+    }
+    if (data[pos] == 22 && pos + 5 < data.size() && data[pos + 5] == 2) {
+      found_server_hello = true;
+    }
+    pos += 5 + len;
+  }
+  return found_server_hello && pos == data.size();
+}
 
 // ---------------------------------------------------------------------------
 // WaitForServerTlsHello  (synchronous, blocking)
@@ -278,7 +311,7 @@ inline TlsData WaitForServerTlsHello(boost::asio::ip::tcp::socket& socket,
     const std::chrono::milliseconds drain_timeout = std::chrono::milliseconds(
         5000)) {
   constexpr auto kPollInterval = std::chrono::milliseconds(50);
-  constexpr auto kQuietMs = std::chrono::milliseconds(150);
+  constexpr auto kQuietMs = std::chrono::milliseconds(300);
 
   std::vector<std::uint8_t> data;
   data.reserve(65536);
@@ -322,6 +355,7 @@ inline TlsData WaitForServerTlsHello(boost::asio::ip::tcp::socket& socket,
 
       if (ec == boost::asio::error::eof) {
         SPDLOG_INFO("WaitForServerTlsHello: EOF, {} bytes", data.size());
+        if (!data.empty()) return data;
         break;
       }
       if (ec) {
@@ -335,6 +369,12 @@ inline TlsData WaitForServerTlsHello(boost::asio::ip::tcp::socket& socket,
           "WaitForServerTlsHello: timeout without complete ServerHello, {} "
           "bytes",
           data.size());
+    }
+    // Do not discard a record-aligned flight just because the completeness
+    // gate never fired: throwing it away guarantees a failed handshake,
+    // whereas the bytes we do have are a whole number of TLS records.
+    if (IsRecordAlignedServerFlight(data)) {
+      return data;
     }
   } catch (const std::exception& e) {
     SPDLOG_ERROR("WaitForServerTlsHello exception: {}", e.what());
@@ -352,7 +392,7 @@ inline boost::asio::awaitable<TlsData> WaitForServerTlsHelloAsync(
     const std::chrono::milliseconds drain_timeout = std::chrono::milliseconds(
         5000)) {
   constexpr auto kPollInterval = std::chrono::milliseconds(50);
-  constexpr auto kQuietMs = std::chrono::milliseconds(150);
+  constexpr auto kQuietMs = std::chrono::milliseconds(300);
 
   std::vector<std::uint8_t> data;
   data.reserve(65536);
@@ -417,6 +457,9 @@ inline boost::asio::awaitable<TlsData> WaitForServerTlsHelloAsync(
           "WaitForServerTlsHelloAsync: timeout without complete ServerHello, "
           "{} bytes",
           data.size());
+    }
+    if (IsRecordAlignedServerFlight(data)) {
+      co_return data;
     }
   } catch (const std::exception& e) {
     SPDLOG_ERROR("WaitForServerTlsHelloAsync exception: {}", e.what());

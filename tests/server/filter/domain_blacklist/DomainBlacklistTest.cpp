@@ -51,10 +51,10 @@ std::vector<std::uint8_t> EncodeQName(const std::string& domain) {
   return out;
 }
 
-// DNS response (resolver -> client) with a single A/AAAA answer.
+// DNS response (resolver -> client) with one A/AAAA answer per rdata entry.
 IPPacketPtr MakeDnsResponse(const std::string& domain,
     std::uint16_t qtype,
-    const std::vector<std::uint8_t>& rdata) {
+    const std::vector<std::vector<std::uint8_t>>& answers) {
   std::vector<std::uint8_t> dns = {
       0x12,
       0x34,  // id
@@ -63,7 +63,7 @@ IPPacketPtr MakeDnsResponse(const std::string& domain,
       0x00,
       0x01,  // qdcount
       0x00,
-      0x01,  // ancount
+      static_cast<std::uint8_t>(answers.size()),  // ancount
       0x00,
       0x00,  // nscount
       0x00,
@@ -76,19 +76,21 @@ IPPacketPtr MakeDnsResponse(const std::string& domain,
   dns.push_back(0x00);
   dns.push_back(0x01);  // class IN
 
-  dns.push_back(0xC0);  // answer NAME: pointer to the question at offset 12
-  dns.push_back(0x0C);
-  dns.push_back(static_cast<std::uint8_t>(qtype >> 8));
-  dns.push_back(static_cast<std::uint8_t>(qtype & 0xFF));
-  dns.push_back(0x00);
-  dns.push_back(0x01);  // class IN
-  dns.push_back(0x00);
-  dns.push_back(0x00);
-  dns.push_back(0x00);
-  dns.push_back(0x3C);  // ttl 60
-  dns.push_back(static_cast<std::uint8_t>(rdata.size() >> 8));
-  dns.push_back(static_cast<std::uint8_t>(rdata.size() & 0xFF));
-  dns.insert(dns.end(), rdata.begin(), rdata.end());
+  for (const auto& rdata : answers) {
+    dns.push_back(0xC0);  // answer NAME: pointer to the question at offset 12
+    dns.push_back(0x0C);
+    dns.push_back(static_cast<std::uint8_t>(qtype >> 8));
+    dns.push_back(static_cast<std::uint8_t>(qtype & 0xFF));
+    dns.push_back(0x00);
+    dns.push_back(0x01);  // class IN
+    dns.push_back(0x00);
+    dns.push_back(0x00);
+    dns.push_back(0x00);
+    dns.push_back(0x3C);  // ttl 60
+    dns.push_back(static_cast<std::uint8_t>(rdata.size() >> 8));
+    dns.push_back(static_cast<std::uint8_t>(rdata.size() & 0xFF));
+    dns.insert(dns.end(), rdata.begin(), rdata.end());
+  }
 
   constexpr std::size_t kIpHdr = 20;
   const std::size_t udp_len = 8 + dns.size();
@@ -115,6 +117,13 @@ IPPacketPtr MakeDnsResponse(const std::string& domain,
     p[kIpHdr + 8 + i] = dns[i];
   }
   return IPPacket::Parse(std::move(p));
+}
+
+IPPacketPtr MakeDnsResponse(const std::string& domain,
+    std::uint16_t qtype,
+    const std::vector<std::uint8_t>& rdata) {
+  return MakeDnsResponse(
+      domain, qtype, std::vector<std::vector<std::uint8_t>>{rdata});
 }
 
 // Plain TCP packet (client -> internet) addressed to the given IP.
@@ -145,7 +154,7 @@ IPPacketPtr MakeIPv6PacketTo(const std::string& dst) {
 }  // namespace
 
 // cppcheck-suppress syntaxError
-TEST(DomainBlacklistTest, RewritesBlacklistedAnswerToLoopback) {
+TEST(DomainBlacklistTest, KeepsBlacklistedAnswerUnchanged) {
   const DomainBlacklist filter({"ads.example.com"});
 
   auto packet = MakeDnsResponse("ads.example.com", kTypeA, {1, 2, 3, 4});
@@ -156,7 +165,22 @@ TEST(DomainBlacklistTest, RewritesBlacklistedAnswerToLoopback) {
 
   const auto addresses = out->GetDnsIPv4Addresses();
   ASSERT_EQ(addresses.size(), 1U);
-  EXPECT_EQ(addresses[0].ToString(), "127.0.0.1");
+  EXPECT_EQ(addresses[0].ToString(), "1.2.3.4")
+      << "The DNS response must reach the client as the resolver sent it";
+}
+
+TEST(DomainBlacklistTest, KeepsBlacklistedAAAAAnswerUnchanged) {
+  const DomainBlacklist filter({"ads.example.com"});
+
+  const std::vector<std::uint8_t> rdata = {0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0x01};  // 2001:db8::1
+  auto out = filter.Apply(MakeDnsResponse("ads.example.com", kTypeAAAA, rdata),
+      Direction::kToClient);
+  ASSERT_NE(out, nullptr);
+
+  const auto addresses = out->GetDnsIPv6Addresses();
+  ASSERT_EQ(addresses.size(), 1U);
+  EXPECT_EQ(addresses[0].ToString(), "2001:db8::1");
 }
 
 TEST(DomainBlacklistTest, KeepsAllowedDomainAnswer) {
@@ -176,15 +200,123 @@ TEST(DomainBlacklistTest, KeepsAllowedDomainAnswer) {
 TEST(DomainBlacklistTest, BlocksSubdomainOfBlacklistedParent) {
   const DomainBlacklist filter({"ads.example.com"});
 
-  auto packet = MakeDnsResponse("cdn.ads.example.com", kTypeA, {1, 2, 3, 4});
-  ASSERT_NE(packet, nullptr);
+  ASSERT_NE(
+      filter.Apply(MakeDnsResponse("cdn.ads.example.com", kTypeA, {1, 2, 3, 4}),
+          Direction::kToClient),
+      nullptr);
 
-  auto out = filter.Apply(std::move(packet), Direction::kToClient);
+  EXPECT_EQ(filter.Apply(MakeIPv4PacketTo("1.2.3.4"), Direction::kFromClient),
+      nullptr);
+}
+
+TEST(DomainBlacklistTest, MatchesWholeLabelsOnly) {
+  const DomainBlacklist filter({"ads.example.com"});
+
+  ASSERT_NE(
+      filter.Apply(MakeDnsResponse("notads.example.com", kTypeA, {1, 2, 3, 4}),
+          Direction::kToClient),
+      nullptr);
+
+  EXPECT_NE(filter.Apply(MakeIPv4PacketTo("1.2.3.4"), Direction::kFromClient),
+      nullptr)
+      << "A blacklist entry must match label boundaries, not any suffix";
+}
+
+TEST(DomainBlacklistTest, LeavesUnlistedDomainsOfTheSameZoneAlone) {
+  const DomainBlacklist filter({"vk.ru", "mail.ru", "ya.ru"});
+
+  // a listed neighbour of the same zone is resolved first
+  ASSERT_NE(filter.Apply(MakeDnsResponse("vk.ru", kTypeA, {1, 2, 3, 4}),
+                Direction::kToClient),
+      nullptr);
+
+  auto out = filter.Apply(
+      MakeDnsResponse("nn.ru", kTypeA, {195, 19, 220, 12}),
+      Direction::kToClient);
   ASSERT_NE(out, nullptr);
 
   const auto addresses = out->GetDnsIPv4Addresses();
   ASSERT_EQ(addresses.size(), 1U);
-  EXPECT_EQ(addresses[0].ToString(), "127.0.0.1");
+  EXPECT_EQ(addresses[0].ToString(), "195.19.220.12");
+
+  EXPECT_NE(
+      filter.Apply(MakeIPv4PacketTo("195.19.220.12"), Direction::kFromClient),
+      nullptr)
+      << "Only the listed domains are filtered, not the whole zone";
+}
+
+TEST(DomainBlacklistTest, LeavesSubdomainOfUnlistedDomainAlone) {
+  const DomainBlacklist filter({"vk.ru", "mail.ru", "ya.ru"});
+
+  auto out = filter.Apply(
+      MakeDnsResponse("www.nn.ru", kTypeA, {195, 19, 220, 12}),
+      Direction::kToClient);
+  ASSERT_NE(out, nullptr);
+
+  const auto addresses = out->GetDnsIPv4Addresses();
+  ASSERT_EQ(addresses.size(), 1U);
+  EXPECT_EQ(addresses[0].ToString(), "195.19.220.12");
+
+  EXPECT_NE(
+      filter.Apply(MakeIPv4PacketTo("195.19.220.12"), Direction::kFromClient),
+      nullptr);
+}
+
+// Known trade-off of the address backstop: the block is by IP, so an unlisted
+// domain hosted on the same address as a listed one is dropped as well.
+TEST(DomainBlacklistTest, DropsTrafficToAddressSharedWithBlacklistedDomain) {
+  const DomainBlacklist filter({"vk.ru"});
+
+  ASSERT_NE(filter.Apply(MakeDnsResponse("vk.ru", kTypeA, {1, 2, 3, 4}),
+                Direction::kToClient),
+      nullptr);
+  ASSERT_NE(filter.Apply(MakeDnsResponse("nn.ru", kTypeA, {1, 2, 3, 4}),
+                Direction::kToClient),
+      nullptr);
+
+  EXPECT_EQ(filter.Apply(MakeIPv4PacketTo("1.2.3.4"), Direction::kFromClient),
+      nullptr);
+}
+
+// A single-label entry in the blacklist file takes the whole zone down.
+TEST(DomainBlacklistTest, BareTldEntryBlocksTheWholeZone) {
+  const DomainBlacklist filter({"ru"});
+
+  ASSERT_NE(
+      filter.Apply(MakeDnsResponse("nn.ru", kTypeA, {195, 19, 220, 12}),
+          Direction::kToClient),
+      nullptr);
+
+  EXPECT_EQ(
+      filter.Apply(MakeIPv4PacketTo("195.19.220.12"), Direction::kFromClient),
+      nullptr);
+}
+
+TEST(DomainBlacklistTest, NormalizesBlacklistEntries) {
+  const DomainBlacklist filter({"  ADS.Example.COM.  # tracker", "", "# note"});
+  EXPECT_EQ(filter.Size(), 1U);
+
+  ASSERT_NE(
+      filter.Apply(MakeDnsResponse("Ads.Example.Com", kTypeA, {1, 2, 3, 4}),
+          Direction::kToClient),
+      nullptr);
+
+  EXPECT_EQ(filter.Apply(MakeIPv4PacketTo("1.2.3.4"), Direction::kFromClient),
+      nullptr);
+}
+
+TEST(DomainBlacklistTest, RemembersEveryAnswerAddress) {
+  const DomainBlacklist filter({"ads.example.com"});
+
+  ASSERT_NE(filter.Apply(MakeDnsResponse("ads.example.com", kTypeA,
+                             {{1, 2, 3, 4}, {5, 6, 7, 8}}),
+                Direction::kToClient),
+      nullptr);
+
+  EXPECT_EQ(filter.Apply(MakeIPv4PacketTo("1.2.3.4"), Direction::kFromClient),
+      nullptr);
+  EXPECT_EQ(filter.Apply(MakeIPv4PacketTo("5.6.7.8"), Direction::kFromClient),
+      nullptr);
 }
 
 TEST(DomainBlacklistTest, BlocksClientTrafficToResolvedIPv4) {
@@ -209,13 +341,9 @@ TEST(DomainBlacklistTest, BlocksClientTrafficToResolvedIPv6) {
 
   const std::vector<std::uint8_t> rdata = {0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
       0, 0, 0, 0, 0, 0, 0, 0x01};  // 2001:db8::1
-  auto out = filter.Apply(MakeDnsResponse("ads.example.com", kTypeAAAA, rdata),
-      Direction::kToClient);
-  ASSERT_NE(out, nullptr);
-
-  const auto addresses = out->GetDnsIPv6Addresses();
-  ASSERT_EQ(addresses.size(), 1U);
-  EXPECT_EQ(addresses[0].ToString(), "::1");
+  ASSERT_NE(filter.Apply(MakeDnsResponse("ads.example.com", kTypeAAAA, rdata),
+                Direction::kToClient),
+      nullptr);
 
   EXPECT_EQ(
       filter.Apply(MakeIPv6PacketTo("2001:db8::1"), Direction::kFromClient),

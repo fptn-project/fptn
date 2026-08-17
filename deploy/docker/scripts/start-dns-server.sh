@@ -81,7 +81,12 @@ forward-zone:
 EOF
     fi
 
-    wget -q -O "$ROOT_HINTS" https://www.internic.net/domain/named.root
+    if wget -4 -q --timeout=10 --tries=2 -O "$ROOT_HINTS.tmp" https://www.internic.net/domain/named.root; then
+        mv "$ROOT_HINTS.tmp" "$ROOT_HINTS"
+    else
+        rm -f "$ROOT_HINTS.tmp"
+        [ -f "$ROOT_HINTS" ] || cp /usr/share/dns/root.hints "$ROOT_HINTS"
+    fi
     exec unbound -d -c "$CONFIG_FILE"
 }
 

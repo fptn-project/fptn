@@ -7,7 +7,7 @@ echo "[FPTN] Using network interface: $OUT_NETWORK_INTERFACE"
 BLACKLIST_FILE=/etc/fptn/blacklist.txt
 if [ -n "${BLACKLIST_URL}" ]; then
     echo "[FPTN] Downloading domain blacklist from: ${BLACKLIST_URL}"
-    if wget -q -O "${BLACKLIST_FILE}.tmp" "${BLACKLIST_URL}"; then
+    if wget -4 -q --timeout=10 --tries=2 -O "${BLACKLIST_FILE}.tmp" "${BLACKLIST_URL}"; then
         mv "${BLACKLIST_FILE}.tmp" "${BLACKLIST_FILE}"
         echo "[FPTN] Domain blacklist saved to ${BLACKLIST_FILE}"
     else

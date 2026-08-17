@@ -68,7 +68,7 @@ DomainBlacklist::HandlePacket(fptn::common::network::IPPacketPtr packet) {
             }
           }
           for (const auto& ipv6_address : ipv6_addresses) {
-            if (ipv6_addresses_.contains(ipv6_address.ToString())) {
+            if (!ipv6_addresses_.contains(ipv6_address.ToString())) {
               SPDLOG_INFO(
                   "Added IPv6 to blacklist: {}", ipv6_address.ToString());
               ipv6_addresses_.insert(ipv6_address.ToString());

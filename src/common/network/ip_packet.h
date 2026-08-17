@@ -589,6 +589,106 @@ class IPPacket {
     return rewritten;
   }
 
+  // Turns this DNS query into a response null-routed to loopback: A/AAAA get
+  // 127.0.0.1 / ::1, any other query type gets NXDOMAIN.
+  std::unique_ptr<IPPacket> MakeDnsNullRouteResponse() const {
+    constexpr std::uint16_t kQTypeA = 0x0001;
+    constexpr std::uint16_t kQTypeAAAA = 0x001C;
+
+    const std::uint8_t* dns = DnsPtr();
+    if (!dns) {
+      return nullptr;
+    }
+    const std::size_t ip_hdr_len =
+        IsIPv4() ? static_cast<std::size_t>(detail::Ipv4Ihl(data_.data()))
+                 : detail::kMinIPv6;
+    const std::size_t udp_off = ip_hdr_len;
+    const std::size_t dns_off = udp_off + detail::kUdpHdr;
+
+    const std::uint8_t* end = data_.data() + data_.size();
+    const std::uint8_t* cur = dns + detail::kDnsHdr;
+    detail::ParseDnsName(dns, end, cur);
+    const auto name_end = static_cast<std::size_t>(cur - data_.data());
+    if (name_end + 4 > data_.size()) {
+      return nullptr;
+    }
+    const std::uint16_t qtype = ReadU16Be(data_.data() + name_end);
+    const std::size_t question_end = name_end + 4;
+
+    std::size_t rdlen = 0;
+    if (qtype == kQTypeA) {
+      rdlen = 4;
+    } else if (qtype == kQTypeAAAA) {
+      rdlen = 16;
+    }
+    const bool null_route = rdlen != 0;
+
+    IPPacketData resp;
+    if (null_route) {
+      const std::size_t answer_len = 12 + rdlen;
+      resp.assign(data_.begin(), data_.begin() + question_end);
+      resp.resize(question_end + answer_len);
+
+      std::size_t off = question_end;
+      resp[off++] = 0xC0;
+      resp[off++] = static_cast<std::uint8_t>(detail::kDnsHdr);
+      WriteU16Be(resp.data() + off, qtype);
+      off += 2;
+      WriteU16Be(resp.data() + off, 0x0001);
+      off += 2;
+      WriteU16Be(resp.data() + off, 0);
+      off += 2;
+      WriteU16Be(resp.data() + off, 600);
+      off += 2;
+      WriteU16Be(resp.data() + off, static_cast<std::uint16_t>(rdlen));
+
+      resp[dns_off + 2] =
+          static_cast<std::uint8_t>((resp[dns_off + 2] & 0x01) | 0x80);
+      resp[dns_off + 3] = 0x80;
+      WriteU16Be(resp.data() + dns_off + 6, 1);
+      WriteU16Be(resp.data() + dns_off + 8, 0);
+      WriteU16Be(resp.data() + dns_off + 10, 0);
+    } else {
+      resp.assign(data_.begin(), data_.end());
+      resp[dns_off + 2] =
+          static_cast<std::uint8_t>((resp[dns_off + 2] & 0x01) | 0x80);
+      resp[dns_off + 3] = 0x83;
+    }
+
+    const std::size_t new_len = resp.size();
+
+    if (IsIPv4()) {
+      for (int i = 0; i < 4; ++i) {
+        std::swap(resp[12 + i], resp[16 + i]);
+      }
+      detail::Ipv4Ttl(resp.data()) = 64;
+      WriteU16Be(resp.data() + 2, static_cast<std::uint16_t>(new_len));
+    } else {
+      for (int i = 0; i < 16; ++i) {
+        std::swap(resp[8 + i], resp[24 + i]);
+      }
+      resp[7] = 64;
+      WriteU16Be(
+          resp.data() + 4, static_cast<std::uint16_t>(new_len - ip_hdr_len));
+    }
+
+    std::swap(resp[udp_off], resp[udp_off + 2]);
+    std::swap(resp[udp_off + 1], resp[udp_off + 3]);
+    WriteU16Be(resp.data() + udp_off + 4,
+        static_cast<std::uint16_t>(new_len - udp_off));
+
+    auto packet = Parse(std::move(resp), client_id_);
+    if (!packet) {
+      return nullptr;
+    }
+    if (null_route) {
+      packet->RewriteDnsAnswersToLoopback();
+    } else {
+      packet->ComputeCalculateFields();
+    }
+    return packet;
+  }
+
  protected:
   IPPacket() : client_id_(FPTN_PACKET_UNDEFINED_CLIENT_ID) {}  // for tests
 

@@ -12,7 +12,8 @@ RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y unbound iproute2 iptables supervisor wget dnsmasq iputils-ping haproxy && \
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* && \
+    echo "inet4_only = on" >> /etc/wgetrc
 
 RUN mkdir -p /etc/supervisor/conf.d
 

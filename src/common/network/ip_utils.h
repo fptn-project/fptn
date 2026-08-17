@@ -494,6 +494,26 @@ inline std::optional<std::string> GetTlsSNI(
   return std::nullopt;
 }
 
+// Overwrites legacy_session_id in place. A real TLS server always echoes the
+// client's legacy_session_id back in its ServerHello (RFC 8446 4.1.3), so a
+// replayed ServerHello must be re-stamped with the session id of the client it
+// is being sent to. Returns false when the record cannot carry it.
+inline bool SetTlsSessionId(
+    std::vector<std::uint8_t>& data, const std::vector<std::uint8_t>& session) {
+  // TLS record(5) + HS type(1) + HS length(3) + legacy_version(2) + random(32)
+  constexpr std::size_t kSessionIdLenOffset = 43;
+  if (data.size() <= kSessionIdLenOffset || session.empty()) {
+    return false;
+  }
+  const std::size_t sid_len = data[kSessionIdLenOffset];
+  if (sid_len != session.size() ||
+      kSessionIdLenOffset + 1 + sid_len > data.size()) {
+    return false;
+  }
+  std::memcpy(data.data() + kSessionIdLenOffset + 1, session.data(), sid_len);
+  return true;
+}
+
 inline std::vector<std::uint8_t> GetTlsSessionId(
     const std::uint8_t* data, std::size_t len) noexcept {
   // TLS record(5) + HS type(1) + HS length(3) + legacy_version(2) + random(32)
