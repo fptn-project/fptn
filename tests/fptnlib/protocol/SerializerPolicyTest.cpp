@@ -42,6 +42,7 @@ TEST(SerializerPolicyTest, RejectsUnknownHeaderValuesToProtobuf) {
 TEST(SerializerPolicyTest, ConnectionConfigDefaultsToAuto) {
   const fptn::protocol::https::ConnectionConfig config;
   EXPECT_EQ(config.common.serializer_policy, SerializerPolicy::kAuto);
+  EXPECT_EQ(config.common.max_outbound_queue_bytes, 4U * 1024U * 1024U);
 }
 
 TEST(SerializerPolicyTest, ResolvesAutoToBandwidthEfficientDefault) {
