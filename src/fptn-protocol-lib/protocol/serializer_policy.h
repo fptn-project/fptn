@@ -1,5 +1,5 @@
 /*
- * Copyright Nixort <https://github.com/Nixort/HRCC> 2026.
+ * Copyright Nixort <https://github.com/Nixort/fptn> 2026.
  *
  * License: MIT
  * You can find the license file in the project root.
