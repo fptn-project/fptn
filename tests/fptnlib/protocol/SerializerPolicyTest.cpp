@@ -15,6 +15,7 @@
  */
 #include <gtest/gtest.h>  // NOLINT(build/include_order)
 
+#include "fptn-protocol-lib/https/connection_config.h"
 #include "fptn-protocol-lib/protocol/serializer_policy.h"
 
 namespace {
@@ -36,6 +37,11 @@ TEST(SerializerPolicyTest, RejectsUnknownHeaderValuesToProtobuf) {
   EXPECT_EQ(SerializerPolicyFromHeader(""), SerializerPolicy::kProtobuf);
   EXPECT_EQ(SerializerPolicyFromHeader("unsupported"),
       SerializerPolicy::kProtobuf);
+}
+
+TEST(SerializerPolicyTest, ConnectionConfigDefaultsToAuto) {
+  const fptn::protocol::https::ConnectionConfig config;
+  EXPECT_EQ(config.common.serializer_policy, SerializerPolicy::kAuto);
 }
 
 TEST(SerializerPolicyTest, ResolvesAutoToBandwidthEfficientDefault) {
