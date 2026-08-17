@@ -63,6 +63,9 @@ struct ConnectionConfig {
     std::size_t connection_timeout_ms = 10000;
     std::size_t max_reconnections = 5;
 
+    // Hard memory budget for packets waiting to be written to the tunnel.
+    std::size_t max_outbound_queue_bytes = 4U * 1024U * 1024U;
+
     OnConnectedCallback on_connected_callback = nullptr;
     OnIPRecvPacketCallback recv_ip_packet_callback = nullptr;
     OnIPRecvBatchPacketCallback recv_ip_packet_batch_callback = nullptr;

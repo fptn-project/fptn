@@ -52,6 +52,7 @@ WebsocketClient::WebsocketClient(std::string jwt_access_token,
           obfuscator_socket_type(boost::asio::make_strand(ioc_), nullptr),
           ctx_)),
       write_channel_(strand_, kMaxSizeOutQueue_),
+      outbound_queue_budget_(config.common.max_outbound_queue_bytes),
       jwt_access_token_(std::move(jwt_access_token)),
       config_(std::move(config)) {
   auto* ssl = ws_.next_layer().native_handle();
@@ -248,13 +249,26 @@ bool WebsocketClient::Stop() {
 }
 
 bool WebsocketClient::Send(fptn::common::network::IPPacketPtr packet) {
-  if (!running_ || !was_connected_) {
+  if (!running_ || !was_connected_ || !packet) {
     return false;
   }
+
+  const std::size_t packet_bytes = packet->Size();
+  if (!outbound_queue_budget_.TryAcquire(packet_bytes)) {
+    SPDLOG_WARN("Client write queue byte budget is exhausted (used={} max={})",
+        outbound_queue_budget_.UsedBytes(), outbound_queue_budget_.MaxBytes());
+    return false;
+  }
+
   try {
-    return write_channel_.try_send(
+    const bool queued = write_channel_.try_send(
         boost::system::error_code(), std::move(packet));
+    if (!queued) {
+      outbound_queue_budget_.Release(packet_bytes);
+    }
+    return queued;
   } catch (...) {
+    outbound_queue_budget_.Release(packet_bytes);
     return false;
   }
 }
@@ -289,7 +303,7 @@ boost::asio::awaitable<bool> WebsocketClient::RunInternal() {
         strand_, [self]() { return self->RunSender(); }, boost::asio::detached);
 
     SPDLOG_INFO("WebSocket connection established successfully");
-    SPDLOG_INFO("Using serializer: yaff");
+    SPDLOG_INFO("Using serializer: {}", fptn::protocol::ToString(Serializer()));
 
     if (config_.common.on_connected_callback) {
       config_.common.on_connected_callback();
@@ -535,8 +549,12 @@ boost::asio::awaitable<bool> WebsocketClient::ReceiveIPAssignment() {
       co_return false;
     }
 
-    const auto ip_pair = fptn::protocol::yaff::DeserializeIPAssignmentMessage(
-        boost::beast::buffers_to_string(buffer.data()));
+    const auto assignment = boost::beast::buffers_to_string(buffer.data());
+    const auto ip_pair = Serializer() == fptn::protocol::SerializerPolicy::kYaff
+                             ? fptn::protocol::yaff::DeserializeIPAssignmentMessage(
+                                   assignment)
+                             : fptn::protocol::protobuf::DeserializeIPAssignmentMessage(
+                                   assignment);
 
     if (!ip_pair.has_value()) {
       SPDLOG_ERROR("Failed to parse IP assignment message");
@@ -634,34 +652,43 @@ boost::asio::awaitable<void> WebsocketClient::RunSender() {
   constexpr std::size_t kMaxBatchSize = 32;
   auto token = boost::asio::bind_cancellation_slot(
       cancel_signal_.slot(), boost::asio::as_tuple(boost::asio::use_awaitable));
+  std::size_t reserved_bytes = 0;
   try {
     while (running_ && was_connected_ && ws_.is_open()) {
       fptn::common::network::BatchIPPacketPtr packets;
       auto [ec, packet] = co_await write_channel_.async_receive(token);
-      if (!ec && packet) {
-        // change addresses
+      if (ec) {
+        break;
+      }
+      if (packet) {
+        const std::size_t packet_bytes = packet->Size();
         if (packet->IsIPv4()) {
           packet->SetSrcIPv4Address(assigned_ipv4_);
         } else if (packet->IsIPv6()) {
           packet->SetSrcIPv6Address(assigned_ipv6_);
         } else {
+          outbound_queue_budget_.Release(packet_bytes);
           continue;
         }
 
+        reserved_bytes += packet_bytes;
         packets.push_back(std::move(packet));
         while (packets.size() < kMaxBatchSize) {
           const bool has_packet = write_channel_.try_receive(
-              [&packets, this](const boost::system::error_code& ec2,
+              [&packets, &reserved_bytes, this](
+                  const boost::system::error_code& ec2,
                   fptn::common::network::IPPacketPtr p) {
                 if (!ec2 && p) {
-                  // change IP addresses
+                  const std::size_t packet_bytes = p->Size();
                   if (p->IsIPv4()) {
                     p->SetSrcIPv4Address(assigned_ipv4_);
                   } else if (p->IsIPv6()) {
                     p->SetSrcIPv6Address(assigned_ipv6_);
                   } else {
+                    outbound_queue_budget_.Release(packet_bytes);
                     return;
                   }
+                  reserved_bytes += packet_bytes;
                   packets.push_back(std::move(p));
                 }
               });
@@ -681,8 +708,12 @@ boost::asio::awaitable<void> WebsocketClient::RunSender() {
               boost::asio::redirect_error(boost::asio::use_awaitable, ec));
           if (ec) {
             SPDLOG_ERROR("WebSocket error: {}", ec.message());
-            break;
           }
+        }
+        outbound_queue_budget_.Release(reserved_bytes);
+        reserved_bytes = 0;
+        if (ec) {
+          break;
         }
       }
     }
@@ -695,6 +726,7 @@ boost::asio::awaitable<void> WebsocketClient::RunSender() {
   } catch (...) {
     SPDLOG_ERROR("RunSender unknown exception");
   }
+  outbound_queue_budget_.Release(reserved_bytes);
   was_connected_ = false;
   co_return;
 }

@@ -21,6 +21,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <boost/beast/ssl.hpp>
 #include <boost/beast/websocket.hpp>
 
+#include "common/data/byte_budget.h"
 #include "common/network/ip_address.h"
 #include "common/network/ip_packet.h"
 
@@ -102,6 +103,7 @@ class WebsocketClient : public std::enable_shared_from_this<WebsocketClient> {
   boost::asio::experimental::concurrent_channel<void(
       boost::system::error_code, fptn::common::network::IPPacketPtr)>
       write_channel_;
+  fptn::common::data::ByteBudget outbound_queue_budget_;
 
   boost::asio::cancellation_signal cancel_signal_;
   obfuscator::IObfuscatorSPtr obfuscator_;
