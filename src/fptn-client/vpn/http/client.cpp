@@ -52,3 +52,5 @@ bool Client::IsConnected() const { return manager_.IsConnected(); }
 const std::string& Client::LatestError() const {
   return manager_.LatestError();
 }
+
+int Client::LatestErrorCode() const { return manager_.LatestErrorCode(); }

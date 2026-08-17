@@ -22,6 +22,8 @@ struct ServerInfo {
   std::string password;
   std::string service_name;
 
+  bool censored_zone = false;
+
   ServerInfo() : port(0), is_using(false) {}
 
   ServerInfo(std::string _name,

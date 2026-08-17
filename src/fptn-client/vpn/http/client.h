@@ -53,6 +53,7 @@ class Client final {
   bool IsConnected() const;
 
   const std::string& LatestError() const;
+  int LatestErrorCode() const;
 
  private:
   fptn::protocol::connection::ConnectionManager manager_;

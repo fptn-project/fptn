@@ -170,7 +170,7 @@ class MockTunDevice {
   void SetMTU(int /*mtu*/) {}
   // cppcheck-suppress functionStatic
   // NOLINTNEXTLINE(readability-convert-member-*)
-  void BringUp() {}
+  bool BringUp() { return true; }
   // cppcheck-suppress functionStatic
   // NOLINTNEXTLINE(readability-convert-member-*)
   void SetStopFlag(const std::atomic<bool>* /*running*/) {}

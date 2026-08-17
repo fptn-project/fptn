@@ -17,6 +17,12 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 namespace fptn::user {
 
+enum class LoginStatus : int {
+  kSuccess,
+  kInvalidCredentials,
+  kAuthServerUnavailable
+};
+
 /**
  * @class Manager
  * @brief Handles user authentication and bandwidth retrieval for both local and
@@ -55,7 +61,7 @@ class UserManager {
       const std::string& password,
       int& bandwidth_bit) const;
 
-  boost::asio::awaitable<bool> LoginAsync(const std::string& username,
+  boost::asio::awaitable<LoginStatus> LoginAsync(const std::string& username,
       const std::string& password,
       int& bandwidth_bit) const;
 

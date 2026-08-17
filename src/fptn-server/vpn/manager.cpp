@@ -11,20 +11,9 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 using fptn::vpn::Manager;
 
-Manager::Manager(fptn::web::ServerPtr web_server,
-    fptn::network::VirtualInterfacePtr network_interface,
-    fptn::nat::TableSPtr nat,
-    fptn::filter::ManagerSPtr filter,
-    fptn::statistic::MetricsSPtr prometheus,
-    std::size_t thread_pool_size)
-    : web_server_(std::move(web_server)),
-      network_interface_(std::move(network_interface)),
-      nat_(std::move(nat)),
-      filter_(std::move(filter)),
-      prometheus_(std::move(prometheus)),
-      thread_pool_size_(thread_pool_size > 0 ? thread_pool_size : 1) {
-  read_to_client_threads_.reserve(thread_pool_size_);
-  read_from_client_threads_.reserve(thread_pool_size_);
+Manager::Manager(Config config) : config_(std::move(config)) {
+  read_to_client_threads_.reserve(config_.thread_pool_size);
+  read_from_client_threads_.reserve(config_.thread_pool_size);
 }
 
 Manager::~Manager() { Stop(); }
@@ -32,8 +21,8 @@ Manager::~Manager() { Stop(); }
 bool Manager::Stop() {
   running_ = false;
 
-  network_interface_->Stop();
-  web_server_->Stop();
+  config_.network_interface->Stop();
+  config_.web_server->Stop();
 
   for (auto& thread : read_to_client_threads_) {
     if (thread.joinable()) {
@@ -61,14 +50,14 @@ bool Manager::Stop() {
 
 bool Manager::Start() {
   running_ = true;
-  web_server_->Start();
-  network_interface_->Start();
+  config_.web_server->Start();
+  config_.network_interface->Start();
 
-  for (std::size_t i = 0; i < thread_pool_size_; ++i) {
+  for (std::size_t i = 0; i < config_.thread_pool_size; ++i) {
     read_to_client_threads_.emplace_back(&Manager::RunToClient, this);
   }
 
-  for (std::size_t i = 0; i < thread_pool_size_; ++i) {
+  for (std::size_t i = 0; i < config_.thread_pool_size; ++i) {
     read_from_client_threads_.emplace_back(&Manager::RunFromClient, this);
   }
 
@@ -85,7 +74,7 @@ void Manager::RunToClient() const {
   std::unordered_map<fptn::ClientID, common::network::BatchIPPacketPtr> batches;
 
   while (running_) {
-    auto packets = network_interface_->WaitForPackets(kTimeout, 256);
+    auto packets = config_.network_interface->WaitForPackets(kTimeout, 256);
 
     for (auto& packet : packets) {
       if (!packet || (!packet->IsIPv4() && !packet->IsIPv6())) {
@@ -95,10 +84,10 @@ void Manager::RunToClient() const {
       fptn::nat::ConnectionMultiplexerSPtr nat_session = nullptr;
       if (packet->IsIPv4()) {
         nat_session =
-            nat_->GetMultiplexerByFakeIPv4(packet->GetDstIPv4Address());
+            config_.nat->GetMultiplexerByFakeIPv4(packet->GetDstIPv4Address());
       } else if (packet->IsIPv6()) {
         nat_session =
-            nat_->GetMultiplexerByFakeIPv6(packet->GetDstIPv6Address());
+            config_.nat->GetMultiplexerByFakeIPv6(packet->GetDstIPv6Address());
       }
 
       if (!nat_session) {
@@ -117,8 +106,15 @@ void Manager::RunToClient() const {
         continue;
       }
 
-      packet = nat_session->ChangeIPAddressToClientIP(
-          std::move(packet), *client_id);
+      packet =
+          nat_session->ChangeIPAddressToClientIP(std::move(packet), *client_id);
+      if (!packet) {
+        continue;
+      }
+
+      // filter
+      packet = config_.to_client_filter->Apply(
+          std::move(packet), fptn::filter::Direction::kToClient);
       if (!packet) {
         continue;
       }
@@ -126,7 +122,7 @@ void Manager::RunToClient() const {
       batches[*client_id].push_back(std::move(packet));
     }
     for (auto& [client_id, batch] : batches) {
-      auto web_session = web_server_->GetSessionById(client_id);
+      auto web_session = config_.web_server->GetSessionById(client_id);
       if (web_session) {
         web_session->SendBatch(std::move(batch));
       }
@@ -139,7 +135,7 @@ void Manager::RunToClient() const {
 void Manager::RunFromClient() const {
   constexpr std::chrono::milliseconds kTimeout{100};
   while (running_) {
-    auto packets = web_server_->WaitForPackets(kTimeout);
+    auto packets = config_.web_server->WaitForPackets(kTimeout);
 
     if (packets.empty()) {
       continue;
@@ -154,7 +150,8 @@ void Manager::RunFromClient() const {
       }
 
       // get session
-      const auto session = nat_->GetMultiplexerByClientId(packet->ClientId());
+      const auto session =
+          config_.nat->GetMultiplexerByClientId(packet->ClientId());
       if (!session) {
         continue;
       }
@@ -166,7 +163,8 @@ void Manager::RunFromClient() const {
       }
 
       // filter
-      packet = filter_->Apply(std::move(packet));
+      packet = config_.from_client_filter->Apply(
+          std::move(packet), fptn::filter::Direction::kFromClient);
 
       if (packet) {
         packet = session->ChangeIPAddressToFakeIP(std::move(packet));
@@ -177,7 +175,7 @@ void Manager::RunFromClient() const {
     }
 
     if (!prepared_batch.empty() && running_) {
-      network_interface_->SendBatch(std::move(prepared_batch));
+      config_.network_interface->SendBatch(std::move(prepared_batch));
     }
   }
 }
@@ -190,7 +188,7 @@ void Manager::RunCollectStatistics() {
   while (running_) {
     const auto now = std::chrono::steady_clock::now();
     if (now - last_collection_time > kCollectInterval) {
-      nat_->UpdateStatistic(prometheus_);
+      config_.nat->UpdateStatistic(config_.prometheus);
       last_collection_time = now;
     }
     std::this_thread::sleep_for(kTimeout);
@@ -200,9 +198,9 @@ void Manager::RunCollectStatistics() {
 void Manager::RunUpdateConnectionsStatus() {
   constexpr std::chrono::milliseconds kInterval{1000};
   while (running_) {
-    const auto expired = nat_->UpdateConnectionsStatus();
+    const auto expired = config_.nat->UpdateConnectionsStatus();
     for (const auto client_id : expired) {
-      if (const auto session = web_server_->GetSessionById(client_id)) {
+      if (const auto session = config_.web_server->GetSessionById(client_id)) {
         session->Close();  // triggers the close callback -> NAT/table cleanup
       }
     }

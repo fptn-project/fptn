@@ -137,7 +137,7 @@ class BaseNetInterface {
  *   bool ConfigureIPv6(const std::string& addr, int mask);
  *   void SetNonBlocking(bool enabled);
  *   void SetMTU(int mtu);
- *   void BringUp();
+ *   bool BringUp();
  *   int  Read(void* buffer, int size);
  *   int  Write(const void* data, int size);
  *   void SetStopFlag(const std::atomic<bool>* running);
@@ -193,7 +193,12 @@ class GenericTunInterface final
       }
       device_.SetNonBlocking(true);
       device_.SetMTU(this->MtuSize());
-      device_.BringUp();
+      // cppcheck-suppress knownConditionTrueFalse
+      if (!device_.BringUp()) {
+        SPDLOG_ERROR("Failed to bring up the TUN device");
+        device_.Close();
+        return false;
+      }
 
       running_ = true;
       device_.SetStopFlag(&running_);
@@ -296,7 +301,7 @@ class GenericTunInterface final
   void RunSender() {
     try {
       constexpr std::chrono::milliseconds kTimeout{100};
-      static const bool kRateCalculator = this->UsingRateCalculator();
+      const bool kRateCalculator = this->UsingRateCalculator();
       while (running_) {
         auto packets = to_network_.WaitForPackets(kTimeout);
         // cppcheck-suppress constVariableReference
@@ -305,15 +310,28 @@ class GenericTunInterface final
             const auto& data = packet->Data();
             // send data
             if (!data.empty() && running_) {
+              constexpr int kMaxWriteAttempts = 100;
+              constexpr std::chrono::microseconds kWriteRetryDelay{200};
+
               const int data_size = static_cast<int>(data.size());
               int bytes_written = 0;
-              do {
-                // resend if error
+              for (int attempt = 0; attempt < kMaxWriteAttempts && running_;
+                  ++attempt) {
                 bytes_written = device_.Write(data.data(), data_size);
-                if (bytes_written == data_size && kRateCalculator) {
-                  send_rate_calculator_.Update(bytes_written);
+                if (bytes_written == data_size) {
+                  if (kRateCalculator) {
+                    send_rate_calculator_.Update(bytes_written);
+                  }
+                  break;
                 }
-              } while (bytes_written != data_size && running_);
+                std::this_thread::sleep_for(kWriteRetryDelay);
+              }
+              if (bytes_written != data_size && running_) {
+                SPDLOG_WARN(
+                    "Failed to write {} bytes to the TUN device, packet "
+                    "dropped",
+                    data_size);
+              }
             }
           }
         }

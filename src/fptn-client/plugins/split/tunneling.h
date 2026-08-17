@@ -8,10 +8,9 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include <memory>
 #include <string>
-#include <vector>
+#include <unordered_set>
 #include <utility>
-
-#include <re2/re2.h>  // NOLINT(build/include_order)
+#include <vector>
 
 #include "common/network/ip_packet.h"
 
@@ -34,7 +33,7 @@ class Tunneling final : public BasePlugin {
   const routing::RouteManagerSPtr route_manager_;
   const fptn::routing::RoutingPolicy policy_;
 
-  std::vector<std::unique_ptr<RE2>> rules_;
+  std::unordered_set<std::string> domains_;
 };
 
 using TunnelingPtr = std::unique_ptr<Tunneling>;

@@ -43,6 +43,7 @@ class ServerConfig {
 
   [[nodiscard]] std::string UserFile() const;
   [[nodiscard]] bool DisableBittorrent() const;
+  [[nodiscard]] std::string DomainBlacklistFile() const;
   [[nodiscard]] std::string PrometheusAccessKey() const;
 
   [[nodiscard]] bool UseRemoteServerAuth() const;

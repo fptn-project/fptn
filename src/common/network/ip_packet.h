@@ -526,6 +526,69 @@ class IPPacket {
     return out;
   }
 
+  // Rewrites every A/AAAA answer in a DNS response to loopback
+  // (127.0.0.1 / ::1) in place and fixes up the checksums. Record lengths are
+  // unchanged, so no header offsets are touched. Returns true if at least one
+  // record was rewritten.
+  bool RewriteDnsAnswersToLoopback() noexcept {
+    const std::uint8_t* dns = DnsPtr();
+    if (!dns) {
+      return false;
+    }
+    const std::uint8_t* end = data_.data() + data_.size();
+    int ancount = 0;
+    std::uint8_t* cur =
+        const_cast<std::uint8_t*>(detail::DnsAnswerStart(dns, end, &ancount));
+    if (!cur) {
+      return false;
+    }
+
+    bool rewritten = false;
+    for (int a = 0; a < ancount && cur < end; ++a) {
+      // skip NAME
+      for (int s = 0; s < 256 && cur < end; ++s) {
+        const std::uint8_t l = *cur;
+        if (l == 0u) {
+          ++cur;
+          break;
+        }
+        if ((l & 0xC0u) == 0xC0u) {
+          cur += 2;
+          break;
+        }
+        cur += 1 + l;
+      }
+      if (cur + 10 > end) {
+        break;
+      }
+      const std::uint16_t rtype = ReadU16Be(cur);
+      cur += 8;  // TYPE + CLASS + TTL
+      const std::uint16_t rdlen = ReadU16Be(cur);
+      cur += 2;
+      if (cur + rdlen > end) {
+        break;
+      }
+      if (rtype == 1u && rdlen == 4u) {  // A record -> 127.0.0.1
+        cur[0] = 127;
+        cur[1] = 0;
+        cur[2] = 0;
+        cur[3] = 1;
+        rewritten = true;
+      } else if (rtype == 28u && rdlen == 16u) {  // AAAA record -> ::1
+        for (int i = 0; i < 15; ++i) {
+          cur[i] = 0;
+        }
+        cur[15] = 1;
+        rewritten = true;
+      }
+      cur += rdlen;
+    }
+    if (rewritten) {
+      RecalculateChecksums(data_.data(), data_.size());
+    }
+    return rewritten;
+  }
+
  protected:
   IPPacket() : client_id_(FPTN_PACKET_UNDEFINED_CLIENT_ID) {}  // for tests
 

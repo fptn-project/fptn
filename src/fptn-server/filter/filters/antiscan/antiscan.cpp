@@ -36,7 +36,7 @@ AntiScan::AntiScan(
           (boost::multiprecision::uint128_t(1) << (128 - server_ip_v6_mask)) -
           1) {}
 
-IPPacketPtr AntiScan::apply(IPPacketPtr packet) const {
+IPPacketPtr AntiScan::Apply(IPPacketPtr packet, Direction /*direction*/) const {
   // Prevent sending requests to the VPN virtual network from the client
   static const std::uint32_t kIpv4BroadcastInt =
       fptn::common::network::IPv4Address("255.255.255.255").ToInt();

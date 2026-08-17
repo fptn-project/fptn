@@ -33,6 +33,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "gui/server_menu_item_widget/server_menu_item_widget.h"
 #include "gui/style/style.h"
 #include "gui/translations/translations.h"
+#include "adblock/adblock.h"
 #include "plugins/blacklist/domain_blacklist.h"
 
 #ifdef _WIN32
@@ -396,6 +397,7 @@ void TrayApp::UpdateTrayMenu() {
                     cfg_server.password = service.password.toStdString();
                     cfg_server.md5_fingerprint =
                         server.md5_fingerprint.toStdString();
+                    cfg_server.censored_zone = true;
                   }
                   selected_server_ = cfg_server;
                   onConnectToServer();
@@ -529,17 +531,20 @@ void TrayApp::onConnectToServer() {
 
 void TrayApp::onDisconnectFromServer() {
   SPDLOG_INFO("Signal: disconnected from server");
-  const std::unique_lock<std::mutex> lock(mutex_);  // mutex
+  fptn::vpn::VpnClientPtr vpn_client;
+  {
+    const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
-  connection_state_ = ConnectionState::None;
-  if (vpn_client_) {
-    vpn_client_->Stop();
-    vpn_client_.reset();
+    connection_state_ = ConnectionState::None;
+    vpn_client = std::move(vpn_client_);
+
+    settings_->StartPingMonitoring();
+
+    UpdateTrayMenu();
   }
-
-  settings_->StartPingMonitoring();
-
-  UpdateTrayMenu();
+  if (vpn_client) {
+    vpn_client->Stop();
+  }
 }
 
 void TrayApp::onShowSettings() {
@@ -550,6 +555,7 @@ void TrayApp::onShowSettings() {
 
 void TrayApp::handleDefaultState() {
   SPDLOG_INFO("Signal: entering default state");
+  fptn::vpn::VpnClientPtr vpn_client;
   {
     const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
@@ -557,10 +563,10 @@ void TrayApp::handleDefaultState() {
     settings_->StartPingMonitoring();
 
     connection_state_ = ConnectionState::None;
-    if (vpn_client_) {
-      vpn_client_->Stop();
-      vpn_client_.reset();
-    }
+    vpn_client = std::move(vpn_client_);
+  }
+  if (vpn_client) {
+    vpn_client->Stop();
   }
   UpdateTrayMenu();
 }
@@ -620,9 +626,8 @@ void TrayApp::handleDisconnecting() {
 
     connection_state_ = ConnectionState::None;
     UpdateTrayMenu();
-
-    stopVpn();
   }
+  stopVpn();
   emit defaultState();
 }
 
@@ -632,11 +637,11 @@ void TrayApp::handleTimer() {
 
   // check connection state
   bool is_disconnected = false;
-  if (connection_state_ == ConnectionState::Connected && vpn_client_) {
-    const std::unique_lock<std::mutex> lock(mutex_);  // mutex
+  {
+    const std::unique_lock<std::mutex> lock(mutex_, std::try_to_lock);  // mutex
 
-    // cppcheck-suppress identicalConditionAfterEarlyExit
-    if (connection_state_ == ConnectionState::Connected && vpn_client_) {
+    if (lock.owns_lock() && connection_state_ == ConnectionState::Connected &&
+        vpn_client_) {
       if (!vpn_client_->IsStarted()) {
         // check reconnection
         auto now = std::chrono::steady_clock::now();
@@ -744,10 +749,7 @@ void TrayApp::RetranslateUi() {
 void TrayApp::stop() {
   SPDLOG_INFO("Stopping TrayApp");
   settings_->StopPingMonitoring();
-  if (vpn_client_) {
-    vpn_client_->Stop();
-    vpn_client_.reset();
-  }
+  stopVpn();
 }
 
 // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
@@ -941,11 +943,26 @@ bool TrayApp::startVpn(QString& err_msg) {
       http_client->Login(selected_server_.username, selected_server_.password);
   if (!login_status) {
     const std::string error = http_client->LatestError();
-    err_msg = QObject::tr(
-                  "Unable to connect to the server. Please use the Telegram "
-                  "bot to generate a new TOKEN with your personal settings, "
-                  "then try again.") +
-              "\n\n" + QObject::tr("Error message: ") +
+    QString reason;
+    switch (http_client->LatestErrorCode()) {
+      case 503:
+        reason = QObject::tr(
+            "The authorization server is temporarily unavailable. Please try "
+            "again later.");
+        break;
+      case 608:
+        reason = QObject::tr(
+            "The server did not respond in time (operation timeout). Please "
+            "try again.");
+        break;
+      default:
+        reason = QObject::tr(
+            "Unable to connect to the server. Please use the Telegram "
+            "bot to generate a new TOKEN with your personal settings, "
+            "then try again.");
+        break;
+    }
+    err_msg = reason + "\n\n" + QObject::tr("Error message: ") +
               QString::fromStdString(error);
     return false;
   }
@@ -1016,28 +1033,37 @@ bool TrayApp::startVpn(QString& err_msg) {
 
   /* plugins */
   std::vector<fptn::plugin::BasePluginPtr> client_plugins;
-  if (!blacklist_domains.empty()) {
-    std::vector<std::string> blacklist_domains_std;
-    for (const auto& domain : blacklist_domains) {
-      blacklist_domains_std.push_back(domain.toStdString());
+  if (selected_server_.censored_zone) {
+    SPDLOG_INFO("Limited access server: domain rules are not applied");
+  } else {
+    if (!blacklist_domains.empty()) {
+      std::vector<std::string> blacklist_domains_std;
+      for (const auto& domain : blacklist_domains) {
+        blacklist_domains_std.push_back(domain.toStdString());
+      }
+      auto blacklist_plugin = std::make_unique<fptn::plugin::DomainBlacklist>(
+          blacklist_domains_std, route_manager);
+      client_plugins.push_back(std::move(blacklist_plugin));
     }
-    auto blacklist_plugin = std::make_unique<fptn::plugin::DomainBlacklist>(
-        blacklist_domains_std, route_manager);
-    client_plugins.push_back(std::move(blacklist_plugin));
+    if (enable_split_tunnel) {
+      std::vector<std::string> split_domains_std;
+      for (const auto& domain : split_tunnel_domains) {
+        split_domains_std.push_back(domain.toStdString());
+      }
+
+      const auto policy = (split_tunnel_mode == "exclude")
+                              ? fptn::routing::RoutingPolicy::kExcludeFromVpn
+                              : fptn::routing::RoutingPolicy::kIncludeInVpn;
+
+      auto split_tunnel_plugin = std::make_unique<fptn::plugin::Tunneling>(
+          split_domains_std, route_manager, policy);
+      client_plugins.push_back(std::move(split_tunnel_plugin));
+    }
   }
-  if (enable_split_tunnel) {
-    std::vector<std::string> split_domains_std;
-    for (const auto& domain : split_tunnel_domains) {
-      split_domains_std.push_back(domain.toStdString());
-    }
 
-    const auto policy = (split_tunnel_mode == "exclude")
-                            ? fptn::routing::RoutingPolicy::kExcludeFromVpn
-                            : fptn::routing::RoutingPolicy::kIncludeInVpn;
-
-    auto split_tunnel_plugin = std::make_unique<fptn::plugin::Tunneling>(
-        split_domains_std, route_manager, policy);
-    client_plugins.push_back(std::move(split_tunnel_plugin));
+  fptn::adblock::AdBlockerPtr ad_blocker;
+  if (settings_->EnableAdBlock()) {
+    ad_blocker = std::make_shared<fptn::adblock::AdBlocker>();
   }
 
   if (cancel_connecting_) {
@@ -1058,18 +1084,24 @@ bool TrayApp::startVpn(QString& err_msg) {
               .ipv6_netmask = 126});
 
   // setup vpn client
-  vpn_client_ = std::make_unique<fptn::vpn::VpnManager>(
+  auto vpn_client = std::make_shared<fptn::vpn::VpnManager>(
       fptn::vpn::VpnManager::Config{.http_client = std::move(http_client),
           .route_manager = route_manager,
           .virtual_net_interface = virtual_network_interface,
-          .plugins = std::move(client_plugins)});
+          .plugins = std::move(client_plugins),
+          .ad_blocker = std::move(ad_blocker)});
+  {
+    const std::unique_lock<std::mutex> lock(mutex_);  // mutex
+
+    vpn_client_ = vpn_client;
+  }
 
   if (cancel_connecting_) {
     return false;
   }
 
   // Wait for the WebSocket tunnel to establish
-  vpn_client_->Start();
+  vpn_client->Start();
 
   if (cancel_connecting_) {
     return false;
@@ -1077,7 +1109,7 @@ bool TrayApp::startVpn(QString& err_msg) {
 
   constexpr auto kTimeout = std::chrono::seconds(10);
   const auto start = std::chrono::steady_clock::now();
-  while (!vpn_client_->IsStarted()) {
+  while (!vpn_client->IsStarted()) {
     if (std::chrono::steady_clock::now() - start > kTimeout) {
       err_msg = QObject::tr("Failed to connect to the server!");
       return false;
@@ -1090,9 +1122,15 @@ bool TrayApp::startVpn(QString& err_msg) {
 
 bool TrayApp::stopVpn() {
   SPDLOG_INFO("Stopping vpn");
-  if (vpn_client_) {
-    vpn_client_->Stop();
-    vpn_client_.reset();
+
+  fptn::vpn::VpnClientPtr vpn_client;
+  {
+    const std::unique_lock<std::mutex> lock(mutex_);  // mutex
+
+    vpn_client = std::move(vpn_client_);
+  }
+  if (vpn_client) {
+    vpn_client->Stop();
   }
   return true;
 }

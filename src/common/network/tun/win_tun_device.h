@@ -25,16 +25,13 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <spdlog/spdlog.h>  // NOLINT(build/include_order)
 
 #include "common/network/ip_address.h"
+#include "common/system/command.h"
 
 namespace fptn::common::network {
 
 class WinTunDevice {
  public:
-  WinTunDevice()
-      : wintun_(nullptr),
-        adapter_(nullptr),
-        session_(nullptr),
-        running_(nullptr) {
+  WinTunDevice() : wintun_(nullptr), adapter_(nullptr), session_(nullptr) {
     wintun_ = InitializeWintun();
   }
 
@@ -97,17 +94,25 @@ class WinTunDevice {
     // Wintun uses event-based I/O, no-op
   }
 
-  // cppcheck-suppress functionStatic
-  void SetMTU(int /*mtu*/) {
-    // Wintun handles MTU internally, no-op
+  void SetMTU(int mtu) {
+    fptn::common::system::command::run(
+        fmt::format("netsh interface ipv4 set subinterface \"{}\" mtu={} "
+                    "store=active",
+            name_, mtu));
+    fptn::common::system::command::run(
+        fmt::format("netsh interface ipv6 set subinterface \"{}\" mtu={} "
+                    "store=active",
+            name_, mtu));
   }
 
-  void BringUp() {
+  bool BringUp() {
     constexpr int kSessionCapacity = 0x20000;
     session_ = WintunStartSession(adapter_, kSessionCapacity);
     if (!session_) {
-      SPDLOG_ERROR("Open session error");
+      SPDLOG_ERROR("Open session error: {}", GetLastError());
+      return false;
     }
+    return true;
   }
 
   int Read(void* buffer, int size) {
@@ -115,26 +120,23 @@ class WinTunDevice {
       return 0;
     }
 
-    constexpr std::size_t kRetryAmount = 20;
-    while (running_ && *running_) {
-      for (std::size_t i = 0; i < kRetryAmount; ++i) {
-        DWORD packet_size = 0;
-        BYTE* packet = WintunReceivePacket(session_, &packet_size);
-        if (packet && running_ && *running_) {
-          const int copy_size = (static_cast<int>(packet_size) < size)
-                                    ? static_cast<int>(packet_size)
-                                    : size;
-          std::memcpy(buffer, packet, copy_size);
-          WintunReleaseReceivePacket(session_, packet);
-          return copy_size;
-        }
-        if (GetLastError() == ERROR_NO_MORE_ITEMS) {
-          continue;
-        }
+    DWORD packet_size = 0;
+    BYTE* packet = WintunReceivePacket(session_, &packet_size);
+    if (packet) {
+      if (static_cast<int>(packet_size) > size) {
+        WintunReleaseReceivePacket(session_, packet);
+        SPDLOG_WARN(
+            "Packet of {} bytes exceeds the buffer of {} bytes, dropped",
+            packet_size, size);
         return 0;
       }
-      WaitForSingleObject(WintunGetReadWaitEvent(session_), 10);
+      std::memcpy(buffer, packet, packet_size);
+      WintunReleaseReceivePacket(session_, packet);
+      return static_cast<int>(packet_size);
     }
+
+    constexpr DWORD kWaitTimeoutMs = 1;
+    WaitForSingleObject(WintunGetReadWaitEvent(session_), kWaitTimeoutMs);
     return 0;
   }
 
@@ -153,7 +155,7 @@ class WinTunDevice {
     return size;
   }
 
-  void SetStopFlag(const std::atomic<bool>* running) { running_ = running; }
+  void SetStopFlag(const std::atomic<bool>* /*running*/) {}
 
  private:
   bool SetIPAddressEntry(int family, const std::string& addr, int mask) {
@@ -248,7 +250,6 @@ class WinTunDevice {
   WINTUN_SESSION_HANDLE session_;
 
   std::string name_;
-  const std::atomic<bool>* running_;
 };
 
 }  // namespace fptn::common::network

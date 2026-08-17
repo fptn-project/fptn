@@ -7,14 +7,11 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #pragma once
 
-#include <linux/if_tun.h>  // NOLINT(build/include_order)
-#include <sys/ioctl.h>  // NOLINT(build/include_order)
-
 #include <atomic>
-
+#include <linux/if_tun.h>  // NOLINT(build/include_order)
 #include <memory>
 #include <string>
-
+#include <sys/ioctl.h>  // NOLINT(build/include_order)
 #include <tuntap++.hh>  // NOLINT(build/include_order)
 
 namespace fptn::common::network {
@@ -52,7 +49,10 @@ class LinuxTunDevice {
 
   void SetMTU(int mtu) const { tun_->mtu(mtu); }
 
-  void BringUp() const { tun_->up(); }
+  bool BringUp() const {
+    tun_->up();
+    return true;
+  }
 
   int Read(void* buffer, int size) const {
     for (int i = 0; i < 4; i++) {

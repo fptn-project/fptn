@@ -98,11 +98,6 @@ bool Server::Start() {
         ioc_,
         [this]() -> boost::asio::awaitable<void> { co_await listener_->Run(); },
         boost::asio::detached);
-    // run senders
-    // boost::asio::co_spawn(
-    //     ioc_,
-    //     [this]() -> boost::asio::awaitable<void> { co_await RunSender(); },
-    //     boost::asio::detached);
     // run threads
     ioc_threads_.reserve(thread_number_);
     for (std::size_t i = 0; i < thread_number_; ++i) {
@@ -189,13 +184,22 @@ boost::asio::awaitable<int> Server::HandleApiLogin(
     const auto username = request.at("username").get<std::string>();
     const auto password = request.at("password").get<std::string>();
     int bandwidth_bit = 0;
-    if (co_await user_manager_->LoginAsync(username, password, bandwidth_bit)) {
+    const auto status =
+        co_await user_manager_->LoginAsync(username, password, bandwidth_bit);
+    if (status == fptn::user::LoginStatus::kSuccess) {
       SPDLOG_INFO("Successful login for user {}", username);
       const auto tokens = token_manager_->Generate(username, bandwidth_bit);
       resp.body() = fmt::format(
           R"({{ "access_token": "{}", "refresh_token": "{}", "bandwidth_bit": {} }})",
           tokens.first, tokens.second, std::to_string(bandwidth_bit));
       co_return 200;
+    }
+    if (status == fptn::user::LoginStatus::kAuthServerUnavailable) {
+      SPDLOG_ERROR(
+          "Authorization server is unavailable, user: \"{}\"", username);
+      resp.body() =
+          R"({"status": "error", "message": "Authorization server is unavailable."})";
+      co_return 503;
     }
     SPDLOG_WARN("Wrong password for user: \"{}\" ", username);
     resp.body() =

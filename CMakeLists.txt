@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.18)
 project(fptn VERSION "${FPTN_VERSION}" LANGUAGES CXX)
 
 # project settings
@@ -50,9 +50,14 @@ add_compile_definitions(FPTN_PROTOBUF_PROTOCOL_VERSION=0x01)
 add_compile_definitions(FPTN_CLIENT_DEFAULT_ADDRESS_IP6=\"fd00::1\")
 add_compile_definitions(FPTN_CLIENT_DEFAULT_ADDRESS_IP4=\"10.0.0.1\")
 add_compile_definitions(FPTN_CLIENT_DEFAULT_EXCLUDE_NETWORKS=\"10.0.0.0/8,192.168.0.0/16\")
-add_compile_definitions(FPTN_CLIENT_DEFAULT_SPLIT_TUNNEL_DOMAINS=\"domain:ru,domain:su,domain:рф,domain:vk.com,domain:yandex.com,domain:userapi.com,domain:yandex.net,domain:clstorage.net\")
-add_compile_definitions(FPTN_CLIENT_DEFAULT_BLACKLIST_DOMAINS=\"domain:solovev-live.ru,domain:ria.ru,domain:tass.ru,domain:1tv.ru,domain:ntv.ru,domain:rt.com,domain:lenta.ru\")
+set(FPTN_CLIENT_DEFAULT_SPLIT_TUNNEL_DOMAINS
+    "ru,su,рф,xn--p1ai,vk.com,yandex.com,userapi.com,yandex.net,clstorage.net")
+add_compile_definitions(FPTN_CLIENT_DEFAULT_SPLIT_TUNNEL_DOMAINS=\"${FPTN_CLIENT_DEFAULT_SPLIT_TUNNEL_DOMAINS}\")
+set(FPTN_DEFAULT_BLACKLIST_DOMAINS
+    "solovev-live.ru,ria.ru,tass.ru,1tv.ru,ntv.ru,rt.com,lenta.ru")
+add_compile_definitions(FPTN_CLIENT_DEFAULT_BLACKLIST_DOMAINS=\"${FPTN_DEFAULT_BLACKLIST_DOMAINS}\")
 # server
+add_compile_definitions(FPTN_SERVER_DEFAULT_BLACKLIST_DOMAINS=\"${FPTN_DEFAULT_BLACKLIST_DOMAINS}\")
 add_compile_definitions(FPTN_SERVER_DEFAULT_ADDRESS_IP6=\"fc00:1::1\")
 add_compile_definitions(FPTN_SERVER_DEFAULT_NET_ADDRESS_IP6=\"fc00:1::\")
 add_compile_definitions(FPTN_SERVER_DEFAULT_ADDRESS_IP4=\"172.20.0.1\")
@@ -93,7 +98,7 @@ endif ()
 set(CMAKE_COMPILE_WARNING_AS_ERROR ON) # check all warnings!
 if (MSVC)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
-    add_compile_options(/W4 /WX)
+    add_compile_options(/W4 /WX /utf-8)
 else ()
     add_compile_options(-Wall -Werror -pedantic)
 endif ()

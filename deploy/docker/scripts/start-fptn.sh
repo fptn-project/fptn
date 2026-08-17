@@ -3,6 +3,24 @@
 export OUT_NETWORK_INTERFACE=$(ip -o -4 route show to default | awk '{print $5}')
 echo "[FPTN] Using network interface: $OUT_NETWORK_INTERFACE"
 
+# Download the domain blacklist before starting the server.
+BLACKLIST_FILE=/etc/fptn/blacklist.txt
+if [ -n "${BLACKLIST_URL}" ]; then
+    echo "[FPTN] Downloading domain blacklist from: ${BLACKLIST_URL}"
+    if wget -q -O "${BLACKLIST_FILE}.tmp" "${BLACKLIST_URL}"; then
+        mv "${BLACKLIST_FILE}.tmp" "${BLACKLIST_FILE}"
+        echo "[FPTN] Domain blacklist saved to ${BLACKLIST_FILE}"
+    else
+        rm -f "${BLACKLIST_FILE}.tmp"
+        echo "[FPTN] WARNING: failed to download blacklist; using existing file if present"
+    fi
+fi
+
+BLACKLIST_ARG=""
+if [ -f "${BLACKLIST_FILE}" ]; then
+    BLACKLIST_ARG="--domain-blacklist-file=${BLACKLIST_FILE}"
+fi
+
 exec /usr/local/bin/fptn-server \
     --server-key=/etc/fptn/server.key \
     --server-crt=/etc/fptn/server.crt \
@@ -19,4 +37,5 @@ exec /usr/local/bin/fptn-server \
     --remote-server-auth-port="$REMOTE_SERVER_AUTH_PORT" \
     --max-active-sessions-per-user="$MAX_ACTIVE_SESSIONS_PER_USER" \
     --server-external-ips="${SERVER_EXTERNAL_IPS}" \
-    --mtu-size="${MTU_SIZE}"
+    --mtu-size="${MTU_SIZE}" \
+    ${BLACKLIST_ARG}

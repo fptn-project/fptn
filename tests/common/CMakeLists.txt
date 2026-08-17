@@ -5,7 +5,7 @@ find_package(spdlog REQUIRED)
 find_package(fmt REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(jwt-cpp REQUIRED)
-find_package(Boost REQUIRED COMPONENTS random filesystem)
+find_package(Boost REQUIRED COMPONENTS random filesystem process)
 
 if(WIN32)
   set(TUNTAP_LIB Wintun rpcrt4)
@@ -56,7 +56,7 @@ add_test(NAME IPPacketTest COMMAND IPPacketTest)
 
 # --- TUN Device test ---
 add_executable(TunDeviceTest network/TunDeviceTest.cpp)
-target_link_libraries(TunDeviceTest PRIVATE ${LIBS})
+target_link_libraries(TunDeviceTest PRIVATE ${LIBS} Boost::process)
 add_test(NAME TunDeviceTest COMMAND TunDeviceTest)
 
 # --- JWT token manager test ---

@@ -736,13 +736,11 @@ boost::asio::awaitable<bool> Session::PerformFakeHandshake2(
 
     const auto client_hello_size = client_hello.value().size();
 
-    common::network::CleanSocket(tcp_socket);
-
     /* Send server hello */
     const auto handshake_answer =
         co_await handshake_cache_manager_->GetHandshake(sni,
             client_hello.value().data(), client_hello_size,
-            std::chrono::seconds(2), std::chrono::seconds(5));
+            std::chrono::seconds(2), std::chrono::seconds(3));
     if (!handshake_answer) {
       co_return false;
     }

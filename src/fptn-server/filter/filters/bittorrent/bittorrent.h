@@ -16,6 +16,6 @@ class BitTorrent : public BaseFilter {
 
   ~BitTorrent() override = default;
 
-  IPPacketPtr apply(IPPacketPtr packet) const override;
+  IPPacketPtr Apply(IPPacketPtr packet, Direction direction) const override;
 };
 }  // namespace fptn::filter

@@ -19,12 +19,18 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 namespace fptn::vpn {
 class Manager final {
  public:
-  Manager(fptn::web::ServerPtr web_server,
-      fptn::network::VirtualInterfacePtr network_interface,
-      fptn::nat::TableSPtr nat,
-      fptn::filter::ManagerSPtr filter,
-      fptn::statistic::MetricsSPtr prometheus,
-      std::size_t thread_pool_size = 1);
+  struct Config {
+    fptn::web::ServerPtr web_server;
+    fptn::network::VirtualInterfacePtr network_interface;
+    fptn::nat::TableSPtr nat;
+    fptn::filter::ManagerSPtr from_client_filter;
+    fptn::filter::ManagerSPtr to_client_filter;
+    fptn::statistic::MetricsSPtr prometheus;
+    std::size_t thread_pool_size = 1;
+  };
+
+ public:
+  explicit Manager(Config config);
   ~Manager();
   bool Stop();
   bool Start();
@@ -38,12 +44,7 @@ class Manager final {
  private:
   std::atomic<bool> running_ = false;
 
-  const fptn::web::ServerPtr web_server_;
-  const fptn::network::VirtualInterfacePtr network_interface_;
-  const fptn::nat::TableSPtr nat_;
-  const fptn::filter::ManagerSPtr filter_;
-  const fptn::statistic::MetricsSPtr prometheus_;
-  const std::size_t thread_pool_size_;
+  Config config_;
 
   std::vector<std::thread> read_to_client_threads_;
   std::vector<std::thread> read_from_client_threads_;

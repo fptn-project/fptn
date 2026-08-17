@@ -62,6 +62,14 @@
             <translation>Невозможно подключиться к серверу. Пожалуйста, сгенерируйте новый TOKEN с вашими персональными настройками через Telegram-бота и повторите попытку.</translation>
         </message>
         <message>
+            <source>The authorization server is temporarily unavailable. Please try again later.</source>
+            <translation>Сервер авторизации временно недоступен. Пожалуйста, повторите попытку позже.</translation>
+        </message>
+        <message>
+            <source>The server did not respond in time (operation timeout). Please try again.</source>
+            <translation>Сервер не ответил вовремя (таймаут операции). Пожалуйста, повторите попытку.</translation>
+        </message>
+        <message>
             <source>DNS server error! Check your connection!</source>
             <translation>Ошибка DNS сервера! Проверьте ваше соединение!</translation>
         </message>
@@ -471,6 +479,10 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>Маршрутизация</translation>
         </message>
         <message>
+            <source>Block ads</source>
+            <translation>Блокировать рекламу</translation>
+        </message>
+        <message>
             <source>Blacklist domains</source>
             <translation>Черный список доменов</translation>
         </message>
@@ -483,8 +495,8 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>Введите корректный IPv4-адрес DNS или включите «Авто».</translation>
         </message>
         <message>
-            <source>Completely block access to the main domain AND all its subdomains. Format: domain:example.com (one per line)</source>
-            <translation>Полностью блокировать доступ к основному домену и всем его поддоменам. Формат: domain:example.com (по одному в строке)</translation>
+            <source>Completely block access to the main domain AND all its subdomains. Format: example.com (one per line)</source>
+            <translation>Полностью блокировать доступ к основному домену и всем его поддоменам. Формат: example.com (по одному в строке)</translation>
         </message>
         <message>
             <source>Exclude tunnel networks</source>

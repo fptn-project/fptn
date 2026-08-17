@@ -62,6 +62,14 @@
             <translation>Unable to connect to the server. Please use the Telegram bot to generate a new TOKEN with your personal settings, then try again.</translation>
         </message>
         <message>
+            <source>The authorization server is temporarily unavailable. Please try again later.</source>
+            <translation>The authorization server is temporarily unavailable. Please try again later.</translation>
+        </message>
+        <message>
+            <source>The server did not respond in time (operation timeout). Please try again.</source>
+            <translation>The server did not respond in time (operation timeout). Please try again.</translation>
+        </message>
+        <message>
             <source>DNS server error! Check your connection!</source>
             <translation>DNS server error! Check your connection!</translation>
         </message>
@@ -471,6 +479,10 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>Routing</translation>
         </message>
         <message>
+            <source>Block ads</source>
+            <translation>Block ads</translation>
+        </message>
+        <message>
             <source>Blacklist domains</source>
             <translation>Blacklist domains</translation>
         </message>
@@ -483,8 +495,8 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>Please enter a valid DNS IPv4 address or enable Auto.</translation>
         </message>
         <message>
-            <source>Completely block access to the main domain AND all its subdomains. Format: domain:example.com (one per line)</source>
-            <translation>Completely block access to the main domain AND all its subdomains. Format: domain:example.com (one per line)</translation>
+            <source>Completely block access to the main domain AND all its subdomains. Format: example.com (one per line)</source>
+            <translation>Completely block access to the main domain AND all its subdomains. Format: example.com (one per line)</translation>
         </message>
         <message>
             <source>Exclude tunnel networks</source>

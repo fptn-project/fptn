@@ -105,6 +105,9 @@ class SettingsWidget : public QDialog {
   QLabel* enable_dns_management_info_label_ = nullptr;
   QCheckBox* enable_dns_management_checkbox_ = nullptr;
 
+  QLabel* enable_ad_block_label_ = nullptr;
+  QCheckBox* enable_ad_block_checkbox_ = nullptr;
+
   QLabel* blacklist_domains_label_ = nullptr;
   QLabel* blacklist_domains_info_label_ = nullptr;
   QTextEdit* blacklist_domains_text_edit_ = nullptr;

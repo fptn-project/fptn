@@ -39,3 +39,11 @@ add_executable(AntiScanTest filter/antiscan/AntiScanTest.cpp ${FPTN_SERVER_PATH}
                             ${FPTN_SERVER_PATH}/filter/filters/antiscan/antiscan.cpp)
 target_link_libraries(AntiScanTest PRIVATE ${LIBS})
 add_test(NAME AntiScanTest COMMAND AntiScanTest)
+
+# --- DomainBlacklist test ---
+add_executable(
+  DomainBlacklistTest filter/domain_blacklist/DomainBlacklistTest.cpp
+                      ${FPTN_SERVER_PATH}/filter/filters/domain_blacklist/domain_blacklist.h
+                      ${FPTN_SERVER_PATH}/filter/filters/domain_blacklist/domain_blacklist.cpp)
+target_link_libraries(DomainBlacklistTest PRIVATE ${LIBS})
+add_test(NAME DomainBlacklistTest COMMAND DomainBlacklistTest)

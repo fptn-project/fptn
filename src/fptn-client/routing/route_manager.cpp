@@ -8,71 +8,74 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include <algorithm>
 #include <memory>
+#include <mutex>
+#include <sstream>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include <boost/asio/ip/address.hpp>
 #include <boost/asio/ip/tcp.hpp>
 
+#include <queue>  // NOLINT(build/include_order)
+
 #include "common/network/net_interface.h"
 #include "common/system/command.h"
 
 namespace {
 #ifdef _WIN32
+std::mutex interface_number_mutex;
+std::unordered_map<std::string, std::string> interface_numbers;
+
+// The TUN adapter is recreated on every connect and gets a new index
+void ResetWindowsInterfaceNumbers() {
+  const std::scoped_lock lock(interface_number_mutex);
+  interface_numbers.clear();
+}
+
 std::string GetWindowsInterfaceNumber(const std::string& interface_name) {
   if (interface_name.empty()) {
     return {};
   }
 
-  ULONG out_buf_len = 15000;
-  ULONG flags = GAA_FLAG_INCLUDE_PREFIX | GAA_FLAG_INCLUDE_GATEWAYS;
-
-  std::unique_ptr<IP_ADAPTER_ADDRESSES[]> adapter_addresses;
-  DWORD ret = ERROR_BUFFER_OVERFLOW;
-
-  for (int i = 0; i < 3 && ret == ERROR_BUFFER_OVERFLOW; i++) {
-    adapter_addresses = std::make_unique<IP_ADAPTER_ADDRESSES[]>(
-        out_buf_len / sizeof(IP_ADAPTER_ADDRESSES) + 1);
-
-    ret = GetAdaptersAddresses(
-        AF_UNSPEC, flags, nullptr, adapter_addresses.get(), &out_buf_len);
-
-    if (ret == ERROR_BUFFER_OVERFLOW) {
-      adapter_addresses.reset();
+  {
+    const std::scoped_lock lock(interface_number_mutex);
+    const auto it = interface_numbers.find(interface_name);
+    if (it != interface_numbers.end()) {
+      return it->second;
     }
   }
 
-  if (ret == NO_ERROR && adapter_addresses) {
-    PIP_ADAPTER_ADDRESSES current = adapter_addresses.get();
-    DWORD if_index = 0;
+  std::vector<std::string> output;
+  fptn::common::system::command::run(
+      "netsh interface ipv4 show interfaces", output);
 
-    while (current) {
-      std::string adapter_name = current->AdapterName;
-
-      int size_need = WideCharToMultiByte(
-          CP_UTF8, 0, current->FriendlyName, -1, nullptr, 0, nullptr, nullptr);
-      std::string friendly_name(size_need - 1, 0);
-      WideCharToMultiByte(CP_UTF8, 0, current->FriendlyName, -1,
-          &friendly_name[0], size_need, nullptr, nullptr);
-
-      size_need = WideCharToMultiByte(
-          CP_UTF8, 0, current->Description, -1, nullptr, 0, nullptr, nullptr);
-      std::string description(size_need - 1, 0);
-      WideCharToMultiByte(CP_UTF8, 0, current->Description, -1, &description[0],
-          size_need, nullptr, nullptr);
-
-      if (interface_name == adapter_name || interface_name == friendly_name ||
-          interface_name == description) {
-        if_index = current->IfIndex;
-        break;
-      }
-      current = current->Next;
+  for (const auto& line : output) {
+    std::istringstream iss(line);
+    std::string index;
+    std::string metric;
+    std::string mtu;
+    std::string state;
+    if (!(iss >> index >> metric >> mtu >> state)) {
+      continue;
     }
-
-    return if_index > 0 ? std::to_string(if_index) : std::string();
+    if (index.find_first_not_of("0123456789") != std::string::npos) {
+      continue;
+    }
+    std::string name;
+    std::getline(iss, name);
+    const std::size_t begin = name.find_first_not_of(" \t");
+    const std::size_t end = name.find_last_not_of(" \t\r");
+    if (begin == std::string::npos) {
+      continue;
+    }
+    if (name.substr(begin, end - begin + 1) == interface_name) {
+      const std::scoped_lock lock(interface_number_mutex);
+      interface_numbers[interface_name] = index;
+      return index;
+    }
   }
-
   return {};
 }
 
@@ -163,13 +166,11 @@ bool AddIPv4RouteToSystem(const std::string& destination,
         fmt::format("route add -net {} {}", destination, gateway_ip);
 #elif _WIN32
     auto [ip, mask] = ParseIPv4CIDR(destination);
-    std::string interface_param = "";
-    if (!out_interface.empty()) {
-      std::string interface_number = GetWindowsInterfaceNumber(out_interface);
-      if (!interface_number.empty()) {
-        interface_param = "if " + interface_number;
-      }
-    }
+    const std::string interface_number =
+        out_interface.empty() ? std::string()
+                              : GetWindowsInterfaceNumber(out_interface);
+    const std::string interface_param =
+        interface_number.empty() ? "" : "if " + interface_number;
     const std::string command =
         fmt::format("route add {} mask {} {} METRIC 2 {}", ip, mask, gateway_ip,
             interface_param);
@@ -207,9 +208,9 @@ bool AddIPv6RouteToSystem(const std::string& destination,
       SPDLOG_ERROR("Interface name required for IPv6 route on Windows");
       return false;
     }
-    const std::string command =
-        fmt::format("netsh interface ipv6 add route {}/{} \"{}\" {}", ip,
-            prefix, interface_name, gateway_ip);
+    const std::string command = fmt::format(
+        "netsh interface ipv6 add route {}/{} \"{}\" {} store=active", ip,
+        prefix, interface_name, gateway_ip);
 #else
     return false;
 #endif
@@ -277,7 +278,8 @@ std::string BuildRemoveIPv6RouteCommand(const std::string& destination,
       SPDLOG_ERROR("Interface name required for IPv6 route removal on Windows");
       return {};
     }
-    return fmt::format("netsh interface ipv6 delete route {}/{} \"{}\"", ip,
+    return fmt::format(
+        "netsh interface ipv6 delete route {}/{} \"{}\" store=active", ip,
         prefix, interface_name);
 #else
     return {};
@@ -312,9 +314,15 @@ void HealStaleResolvConf() {
 #endif
 
 RouteManager::RouteManager(Config config)
-    : running_(false), config_(std::move(config)) {}
+    : running_(false), config_(std::move(config)) {
+  route_workers_.reserve(kRouteWorkers);
+  for (std::size_t i = 0; i < kRouteWorkers; ++i) {
+    route_workers_.emplace_back(&RouteManager::RunRouteWorker, this);
+  }
+}
 
 RouteManager::~RouteManager() {  // NOLINT(bugprone-exception-escape)
+  StopRouteWorker();
   if (running_) {
     Clean();
   }
@@ -329,6 +337,9 @@ bool RouteManager::Apply(std::string tun_name) {
 
   tun_interface_name_ = std::move(tun_name);
   running_ = true;
+#ifdef _WIN32
+  ResetWindowsInterfaceNumbers();
+#endif
   if (!config_.out_interface_name.empty()) {
     detected_out_interface_name_ = config_.out_interface_name;
   } else if (detected_out_interface_name_.empty()) {
@@ -600,26 +611,25 @@ pass out on {tunInterfaceName} proto tcp from any to any port 53
           config_.tun_interface_address_ipv4.ToString(),
           interface_info),  // via TUN
       // DNS
-      config_.enable_advanced_dns_management
-          ? backup_dns_cmd
-          : "echo \"No advanced DNS management\" ",
-      config_.enable_advanced_dns_management
-          ? configure_dns_cmd
-          : "echo \"No advanced DNS management\" ",
-      fmt::format("netsh interface ip set dns name=\"{}\" static {}",
+      config_.enable_advanced_dns_management ? backup_dns_cmd : "",
+      config_.enable_advanced_dns_management ? configure_dns_cmd : "",
+      fmt::format(
+          "netsh interface ip set dns name=\"{}\" static {} validate=no",
           tun_interface_name_, win_tun_dns4),
       // IPv6
-      fmt::format("netsh interface ipv6 add route ::/0 \"{}\" \"{}\" ",
+      fmt::format(
+          "netsh interface ipv6 add route ::/0 \"{}\" \"{}\" store=active",
           tun_interface_name_, config_.tun_interface_address_ipv6.ToString()),
-      fmt::format("netsh interface ipv6 add dnsservers=\"{}\" \"{}\" index=1",
+      fmt::format("netsh interface ipv6 add dnsservers=\"{}\" \"{}\" index=1 "
+                  "validate=no store=active",
           tun_interface_name_, config_.dns_server_ipv6.ToString()),
       // Flush DNS cache
       "ipconfig /flushdns"};
 
   if (has_custom_dns) {
-    commands.push_back(
-        fmt::format("netsh interface ip add dns name=\"{}\" {} index=2",
-            tun_interface_name_, config_.dns_server_ipv4.ToString()));
+    commands.push_back(fmt::format(
+        "netsh interface ip add dns name=\"{}\" {} index=2 validate=no",
+        tun_interface_name_, config_.dns_server_ipv4.ToString()));
     commands.push_back(fmt::format(
         "route add {} mask 255.255.255.255 {} METRIC 2 {}", custom_dns,
         config_.tun_interface_address_ipv4.ToString(), interface_info));
@@ -630,6 +640,9 @@ pass out on {tunInterfaceName} proto tcp from any to any port 53
 #endif
   try {
     for (const auto& cmd : commands) {
+      if (cmd.empty()) {
+        continue;
+      }
       fptn::common::system::command::run(cmd);
     }
   } catch (const std::exception& e) {
@@ -650,6 +663,12 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
   if (!running_) {
     SPDLOG_INFO("No need to clean rules!");
     return true;
+  }
+
+  {
+    const std::unique_lock<std::mutex> lock(queue_mutex_);  // mutex
+
+    std::queue<PendingRoutes>().swap(route_queue_);
   }
 
   const std::unique_lock<std::mutex> lock(mutex_);  // mutex
@@ -908,9 +927,7 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
     }")PSHELL";
 
   std::vector<std::string> commands = {
-      config_.enable_advanced_dns_management
-          ? restore_dns_cmd
-          : "echo \"No advanced DNS management\" ",
+      config_.enable_advanced_dns_management ? restore_dns_cmd : "",
       // Remove routes
       fmt::format("route delete {} mask 255.255.255.255",
           config_.vpn_server_ip.ToString()),
@@ -918,8 +935,8 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
           config_.tun_interface_address_ipv4.ToString()),
       fmt::format("route delete {} mask 255.255.255.255",
           config_.dns_server_ipv4.ToString()),
-      fmt::format(
-          "netsh interface ipv6 delete route ::/0 \"{}\"", tun_interface_name_),
+      fmt::format("netsh interface ipv6 delete route ::/0 \"{}\" store=active",
+          tun_interface_name_),
 
       // Final cleanup
       "ipconfig /flushdns"};
@@ -934,6 +951,9 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
 #endif
   try {
     for (const auto& cmd : commands) {
+      if (cmd.empty()) {
+        continue;
+      }
       fptn::common::system::command::run(cmd);
     }
   } catch (const std::exception& e) {
@@ -948,21 +968,92 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
 bool RouteManager::AddDnsRoutesIPv4(
     const std::vector<fptn::common::network::IPv4Address>& ips,
     const RoutingPolicy policy) {
+  return Enqueue({.ipv4 = ips, .ipv6 = {}, .policy = policy});
+}
+
+bool RouteManager::AddDnsRoutesIPv6(
+    const std::vector<fptn::common::network::IPv6Address>& ips,
+    const RoutingPolicy policy) {
+  return Enqueue({.ipv4 = {}, .ipv6 = ips, .policy = policy});
+}
+
+bool RouteManager::Enqueue(PendingRoutes routes) {
+  constexpr std::size_t kMaxQueueSize = 1024;
+
+  {
+    const std::unique_lock<std::mutex> lock(queue_mutex_);  // mutex
+
+    if (route_queue_.size() >= kMaxQueueSize) {
+      SPDLOG_WARN("DNS route queue is full, dropping addresses");
+      return false;
+    }
+    route_queue_.push(std::move(routes));
+  }
+  queue_cv_.notify_one();
+  return true;
+}
+
+void RouteManager::RunRouteWorker() {
+  while (worker_running_) {
+    PendingRoutes routes;
+    {
+      std::unique_lock<std::mutex> lock(queue_mutex_);  // mutex
+
+      queue_cv_.wait(
+          lock, [this]() { return !route_queue_.empty() || !worker_running_; });
+      if (!worker_running_) {
+        break;
+      }
+      routes = std::move(route_queue_.front());
+      route_queue_.pop();
+    }
+
+    if (!running_) {
+      continue;
+    }
+    if (!routes.ipv4.empty()) {
+      ApplyDnsRoutesIPv4(routes.ipv4, routes.policy);
+    }
+    if (!routes.ipv6.empty()) {
+      ApplyDnsRoutesIPv6(routes.ipv6, routes.policy);
+    }
+  }
+}
+
+void RouteManager::StopRouteWorker() {
+  worker_running_ = false;
+  queue_cv_.notify_all();
+  for (auto& worker : route_workers_) {
+    if (worker.joinable()) {
+      worker.join();
+    }
+  }
+  route_workers_.clear();
+}
+
+bool RouteManager::ApplyDnsRoutesIPv4(
+    const std::vector<fptn::common::network::IPv4Address>& ips,
+    const RoutingPolicy policy) {
   std::string interface_name;
   std::string gateway_ip;
 
-  if (policy == RoutingPolicy::kExcludeFromVpn) {
-    if (!detected_out_interface_name_.empty()) {
-      interface_name = detected_out_interface_name_;
-    } else if (!config_.out_interface_name.empty()) {
-      interface_name = config_.out_interface_name;
-    } else {
-      interface_name = GetDefaultNetworkInterfaceName();
+  {
+    const std::unique_lock<std::mutex> lock(mutex_);  // mutex
+
+    if (!running_) {
+      return false;
     }
-    gateway_ip = config_.gateway_ipv4.ToString();
-  } else {
-    interface_name = tun_interface_name_;
-    gateway_ip = config_.tun_interface_address_ipv4.ToString();
+    if (policy == RoutingPolicy::kExcludeFromVpn) {
+      if (!detected_out_interface_name_.empty()) {
+        interface_name = detected_out_interface_name_;
+      } else {
+        interface_name = config_.out_interface_name;
+      }
+      gateway_ip = config_.gateway_ipv4.ToString();
+    } else {
+      interface_name = tun_interface_name_;
+      gateway_ip = config_.tun_interface_address_ipv4.ToString();
+    }
   }
   if (interface_name.empty()) {
     interface_name = fptn::routing::GetDefaultNetworkInterfaceName();
@@ -1025,24 +1116,32 @@ bool RouteManager::AddDnsRoutesIPv4(
   return status;
 }
 
-bool RouteManager::AddDnsRoutesIPv6(
+bool RouteManager::ApplyDnsRoutesIPv6(
     const std::vector<fptn::common::network::IPv6Address>& ips,
     const RoutingPolicy policy) {
   std::string interface_name;
   std::string gateway_ip;
 
-  if (policy == RoutingPolicy::kExcludeFromVpn) {
-    if (!detected_out_interface_name_.empty()) {
-      interface_name = detected_out_interface_name_;
-    } else if (!config_.out_interface_name.empty()) {
-      interface_name = config_.out_interface_name;
-    } else {
-      interface_name = GetDefaultNetworkInterfaceName();
+  {
+    const std::unique_lock<std::mutex> lock(mutex_);  // mutex
+
+    if (!running_) {
+      return false;
     }
-    gateway_ip = config_.gateway_ipv6.ToString();
-  } else {
-    interface_name = tun_interface_name_;
-    gateway_ip = config_.tun_interface_address_ipv6.ToString();
+    if (policy == RoutingPolicy::kExcludeFromVpn) {
+      if (!detected_out_interface_name_.empty()) {
+        interface_name = detected_out_interface_name_;
+      } else {
+        interface_name = config_.out_interface_name;
+      }
+      gateway_ip = config_.gateway_ipv6.ToString();
+    } else {
+      interface_name = tun_interface_name_;
+      gateway_ip = config_.tun_interface_address_ipv6.ToString();
+    }
+  }
+  if (interface_name.empty()) {
+    interface_name = fptn::routing::GetDefaultNetworkInterfaceName();
   }
 
   if (interface_name.empty()) {

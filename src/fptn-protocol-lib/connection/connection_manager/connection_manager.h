@@ -49,6 +49,7 @@ class ConnectionManager final {
   bool IsConnected() const;
 
   const std::string& LatestError() const;
+  int LatestErrorCode() const;
 
  protected:
   void Run();
@@ -60,6 +61,7 @@ class ConnectionManager final {
 
   std::string jwt_access_token_;
   std::string latest_error_;
+  int latest_error_code_ = 0;
   std::size_t reconnection_attempts_;
 
   strategies::ConnectionStrategy connection_strategy_type_;

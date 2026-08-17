@@ -39,7 +39,7 @@ class AntiScan : public BaseFilter {
       const fptn::common::network::IPv6Address& server_ipv6_net,
       const int server_ip_v6_mask);
 
-  IPPacketPtr apply(IPPacketPtr packet) const override;
+  IPPacketPtr Apply(IPPacketPtr packet, Direction direction) const override;
 
   ~AntiScan() override = default;
 

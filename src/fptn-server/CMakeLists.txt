@@ -64,6 +64,8 @@ add_executable(
   filter/filters/antiscan/antiscan.cpp
   filter/filters/bittorrent/bittorrent.h
   filter/filters/bittorrent/bittorrent.cpp
+  filter/filters/domain_blacklist/domain_blacklist.h
+  filter/filters/domain_blacklist/domain_blacklist.cpp
   vpn/manager.h
   vpn/manager.cpp
   statistic/metrics.h

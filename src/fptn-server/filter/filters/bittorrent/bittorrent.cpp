@@ -52,7 +52,8 @@ bool DetectBitTorrent(const std::uint8_t* payload, std::size_t payload_size) {
 
 namespace fptn::filter {
 
-IPPacketPtr BitTorrent::apply(IPPacketPtr packet) const {
+IPPacketPtr BitTorrent::Apply(
+    IPPacketPtr packet, Direction /*direction*/) const {
   const auto [udp_data, udp_size] = packet->GetUdpPayload();
   if (udp_data) {
     if (DetectBitTorrent(udp_data, udp_size)) {

@@ -87,9 +87,9 @@ inline std::vector<std::string> SplitCommaSeparated(const std::string& input) {
 
 inline std::string ToLowerCase(const std::string& str) {
   try {
-    boost::locale::generator gen;
-    std::locale loc = gen("");
-    return boost::locale::to_lower(str, loc);
+    // Generating the locale costs ~45us, so it must not happen per call.
+    static const std::locale kLocale = boost::locale::generator()("");
+    return boost::locale::to_lower(str, kLocale);
   } catch (...) {
     return str;
   }

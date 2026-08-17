@@ -15,7 +15,6 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include <spdlog/spdlog.h>  // NOLINT(build/include_order)
 
-
 namespace {
 std::chrono::seconds ReconnectBackoff(int full_restart_count) {
   switch (full_restart_count) {
@@ -47,15 +46,17 @@ bool VpnManager::IsStarted() {
     return false;
   }
 
-  // const std::unique_lock<std::mutex> lock(mutex_);  // mutex
-
   if (gave_up_) {
     return false;
   }
   if (ever_connected_) {
     return true;
   }
-  return config_.http_client && config_.http_client->IsStarted();
+
+  const std::unique_lock<std::mutex> lock(mutex_, std::try_to_lock);  // mutex
+
+  return lock.owns_lock() && config_.http_client &&
+         config_.http_client->IsStarted();
 }
 
 bool VpnManager::IsReconnecting() const { return reconnecting_; }
@@ -70,13 +71,11 @@ bool VpnManager::Start() {
     return false;
   }
 
-  {
-    const std::unique_lock<std::mutex> lock(mutex_);  // mutex
+  const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
-    // cppcheck-suppress identicalConditionAfterEarlyExit
-    if (running_) {
-      return false;
-    }
+  // cppcheck-suppress identicalConditionAfterEarlyExit
+  if (running_ || !config_.http_client) {
+    return false;
   }
   running_ = true;
 
@@ -166,12 +165,17 @@ bool VpnManager::Stop() {
   if (config_.virtual_net_interface) {
     SPDLOG_INFO("Stopping virtual network interface");
     config_.virtual_net_interface->Stop();
-    config_.virtual_net_interface.reset();
   }
 
   if (config_.http_client) {
     SPDLOG_INFO("Stopping HTTP client");
     config_.http_client->Stop();
+  }
+
+  {
+    const std::unique_lock<std::mutex> lock(mutex_);  // mutex
+
+    config_.virtual_net_interface.reset();
     config_.http_client.reset();
   }
 
@@ -183,12 +187,12 @@ std::size_t VpnManager::GetSendRate() {
     return 0;
   }
 
-  const std::unique_lock<std::mutex> lock(mutex_);  // mutex
+  const std::unique_lock<std::mutex> lock(mutex_, std::try_to_lock);  // mutex
 
-  if (running_ && config_.virtual_net_interface) {
-    return config_.virtual_net_interface->GetSendRate();
+  if (lock.owns_lock() && running_ && config_.virtual_net_interface) {
+    last_send_rate_ = config_.virtual_net_interface->GetSendRate();
   }
-  return 0;
+  return last_send_rate_;
 }
 
 std::size_t VpnManager::GetReceiveRate() {
@@ -196,12 +200,12 @@ std::size_t VpnManager::GetReceiveRate() {
     return 0;
   }
 
-  const std::unique_lock<std::mutex> lock(mutex_);  // mutex
+  const std::unique_lock<std::mutex> lock(mutex_, std::try_to_lock);  // mutex
 
-  if (running_ && config_.virtual_net_interface) {
-    return config_.virtual_net_interface->GetReceiveRate();
+  if (lock.owns_lock() && running_ && config_.virtual_net_interface) {
+    last_receive_rate_ = config_.virtual_net_interface->GetReceiveRate();
   }
-  return 0;
+  return last_receive_rate_;
 }
 
 std::string VpnManager::GetInterfaceName() const {
@@ -221,7 +225,22 @@ void VpnManager::HandleOnPacketsFromVirtualNetworkInterface(
 
   if (running_ && config_.http_client) {
     for (auto& packet : packets) {
-      config_.http_client->Send(std::move(packet));
+      if (!packet) {
+        continue;
+      }
+      if (config_.ad_blocker && packet->IsDns()) {
+        if (auto response = config_.ad_blocker->ProcessOutgoingDns(*packet)) {
+          if (config_.virtual_net_interface) {
+            config_.virtual_net_interface->Send(std::move(response));
+          }
+          continue;
+        }
+      }
+      if (config_.http_client->Send(std::move(packet))) {
+        ++to_server_sent_;
+      } else {
+        ++to_server_dropped_;
+      }
     }
   }
 }
@@ -289,9 +308,13 @@ void VpnManager::ProcessWebSocketPackets() {
     }
 
     if (!to_send.empty()) {
+      const std::size_t count = to_send.size();
       const std::unique_lock<std::mutex> lock(mutex_);
-      if (running_ && config_.virtual_net_interface) {
-        config_.virtual_net_interface->SendBatch(std::move(to_send));
+      if (running_ && config_.virtual_net_interface &&
+          config_.virtual_net_interface->SendBatch(std::move(to_send))) {
+        to_tun_sent_ += count;
+      } else {
+        to_tun_dropped_ += count;
       }
     }
   }
@@ -299,7 +322,15 @@ void VpnManager::ProcessWebSocketPackets() {
 
 void VpnManager::Supervise() {
   int full_restart_count = 0;
+  auto last_stats = std::chrono::steady_clock::now();
   while (running_) {
+    const auto now = std::chrono::steady_clock::now();
+    if (now - last_stats > std::chrono::seconds(10)) {
+      last_stats = now;
+      SPDLOG_INFO("Packets: to server {} (dropped {}), to tun {} (dropped {})",
+          to_server_sent_.load(), to_server_dropped_.load(),
+          to_tun_sent_.load(), to_tun_dropped_.load());
+    }
     {
       std::unique_lock<std::mutex> lock(reconnect_mutex_);
       reconnect_cv_.wait_for(lock, std::chrono::milliseconds(500),
@@ -325,7 +356,10 @@ void VpnManager::Supervise() {
     if (full_restart_count >= kMaxFullRestarts_) {
       SPDLOG_ERROR("VPN reconnection failed after {} full restarts. Giving up.",
           kMaxFullRestarts_);
-      config_.route_manager->Clean();
+      {
+        const std::unique_lock<std::mutex> lock(mutex_);  // mutex
+        config_.route_manager->Clean();
+      }
       reconnecting_ = false;
       gave_up_ = true;
       break;
@@ -335,8 +369,12 @@ void VpnManager::Supervise() {
     SPDLOG_WARN(
         "Full VPN restart {}/{}", full_restart_count, kMaxFullRestarts_);
 
-    config_.http_client->Stop();
-    config_.route_manager->Clean();
+    {
+      const std::unique_lock<std::mutex> lock(mutex_);  // mutex
+
+      config_.http_client->Stop();
+      config_.route_manager->Clean();
+    }
 
     {
       std::unique_lock<std::mutex> lock(reconnect_mutex_);
@@ -347,8 +385,12 @@ void VpnManager::Supervise() {
       break;
     }
 
-    config_.route_manager->Apply(config_.virtual_net_interface->Name());
-    config_.http_client->Start();
+    {
+      const std::unique_lock<std::mutex> lock(mutex_);  // mutex
+
+      config_.route_manager->Apply(config_.virtual_net_interface->Name());
+      config_.http_client->Start();
+    }
   }
 }
 

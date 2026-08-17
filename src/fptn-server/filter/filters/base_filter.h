@@ -14,9 +14,15 @@ namespace fptn::filter {
 
 using fptn::common::network::IPPacketPtr;
 
+enum class Direction : int {
+  kFromClient,
+  kToClient
+};
+
+
 class BaseFilter {
  public:
-  virtual IPPacketPtr apply(IPPacketPtr packet) const = 0;
+  virtual IPPacketPtr Apply(IPPacketPtr packet, Direction direction) const = 0;
 
   virtual ~BaseFilter() = default;
 };
