@@ -35,6 +35,11 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 namespace fptn::protocol::https {
 
+fptn::protocol::SerializerPolicy WebsocketClient::Serializer() const noexcept {
+  return fptn::protocol::ResolveSerializerPolicy(
+      config_.common.serializer_policy);
+}
+
 WebsocketClient::WebsocketClient(std::string jwt_access_token,
     ConnectionConfig config,
     boost::asio::io_context& ioc)
@@ -464,7 +469,8 @@ boost::asio::awaitable<bool> WebsocketClient::Connect() {
     ws_.set_option(boost::beast::websocket::stream_base::decorator(
         [this](boost::beast::websocket::request_type& req) {
           req.set("Authorization", "Bearer " + jwt_access_token_);
-          req.set("X-Serializer", "yaff");
+          req.set("X-Serializer",
+              std::string(fptn::protocol::ToString(Serializer())));
           req.set("Client-Agent",
               fmt::format("FptnClient({}/{})", FPTN_USER_OS, FPTN_VERSION));
           // Present only for pooled connections; groups them server-side.
@@ -583,8 +589,11 @@ boost::asio::awaitable<void> WebsocketClient::RunReader() {
       }
       ++inbound_batches;  // [diag]
 
-      auto batch_packets =
-          fptn::protocol::yaff::DeserializeBatchIPPacket(buffer);
+      auto batch_packets = Serializer() == fptn::protocol::SerializerPolicy::kYaff
+                               ? fptn::protocol::yaff::DeserializeBatchIPPacket(
+                                     buffer)
+                               : fptn::protocol::protobuf::DeserializeBatchIPPacket(
+                                     buffer);
       if (!batch_packets.empty()) {
         fptn::common::network::BatchIPPacketPtr packets;
         packets.reserve(batch_packets.size());
@@ -662,8 +671,11 @@ boost::asio::awaitable<void> WebsocketClient::RunSender() {
         }
       }
       if (!packets.empty()) {
-        auto batch_data =
-            fptn::protocol::yaff::SerializeBatchIPPacket(std::move(packets));
+        auto batch_data = Serializer() == fptn::protocol::SerializerPolicy::kYaff
+                              ? fptn::protocol::yaff::SerializeBatchIPPacket(
+                                    std::move(packets))
+                              : fptn::protocol::protobuf::SerializeBatchIPPacket(
+                                    std::move(packets));
         if (batch_data.has_value()) {
           co_await ws_.async_write(boost::asio::buffer(batch_data.value()),
               boost::asio::redirect_error(boost::asio::use_awaitable, ec));

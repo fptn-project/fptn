@@ -72,6 +72,7 @@ class WebsocketClient : public std::enable_shared_from_this<WebsocketClient> {
   void StartWatchdog();
 
   std::vector<std::uint8_t> GenerateHandshakePacket() const;
+  fptn::protocol::SerializerPolicy Serializer() const noexcept;
 
  private:
   const std::size_t kMaxSizeOutQueue_ = 256;

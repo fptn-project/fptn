@@ -14,6 +14,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "common/network/ip_packet.h"
 
 #include "fptn-protocol-lib/https/censorship_strategy.h"
+#include "fptn-protocol-lib/protocol/serializer_policy.h"
 
 namespace fptn::protocol::https {
 
@@ -38,6 +39,11 @@ struct ConnectionConfig {
     std::string sni;
     std::string md5_fingerprint;
     CensorshipStrategy censorship_strategy = CensorshipStrategy::kSni;
+
+    // Auto resolves to the bandwidth-efficient Protobuf framing while keeping
+    // YAFF available for deployments that explicitly prefer it.
+    fptn::protocol::SerializerPolicy serializer_policy =
+        fptn::protocol::SerializerPolicy::kAuto;
 
     // Shared across all websocket connections of a connection pool so the
     // server can multiplex them into one logical client (empty = the server
