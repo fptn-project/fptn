@@ -6,6 +6,8 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include "gui/style/style.h"
 
+#include <algorithm>
+
 #include <QFontDatabase>  // NOLINT(build/include_order)
 #include <QStringList>    // NOLINT(build/include_order)
 
@@ -15,11 +17,13 @@ QFont GetCyrillicCapableFont() {
   static const QStringList kPreferredFamilies = {"Ubuntu", "DejaVu Sans",
       "Liberation Sans", "Noto Sans", "FreeSans", "Cantarell", "Arial"};
 
-  for (const QString& family : kPreferredFamilies) {
-    if (QFontDatabase::writingSystems(family).contains(
-            QFontDatabase::Cyrillic)) {
-      return QFont(family);
-    }
+  const auto preferred =
+      std::ranges::find_if(kPreferredFamilies, [](const QString& family) {
+        return QFontDatabase::writingSystems(family).contains(
+            QFontDatabase::Cyrillic);
+      });
+  if (preferred != kPreferredFamilies.cend()) {
+    return QFont(*preferred);
   }
 
   const QFont system_font =
@@ -29,12 +33,15 @@ QFont GetCyrillicCapableFont() {
     return system_font;
   }
 
-  for (const QString& family :
-      QFontDatabase::families(QFontDatabase::Cyrillic)) {
-    if (!QFontDatabase::isPrivateFamily(family) &&
-        !QFontDatabase::isFixedPitch(family)) {
-      return QFont(family);
-    }
+  const QStringList cyrillic_families =
+      QFontDatabase::families(QFontDatabase::Cyrillic);
+  const auto usable =
+      std::ranges::find_if(cyrillic_families, [](const QString& family) {
+        return !QFontDatabase::isPrivateFamily(family) &&
+               !QFontDatabase::isFixedPitch(family);
+      });
+  if (usable != cyrillic_families.cend()) {
+    return QFont(*usable);
   }
   return system_font;
 }
