@@ -155,6 +155,9 @@ TrayApp::TrayApp(const SettingsModelPtr& settings, QObject* parent)
   // Show Reconnecting... label
   reconnecting_label_action_ =
       new QAction(QObject::tr("Reconnecting..."), this);
+#ifndef __APPLE__
+  reconnecting_label_action_->setIcon(LoadIcon(":/icons/menu_connection.png"));
+#endif
   reconnecting_label_action_->setVisible(false);
   connect(reconnecting_label_action_, &QAction::triggered, this,
       &TrayApp::onDisconnectFromServer);

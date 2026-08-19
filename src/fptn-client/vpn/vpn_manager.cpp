@@ -6,6 +6,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include "vpn/vpn_manager.h"
 
+#include <algorithm>
 #include <chrono>
 #include <functional>
 #include <memory>
@@ -355,6 +356,7 @@ void VpnManager::Supervise() {
       continue;
     }
     if (ever_connected_) {
+      reconnect_attempt_ = std::max(full_restart_count, 1);
       reconnecting_ = true;
     }
     if (config_.http_client->IsStarted()) {
