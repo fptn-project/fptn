@@ -116,12 +116,13 @@ procedure InstallVCRedist();
 var
     ExitCode: Integer;
 begin 
-    ExitCode := cmd(ExpandConstant(CurrentFileName) + ' /install /quiet /norestart ');
-    if ExitCode <> 0 then
-    begin
-        ExitCode := cmd(ExpandConstant(CurrentFileName) + ' /repair /quiet /norestart ');
-        //MsgBox('Failed to install Visual C++ Redistributable.', mbError, MB_OK);
-    end;
+    exec(ExpandConstant(CurrentFileName),
+        '',
+        ExpandConstant('{app}'),
+        SW_SHOWNORMAL,
+        ewwaituntilterminated,
+        ExitCode);
+    //MsgBox('Failed to install Visual C++ Redistributable.', mbError, MB_OK);
 end;
 
 procedure GenerateBatFile(programPath: String; batFilePath: String);
