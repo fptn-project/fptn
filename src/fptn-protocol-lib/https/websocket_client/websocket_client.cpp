@@ -488,7 +488,8 @@ boost::asio::awaitable<bool> WebsocketClient::Connect() {
           req.set("Authorization", "Bearer " + jwt_access_token_);
           req.set("X-Serializer", "yaff");
           req.set("Client-Agent",
-              fmt::format("FptnClient({}/{})", FPTN_USER_OS, FPTN_VERSION));
+              fmt::format("FptnClient({}/{})", FPTN_USER_OS,
+                  config_.common.client_version));
           // Present only for pooled connections; groups them server-side.
           if (!config_.common.session_id.empty()) {
             req.set("SessionID", config_.common.session_id);

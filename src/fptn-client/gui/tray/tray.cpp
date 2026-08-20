@@ -928,6 +928,7 @@ bool TrayApp::startVpn(QString& err_msg) {
                       static_cast<std::uint16_t>(selected_server_.port),
                   .sni = sni,
                   .md5_fingerprint = selected_server_.md5_fingerprint,
+                  .client_version = FPTN_VERSION,
                   .censorship_strategy = censorship_strategy,
                   .tun_interface_address_ipv4 = common::network::IPv4Address(
                       FPTN_CLIENT_DEFAULT_ADDRESS_IP4),

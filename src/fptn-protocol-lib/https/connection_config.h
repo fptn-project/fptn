@@ -37,6 +37,7 @@ struct ConnectionConfig {
 
     std::string sni;
     std::string md5_fingerprint;
+    std::string client_version;
     CensorshipStrategy censorship_strategy = CensorshipStrategy::kSni;
 
     // Shared across all websocket connections of a connection pool so the

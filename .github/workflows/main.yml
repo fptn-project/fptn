@@ -255,6 +255,7 @@ jobs:
         shell: powershell
         if: github.event_name != 'release'
         run: |
+          git config --global --add safe.directory "$env:GITHUB_WORKSPACE"
           $tag = (git describe --tags --abbrev=0 2>$null)
           if (-not $tag) { $tag = "0.0.0" }
           $stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMdd-HHmmss")

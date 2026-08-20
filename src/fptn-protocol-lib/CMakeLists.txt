@@ -11,7 +11,7 @@ if (IOS)
   find_library(SYSTEMCONFIGURATION SystemConfiguration)
 
   add_compile_definitions(FPTN_USER_OS=\"iOS\")
-elseif(__ANDROID__)
+elseif(__ANDROID__ OR ANDROID)
   add_compile_definitions(FPTN_USER_OS=\"Android\")
 elseif(APPLE)
   add_compile_definitions(FPTN_USER_OS=\"MacOS\")

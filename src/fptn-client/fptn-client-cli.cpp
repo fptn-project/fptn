@@ -474,6 +474,7 @@ int main(int argc, char* argv[]) {
                         static_cast<std::uint16_t>(selected_server.port),
                     .sni = sni,
                     .md5_fingerprint = selected_server.md5_fingerprint,
+                    .client_version = FPTN_VERSION,
                     .censorship_strategy = censorship_strategy,
                     .tun_interface_address_ipv4 = tun_interface_address_ipv4,
                     .tun_interface_address_ipv6 = tun_interface_address_ipv6,
