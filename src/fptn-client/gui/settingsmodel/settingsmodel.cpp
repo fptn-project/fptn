@@ -23,6 +23,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <boost/asio.hpp>
 #include <spdlog/spdlog.h>  // NOLINT(build/include_order)
 
+#include <QDateTime>          // NOLINT(build/include_order)
 #include <QDir>               // NOLINT(build/include_order)
 #include <QFile>              // NOLINT(build/include_order)
 #include <QJsonArray>         // NOLINT(build/include_order)
@@ -107,7 +108,7 @@ SettingsModel::SettingsModel(const QMap<QString, QString>& languages,
       client_autostart_(false),
       enable_ad_block_(true),
       blacklist_domains_(FPTN_CLIENT_DEFAULT_BLACKLIST_DOMAINS),
-      enable_split_tunnel_(false),
+      enable_split_tunnel_(true),
       split_tunnel_domains_(DefaultSplitTunnelDomains()) {
 #if _WIN32
   wchar_t exe_path[MAX_PATH] = {};
@@ -152,7 +153,7 @@ SettingsModel::~SettingsModel() {
 
 QString SettingsModel::GetSettingsFilePath() const {
   const QString directory = GetSettingsFolderPath();
-  return directory + "/fptn-settings-4.json";
+  return directory + "/fptn-settings-5.json";
 }
 
 // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
@@ -197,6 +198,7 @@ void SettingsModel::Load(bool dont_load_server) {
       service.service_name = jsonservice_obj["service_name"].toString();
       service.username = jsonservice_obj["username"].toString();
       service.password = jsonservice_obj["password"].toString();
+      service.token_updated_at = jsonservice_obj["token_updated_at"].toString();
 
       if (!dont_load_server) {
         service.servers = ParseServers(jsonservice_obj["servers"].toArray());
@@ -275,7 +277,7 @@ void SettingsModel::Load(bool dont_load_server) {
           /* Safari */
           bypass_method_ != kBypassMethodSniRealitySafari26_5 &&
           bypass_method_ != kBypassMethodSniRealitySafari26_4)) {
-    bypass_method_ = kBypassMethodSniRealityYandex26_4;  // BYDEFAULT
+    bypass_method_ = kBypassMethodObfuscation;  // BYDEFAULT
   }
 
   if (service_obj.contains("connection_strategy")) {
@@ -403,6 +405,7 @@ bool SettingsModel::Save() {
     service_obj["service_name"] = service.service_name;
     service_obj["username"] = service.username;
     service_obj["password"] = service.password;
+    service_obj["token_updated_at"] = service.token_updated_at;
 
     QJsonArray servers_array;
     for (const auto& server : service.servers) {
@@ -484,6 +487,9 @@ ServiceConfig SettingsModel::ParseToken(const QString& token) {
   service.service_name = json_object["service_name"].toString();
   service.username = json_object["username"].toString();
   service.password = json_object["password"].toString();
+
+  service.token_updated_at =
+      QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm");
 
   service.servers = ParseServers(json_object["servers"].toArray());
   if (json_object.contains("censored_zone_servers")) {
@@ -575,8 +581,7 @@ int SettingsModel::GetExistServiceIndex(const QString& name) const {
 }
 
 QString SettingsModel::BypassMethod() const {
-  return bypass_method_.isEmpty() ? kBypassMethodSniRealityYandex26_4
-                                  : bypass_method_;
+  return bypass_method_.isEmpty() ? kBypassMethodObfuscation : bypass_method_;
 }
 
 void SettingsModel::SetBypassMethod(const QString& method) {

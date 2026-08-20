@@ -73,6 +73,10 @@
             <source>DNS server error! Check your connection!</source>
             <translation>Ошибка DNS сервера! Проверьте ваше соединение!</translation>
         </message>
+        <message>
+            <source>Error message: </source>
+            <translation>Сообщение об ошибке: </translation>
+        </message>
 
         <message>
             <source>Network Interface (adapter)</source>
@@ -83,16 +87,16 @@
             <translation>IP-адрес шлюза (обычно адрес роутера)</translation>
         </message>
         <message>
-            <source>Name</source>
-            <translation>Имя</translation>
+            <source>Service name</source>
+            <translation>Имя сервиса</translation>
+        </message>
+        <message>
+            <source>Token updated</source>
+            <translation>Токен обновлен</translation>
         </message>
         <message>
             <source>User</source>
             <translation>Пользователь</translation>
-        </message>
-        <message>
-            <source>Servers</source>
-            <translation>Серверы</translation>
         </message>
         <message>
             <source>Action</source>
@@ -263,6 +267,11 @@
         </message>
 
         <message>
+            <source>All servers unavailable!</source>
+            <translation>Все серверы недоступны!</translation>
+        </message>
+
+        <message>
             <source>The VPN connection was unexpectedly closed.</source>
             <translation>VPN-соединение было неожиданно разорвано.</translation>
         </message>
@@ -418,6 +427,10 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>Ошибка</translation>
         </message>
         <message>
+            <source>Error!</source>
+            <translation>Ошибка!</translation>
+        </message>
+        <message>
             <source>No SNI available for scanning.</source>
             <translation>Нет доступных SNI для сканирования.</translation>
         </message>
@@ -479,6 +492,10 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>Маршрутизация</translation>
         </message>
         <message>
+            <source>Advanced</source>
+            <translation>Дополнительно</translation>
+        </message>
+        <message>
             <source>Block ads</source>
             <translation>Блокировать рекламу</translation>
         </message>
@@ -516,7 +533,7 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
         </message>
         <message>
             <source>Enable split tunnel</source>
-            <translation>Раздельное туннелирование (экспериментально)</translation>
+            <translation>Раздельное туннелирование</translation>
         </message>
         <message>
             <source>When enabled, you can configure which sites use VPN and which go directly.</source>

@@ -549,7 +549,15 @@ void TrayApp::onDisconnectFromServer() {
 
 void TrayApp::onShowSettings() {
   auto dialog = std::make_unique<SettingsWidget>(settings_);
-  QMetaObject::invokeMethod(dialog.get(), "setFocus", Qt::QueuedConnection);
+  QMetaObject::invokeMethod(
+      dialog.get(),
+      [widget = dialog.get()]() {
+        widget->setWindowState(
+            (widget->windowState() & ~Qt::WindowMinimized) | Qt::WindowActive);
+        widget->raise();
+        widget->activateWindow();
+      },
+      Qt::QueuedConnection);
   dialog->exec();
 }
 
@@ -735,6 +743,9 @@ void TrayApp::RetranslateUi() {
   }
   if (disconnecting_label_action_) {
     disconnecting_label_action_->setText(QObject::tr("Disconnecting..."));
+  }
+  if (reconnecting_label_action_) {
+    reconnecting_label_action_->setText(QObject::tr("Reconnecting..."));
   }
 
   if (disconnect_action_) {

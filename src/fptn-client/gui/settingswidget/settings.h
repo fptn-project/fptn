@@ -74,6 +74,9 @@ class SettingsWidget : public QDialog {
   QGridLayout* grid_layout_ = nullptr;
   QGridLayout* routing_grid_layout_ = nullptr;
 
+  QToolButton* advanced_routing_button_ = nullptr;
+  QVector<QWidget*> advanced_routing_widgets_;
+
   QComboBox* interface_combo_box_ = nullptr;
   QLabel* interface_label_ = nullptr;
 

@@ -15,12 +15,14 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include <utility>
 
+#include <QApplication>                 // NOLINT(build/include_order)
 #include <QFileDialog>                  // NOLINT(build/include_order)
 #include <QGridLayout>                  // NOLINT(build/include_order)
 #include <QHeaderView>                  // NOLINT(build/include_order)
 #include <QLabel>                       // NOLINT(build/include_order)
 #include <QLineEdit>                    // NOLINT(build/include_order)
 #include <QMessageBox>                  // NOLINT(build/include_order)
+#include <QPainter>                     // NOLINT(build/include_order)
 #include <QPushButton>                  // NOLINT(build/include_order)
 #include <QRegularExpressionValidator>  // NOLINT(build/include_order)
 #include <QScrollArea>                  // NOLINT(build/include_order)
@@ -32,6 +34,8 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "gui/translations/translations.h"
 
 namespace {
+constexpr int kAdvancedIndent = 20;
+
 QString CleanDomain(const QString& domain) {
   if (domain.isEmpty()) {
     return domain;
@@ -62,6 +66,35 @@ QVector<QString> TextToVector(const QString& text) {
   }
   return result;
 }
+
+QTableWidgetItem* CenteredItem(const QString& text) {
+  auto* item = new QTableWidgetItem(text);
+  item->setTextAlignment(Qt::AlignCenter);
+  return item;
+}
+
+QIcon ChevronIcon(bool expanded, const QColor& color) {
+  QPixmap pixmap(16, 16);
+  pixmap.fill(Qt::transparent);
+
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+  QPen pen(color);
+  pen.setWidthF(1.5);
+  pen.setCapStyle(Qt::RoundCap);
+  pen.setJoinStyle(Qt::RoundJoin);
+  painter.setPen(pen);
+
+  QPolygonF chevron;
+  if (expanded) {
+    chevron << QPointF(4.5, 6.5) << QPointF(8.0, 10.0) << QPointF(11.5, 6.5);
+  } else {
+    chevron << QPointF(6.5, 4.5) << QPointF(10.0, 8.0) << QPointF(6.5, 11.5);
+  }
+  painter.drawPolyline(chevron);
+
+  return QIcon(pixmap);
+}
 }  // namespace
 
 using fptn::gui::SettingsWidget;
@@ -90,7 +123,7 @@ void SettingsWidget::SetupUi() {
   auto* settings_scroll_area = new QScrollArea(this);
   settings_scroll_area->setWidgetResizable(true);
   settings_scroll_area->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-  settings_scroll_area->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
+  settings_scroll_area->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
   settings_scroll_area->setFrameShape(QFrame::NoFrame);
 
   auto* settings_content_widget = new QWidget();
@@ -101,9 +134,9 @@ void SettingsWidget::SetupUi() {
   grid_layout_ = new QGridLayout();
   grid_layout_->setContentsMargins(0, 0, 0, 0);
   grid_layout_->setHorizontalSpacing(10);
-  grid_layout_->setVerticalSpacing(10);
-  grid_layout_->setColumnStretch(0, 1);
-  grid_layout_->setColumnStretch(1, 3);
+  grid_layout_->setVerticalSpacing(5);
+  grid_layout_->setColumnStretch(0, 0);
+  grid_layout_->setColumnStretch(1, 1);
   grid_layout_->setColumnMinimumWidth(0, 380);
 
 #ifdef __linux__
@@ -120,10 +153,12 @@ void SettingsWidget::SetupUi() {
   language_combo_box_ = new QComboBox(this);
   language_combo_box_->addItems(settings_->GetLanguages());
   language_combo_box_->setCurrentText(settings_->LanguageName());
+  language_combo_box_->setSizePolicy(
+      QSizePolicy::Expanding, QSizePolicy::Fixed);
   connect(language_combo_box_, &QComboBox::currentTextChanged, this,
       &SettingsWidget::onLanguageChanged);
   grid_layout_->addWidget(language_label_, 1, 0, Qt::AlignLeft);
-  grid_layout_->addWidget(language_combo_box_, 1, 1, Qt::AlignLeft);
+  grid_layout_->addWidget(language_combo_box_, 1, 1);
 
   enable_ad_block_label_ = new QLabel(QObject::tr("Block ads"), this);
   enable_ad_block_checkbox_ = new QCheckBox(" ", this);
@@ -138,10 +173,12 @@ void SettingsWidget::SetupUi() {
   interface_combo_box_ = new QComboBox(this);
   interface_combo_box_->addItems(settings_->GetNetworkInterfaces());
   interface_combo_box_->setCurrentText(settings_->UsingNetworkInterface());
+  interface_combo_box_->setSizePolicy(
+      QSizePolicy::Expanding, QSizePolicy::Fixed);
   connect(interface_combo_box_, &QComboBox::currentTextChanged, this,
       &SettingsWidget::onInterfaceChanged);
   grid_layout_->addWidget(interface_label_, 3, 0, Qt::AlignLeft);
-  grid_layout_->addWidget(interface_combo_box_, 3, 1, Qt::AlignLeft);
+  grid_layout_->addWidget(interface_combo_box_, 3, 1);
 
   gateway_label_ = new QLabel(
       QObject::tr("Gateway IP Address (typically your router's address)"),
@@ -324,6 +361,9 @@ void SettingsWidget::SetupUi() {
              SettingsModel::kBypassMethodSniRealitySafari26_4) {
     bypass_method_combo_box_->setCurrentText(
         QObject::tr("SNI-REALITY (Safari 26.4)"));
+  } else {
+    bypass_method_combo_box_->setCurrentText(
+        QObject::tr("SNI-REALITY (Yandex 25)"));
   }
 
   connect(bypass_method_combo_box_, &QComboBox::currentTextChanged, this,
@@ -333,10 +373,10 @@ void SettingsWidget::SetupUi() {
   grid_layout_->addWidget(bypass_method_combo_box_, 7, 1);
 
   sni_label_ = new QLabel(this);
-  if (settings_->BypassMethod() == SettingsModel::kBypassMethodSniReality) {
+  if (settings_->BypassMethod() != SettingsModel::kBypassMethodSni) {
     sni_label_->setText(QObject::tr("Fake domain to bypass blocking"));
   }
-  sni_label_->setMinimumHeight(40);
+  sni_label_->setMinimumHeight(30);
   sni_label_->setWordWrap(true);
   sni_line_edit_ = new QLineEdit(this);
   sni_line_edit_->setText(settings_->SNI());
@@ -363,7 +403,7 @@ void SettingsWidget::SetupUi() {
 
   sni_files_list_widget_ = new QListWidget(this);
   sni_files_list_widget_->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-  sni_files_list_widget_->setMaximumHeight(80);
+  sni_files_list_widget_->setMaximumHeight(60);
 
   sni_buttons_layout_ = new QHBoxLayout();
 
@@ -386,11 +426,12 @@ void SettingsWidget::SetupUi() {
   connect(sni_import_button_, &QPushButton::clicked, this,
       &SettingsWidget::onImportSniFile);
 
-  settings_layout->addLayout(grid_layout_);
+  settings_layout->addLayout(grid_layout_, 1);
 
   server_table_ = new QTableWidget(0, 4, this);
-  server_table_->setHorizontalHeaderLabels({QObject::tr("Name"),
-      QObject::tr("User"), QObject::tr("Servers"), QObject::tr("Action")});
+  server_table_->setHorizontalHeaderLabels(
+      {QObject::tr("Service name"), QObject::tr("Token updated"),
+          QObject::tr("User"), QObject::tr("Action")});
   server_table_->horizontalHeader()->setStretchLastSection(false);
   server_table_->horizontalHeader()->setSectionResizeMode(
       0, QHeaderView::Stretch);
@@ -404,14 +445,15 @@ void SettingsWidget::SetupUi() {
   server_table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
   server_table_->setSelectionBehavior(QAbstractItemView::SelectRows);
   server_table_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-  server_table_->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-  server_table_->verticalHeader()->setSectionResizeMode(
-      QHeaderView::ResizeToContents);
-  server_table_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-  server_table_->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
+  server_table_->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+  server_table_->verticalHeader()->setVisible(false);
+  server_table_->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+  server_table_->verticalHeader()->setDefaultSectionSize(36);
+  server_table_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+  server_table_->setMinimumHeight(120);
 
-  settings_layout->addWidget(server_table_);
-  settings_layout->addStretch(1);
+  grid_layout_->addWidget(server_table_, 11, 0, 1, 2);
+  grid_layout_->setRowStretch(11, 1);
 
   settings_scroll_area->setWidget(settings_content_widget);
   main_settings_layout->addWidget(settings_scroll_area);
@@ -480,121 +522,9 @@ void SettingsWidget::SetupUi() {
         settings_->SetEnableAdvancedDnsManagement(checked);
       });
 
-  routing_grid_layout_->addWidget(
-      dns_label_container, current_row, 0, Qt::AlignLeft | Qt::AlignTop);
-  routing_grid_layout_->addWidget(enable_dns_management_checkbox_, current_row,
-      1, Qt::AlignLeft | Qt::AlignTop);
-  current_row++;
+  dns_label_container->setVisible(false);
+  enable_dns_management_checkbox_->setVisible(false);
 #endif
-
-  blacklist_domains_label_ = new QLabel(QObject::tr("Blacklist domains"), this);
-  blacklist_domains_info_label_ = new QLabel(
-      QObject::tr("Completely block access to the main domain AND all its "
-                  "subdomains. Format: example.com (one per line)"),
-      this);
-  blacklist_domains_info_label_->setWordWrap(true);
-  blacklist_domains_info_label_->setMinimumHeight(60);
-  blacklist_domains_info_label_->setStyleSheet(kInfoLabelStyle);
-
-  auto* blacklist_label_container = new QWidget(this);
-  auto* blacklist_label_layout = new QVBoxLayout(blacklist_label_container);
-  blacklist_label_layout->setContentsMargins(0, 0, 0, 0);
-  blacklist_label_layout->addWidget(
-      blacklist_domains_label_, 0, Qt::AlignLeft | Qt::AlignTop);
-  blacklist_label_layout->addWidget(
-      blacklist_domains_info_label_, 0, Qt::AlignLeft | Qt::AlignTop);
-
-  blacklist_domains_text_edit_ = new QTextEdit(this);
-  blacklist_domains_text_edit_->setPlainText(
-      VectorToText(settings_->BlacklistDomains()));
-  blacklist_domains_text_edit_->setSizePolicy(
-      QSizePolicy::Expanding, QSizePolicy::Fixed);
-  blacklist_domains_text_edit_->setMaximumHeight(60);
-  connect(
-      blacklist_domains_text_edit_, &QTextEdit::textChanged, this, [this]() {
-        settings_->SetBlacklistDomains(
-            TextToVector(blacklist_domains_text_edit_->toPlainText()));
-      });
-
-  routing_grid_layout_->addWidget(
-      blacklist_label_container, current_row, 0, Qt::AlignLeft | Qt::AlignTop);
-  routing_grid_layout_->addWidget(blacklist_domains_text_edit_, current_row, 1);
-  routing_grid_layout_->setRowStretch(current_row, 1);
-  current_row++;
-
-  exclude_tunnel_networks_label_ =
-      new QLabel(QObject::tr("Exclude tunnel networks"), this);
-  exclude_tunnel_networks_info_label_ = new QLabel(
-      QObject::tr("Networks that always bypass VPN tunnel. "
-                  "Traffic to these networks goes directly, never through VPN"),
-      this);
-  exclude_tunnel_networks_info_label_->setWordWrap(true);
-  exclude_tunnel_networks_info_label_->setMinimumHeight(60);
-  exclude_tunnel_networks_info_label_->setStyleSheet(kInfoLabelStyle);
-
-  auto* exclude_label_container = new QWidget(this);
-  auto* exclude_label_layout = new QVBoxLayout(exclude_label_container);
-  exclude_label_layout->setContentsMargins(0, 0, 0, 0);
-  exclude_label_layout->addWidget(
-      exclude_tunnel_networks_label_, 0, Qt::AlignLeft | Qt::AlignTop);
-  exclude_label_layout->addWidget(
-      exclude_tunnel_networks_info_label_, 0, Qt::AlignLeft | Qt::AlignTop);
-
-  exclude_tunnel_networks_text_edit_ = new QTextEdit(this);
-  exclude_tunnel_networks_text_edit_->setPlainText(
-      VectorToText(settings_->ExcludeTunnelNetworks()));
-  exclude_tunnel_networks_text_edit_->setSizePolicy(
-      QSizePolicy::Expanding, QSizePolicy::Fixed);
-  exclude_tunnel_networks_text_edit_->setMaximumHeight(60);
-  connect(exclude_tunnel_networks_text_edit_, &QTextEdit::textChanged, this,
-      [this]() {
-        settings_->SetExcludeTunnelNetworks(
-            TextToVector(exclude_tunnel_networks_text_edit_->toPlainText()));
-      });
-
-  routing_grid_layout_->addWidget(
-      exclude_label_container, current_row, 0, Qt::AlignLeft | Qt::AlignTop);
-  routing_grid_layout_->addWidget(
-      exclude_tunnel_networks_text_edit_, current_row, 1);
-  current_row++;
-
-  include_tunnel_networks_label_ =
-      new QLabel(QObject::tr("Include tunnel networks"), this);
-  include_tunnel_networks_info_label_ = new QLabel(
-      QObject::tr("Networks that always use VPN tunnel. "
-                  "Traffic to these networks always goes through VPN"),
-      this);
-  include_tunnel_networks_info_label_->setWordWrap(true);
-  include_tunnel_networks_info_label_->setMinimumHeight(60);
-  include_tunnel_networks_info_label_->setStyleSheet(kInfoLabelStyle);
-
-  auto* include_label_container = new QWidget(this);
-  auto* include_label_layout = new QVBoxLayout(include_label_container);
-  include_label_layout->setContentsMargins(0, 0, 0, 0);
-  include_label_layout->addWidget(
-      include_tunnel_networks_label_, 0, Qt::AlignLeft | Qt::AlignTop);
-  include_label_layout->addWidget(
-      include_tunnel_networks_info_label_, 0, Qt::AlignLeft | Qt::AlignTop);
-
-  include_tunnel_networks_text_edit_ = new QTextEdit(this);
-  include_tunnel_networks_text_edit_->setPlainText(
-      VectorToText(settings_->IncludeTunnelNetworks()));
-  include_tunnel_networks_text_edit_->setSizePolicy(
-      QSizePolicy::Expanding, QSizePolicy::Fixed);
-  include_tunnel_networks_text_edit_->setMaximumHeight(60);
-  include_tunnel_networks_text_edit_->setPlaceholderText(
-      QObject::tr("192.168.99.0/24"));
-  connect(include_tunnel_networks_text_edit_, &QTextEdit::textChanged, this,
-      [this]() {
-        settings_->SetIncludeTunnelNetworks(
-            TextToVector(include_tunnel_networks_text_edit_->toPlainText()));
-      });
-
-  routing_grid_layout_->addWidget(
-      include_label_container, current_row, 0, Qt::AlignLeft | Qt::AlignTop);
-  routing_grid_layout_->addWidget(
-      include_tunnel_networks_text_edit_, current_row, 1);
-  current_row++;
 
   enable_split_tunnel_label_ =
       new QLabel(QObject::tr("Enable split tunnel"), this);
@@ -754,6 +684,156 @@ void SettingsWidget::SetupUi() {
   split_tunnel_domains_label_->setVisible(split_enabled);
   split_tunnel_domains_info_label_->setVisible(split_enabled);
   split_tunnel_domains_text_edit_->setVisible(split_enabled);
+
+  const QColor chevron_color = palette().color(QPalette::WindowText);
+
+  advanced_routing_button_ = new QToolButton(this);
+  advanced_routing_button_->setText(QObject::tr("Advanced"));
+  advanced_routing_button_->setFont(QApplication::font("QLabel"));
+  advanced_routing_button_->setIcon(ChevronIcon(false, chevron_color));
+  advanced_routing_button_->setIconSize(QSize(16, 16));
+  advanced_routing_button_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+  advanced_routing_button_->setLayoutDirection(Qt::RightToLeft);
+  advanced_routing_button_->setCheckable(true);
+  advanced_routing_button_->setCursor(Qt::PointingHandCursor);
+  advanced_routing_button_->setStyleSheet(R"(
+      QToolButton {
+          border: none;
+          background: transparent;
+          padding: 4px 0px;
+      }
+      QToolButton:checked {
+          border: none;
+          background: transparent;
+      }
+  )");
+  connect(advanced_routing_button_, &QToolButton::toggled, this,
+      [this, chevron_color](bool checked) {
+        advanced_routing_button_->setIcon(ChevronIcon(checked, chevron_color));
+        for (auto* widget : advanced_routing_widgets_) {
+          widget->setVisible(checked);
+        }
+      });
+  routing_grid_layout_->addWidget(advanced_routing_button_, current_row, 0, 1,
+      2, Qt::AlignLeft | Qt::AlignAbsolute);
+  current_row++;
+
+  blacklist_domains_label_ = new QLabel(QObject::tr("Blacklist domains"), this);
+  blacklist_domains_info_label_ = new QLabel(
+      QObject::tr("Completely block access to the main domain AND all its "
+                  "subdomains. Format: example.com (one per line)"),
+      this);
+  blacklist_domains_info_label_->setWordWrap(true);
+  blacklist_domains_info_label_->setMinimumHeight(60);
+  blacklist_domains_info_label_->setStyleSheet(kInfoLabelStyle);
+
+  auto* blacklist_label_container = new QWidget(this);
+  auto* blacklist_label_layout = new QVBoxLayout(blacklist_label_container);
+  blacklist_label_layout->setContentsMargins(kAdvancedIndent, 0, 0, 0);
+  blacklist_label_layout->addWidget(
+      blacklist_domains_label_, 0, Qt::AlignLeft | Qt::AlignTop);
+  blacklist_label_layout->addWidget(
+      blacklist_domains_info_label_, 0, Qt::AlignLeft | Qt::AlignTop);
+
+  blacklist_domains_text_edit_ = new QTextEdit(this);
+  blacklist_domains_text_edit_->setPlainText(
+      VectorToText(settings_->BlacklistDomains()));
+  blacklist_domains_text_edit_->setSizePolicy(
+      QSizePolicy::Expanding, QSizePolicy::Fixed);
+  blacklist_domains_text_edit_->setMaximumHeight(60);
+  connect(
+      blacklist_domains_text_edit_, &QTextEdit::textChanged, this, [this]() {
+        settings_->SetBlacklistDomains(
+            TextToVector(blacklist_domains_text_edit_->toPlainText()));
+      });
+
+  routing_grid_layout_->addWidget(
+      blacklist_label_container, current_row, 0, Qt::AlignLeft | Qt::AlignTop);
+  routing_grid_layout_->addWidget(blacklist_domains_text_edit_, current_row, 1);
+  current_row++;
+  advanced_routing_widgets_.push_back(blacklist_label_container);
+  advanced_routing_widgets_.push_back(blacklist_domains_text_edit_);
+
+  exclude_tunnel_networks_label_ =
+      new QLabel(QObject::tr("Exclude tunnel networks"), this);
+  exclude_tunnel_networks_info_label_ = new QLabel(
+      QObject::tr("Networks that always bypass VPN tunnel. "
+                  "Traffic to these networks goes directly, never through VPN"),
+      this);
+  exclude_tunnel_networks_info_label_->setWordWrap(true);
+  exclude_tunnel_networks_info_label_->setMinimumHeight(60);
+  exclude_tunnel_networks_info_label_->setStyleSheet(kInfoLabelStyle);
+
+  auto* exclude_label_container = new QWidget(this);
+  auto* exclude_label_layout = new QVBoxLayout(exclude_label_container);
+  exclude_label_layout->setContentsMargins(kAdvancedIndent, 0, 0, 0);
+  exclude_label_layout->addWidget(
+      exclude_tunnel_networks_label_, 0, Qt::AlignLeft | Qt::AlignTop);
+  exclude_label_layout->addWidget(
+      exclude_tunnel_networks_info_label_, 0, Qt::AlignLeft | Qt::AlignTop);
+
+  exclude_tunnel_networks_text_edit_ = new QTextEdit(this);
+  exclude_tunnel_networks_text_edit_->setPlainText(
+      VectorToText(settings_->ExcludeTunnelNetworks()));
+  exclude_tunnel_networks_text_edit_->setSizePolicy(
+      QSizePolicy::Expanding, QSizePolicy::Fixed);
+  exclude_tunnel_networks_text_edit_->setMaximumHeight(60);
+  connect(exclude_tunnel_networks_text_edit_, &QTextEdit::textChanged, this,
+      [this]() {
+        settings_->SetExcludeTunnelNetworks(
+            TextToVector(exclude_tunnel_networks_text_edit_->toPlainText()));
+      });
+
+  routing_grid_layout_->addWidget(
+      exclude_label_container, current_row, 0, Qt::AlignLeft | Qt::AlignTop);
+  routing_grid_layout_->addWidget(
+      exclude_tunnel_networks_text_edit_, current_row, 1);
+  current_row++;
+  advanced_routing_widgets_.push_back(exclude_label_container);
+  advanced_routing_widgets_.push_back(exclude_tunnel_networks_text_edit_);
+
+  include_tunnel_networks_label_ =
+      new QLabel(QObject::tr("Include tunnel networks"), this);
+  include_tunnel_networks_info_label_ = new QLabel(
+      QObject::tr("Networks that always use VPN tunnel. "
+                  "Traffic to these networks always goes through VPN"),
+      this);
+  include_tunnel_networks_info_label_->setWordWrap(true);
+  include_tunnel_networks_info_label_->setMinimumHeight(60);
+  include_tunnel_networks_info_label_->setStyleSheet(kInfoLabelStyle);
+
+  auto* include_label_container = new QWidget(this);
+  auto* include_label_layout = new QVBoxLayout(include_label_container);
+  include_label_layout->setContentsMargins(kAdvancedIndent, 0, 0, 0);
+  include_label_layout->addWidget(
+      include_tunnel_networks_label_, 0, Qt::AlignLeft | Qt::AlignTop);
+  include_label_layout->addWidget(
+      include_tunnel_networks_info_label_, 0, Qt::AlignLeft | Qt::AlignTop);
+
+  include_tunnel_networks_text_edit_ = new QTextEdit(this);
+  include_tunnel_networks_text_edit_->setPlainText(
+      VectorToText(settings_->IncludeTunnelNetworks()));
+  include_tunnel_networks_text_edit_->setSizePolicy(
+      QSizePolicy::Expanding, QSizePolicy::Fixed);
+  include_tunnel_networks_text_edit_->setMaximumHeight(60);
+  include_tunnel_networks_text_edit_->setPlaceholderText(
+      QObject::tr("192.168.99.0/24"));
+  connect(include_tunnel_networks_text_edit_, &QTextEdit::textChanged, this,
+      [this]() {
+        settings_->SetIncludeTunnelNetworks(
+            TextToVector(include_tunnel_networks_text_edit_->toPlainText()));
+      });
+
+  routing_grid_layout_->addWidget(
+      include_label_container, current_row, 0, Qt::AlignLeft | Qt::AlignTop);
+  routing_grid_layout_->addWidget(
+      include_tunnel_networks_text_edit_, current_row, 1);
+  advanced_routing_widgets_.push_back(include_label_container);
+  advanced_routing_widgets_.push_back(include_tunnel_networks_text_edit_);
+
+  for (auto* widget : advanced_routing_widgets_) {
+    widget->setVisible(false);
+  }
 
   routing_layout->addLayout(routing_grid_layout_);
 
@@ -919,35 +999,24 @@ void SettingsWidget::SetupUi() {
     server_table_->setRowCount(services.size());
     for (int i = 0; i < services.size(); ++i) {
       const ServiceConfig& service = services[i];
-      server_table_->setItem(i, 0, new QTableWidgetItem(service.service_name));
-      server_table_->setItem(i, 1, new QTableWidgetItem(service.username));
-
-      QString servers_text_list = "";
-      for (const auto& s : service.servers) {
-        servers_text_list += QString("%1\n").arg(s.name);
-      }
-      auto* item = new QTableWidgetItem(servers_text_list);
-      item->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-      item->setFlags(item->flags() | Qt::ItemIsEnabled);
-      item->setData(Qt::DisplayRole, servers_text_list);
-      server_table_->setItem(i, 2, item);
+      server_table_->setItem(i, 0, CenteredItem(service.service_name));
+      server_table_->setItem(i, 1, CenteredItem(service.token_updated_at));
+      server_table_->setItem(i, 2, CenteredItem(service.username));
 
       auto* delete_button = new QPushButton(QObject::tr("X"), this);
-      delete_button->setFixedSize(24, 24);
+      delete_button->setFixedSize(20, 20);
       delete_button->setStyleSheet(R"(
         QPushButton {
-            background-color: #444444;
-            color: white;
+            background-color: transparent;
             border: none;
-            border-radius: 12px;
             font-weight: bold;
             padding: 0px;
         }
         QPushButton:hover {
-            background-color: #cc0000;
+            color: #cc0000;
         }
         QPushButton:pressed {
-            background-color: #990000;
+            color: #990000;
         }
     )");
       delete_button->setToolTip(QObject::tr("Delete"));
@@ -956,7 +1025,7 @@ void SettingsWidget::SetupUi() {
 
       auto* button_container = new QWidget(this);
       auto* action_layout = new QHBoxLayout(button_container);
-      action_layout->setContentsMargins(0, 0, 0, 0);
+      action_layout->setContentsMargins(8, 0, 8, 0);
       action_layout->setAlignment(Qt::AlignCenter);
       action_layout->addWidget(delete_button);
       server_table_->setCellWidget(i, 3, button_container);
@@ -1104,49 +1173,32 @@ void SettingsWidget::onLoadNewConfig() {
         const int new_row = server_table_->rowCount();
         server_table_->insertRow(new_row);
 
+        server_table_->setItem(new_row, 0, CenteredItem(config.service_name));
         server_table_->setItem(
-            new_row, 0, new QTableWidgetItem(config.service_name));
-        server_table_->setItem(
-            new_row, 1, new QTableWidgetItem(config.username));
-
-        QString servers_text_list = "";
-        for (const auto& s : config.servers) {
-          servers_text_list += QString("%1\n").arg(s.name);
-        }
-
-        for (const auto& s : config.censored_zone_servers) {
-          servers_text_list += QString("* %1\n").arg(s.name);
-        }
-
-        auto* item = new QTableWidgetItem(servers_text_list);
-        item->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-        item->setFlags(item->flags() | Qt::ItemIsEnabled);
-        item->setData(Qt::DisplayRole, servers_text_list);
-        server_table_->setItem(new_row, 2, item);
+            new_row, 1, CenteredItem(config.token_updated_at));
+        server_table_->setItem(new_row, 2, CenteredItem(config.username));
 
         auto* delete_button = new QPushButton(QObject::tr("X"), this);
-        delete_button->setFixedSize(24, 24);
+        delete_button->setFixedSize(20, 20);
         delete_button->setStyleSheet(R"(
             QPushButton {
-                background-color: #444444;
-                color: white;
+                background-color: transparent;
                 border: none;
-                border-radius: 12px;
                 font-weight: bold;
                 padding: 0px;
             }
             QPushButton:hover {
-                background-color: #cc0000;
+                color: #cc0000;
             }
             QPushButton:pressed {
-                background-color: #990000;
+                color: #990000;
             }
         )");
         delete_button->setToolTip(QObject::tr("Delete"));
 
         auto* button_container = new QWidget();
         auto* button_layout = new QHBoxLayout(button_container);
-        button_layout->setContentsMargins(0, 0, 0, 0);
+        button_layout->setContentsMargins(8, 0, 8, 0);
         button_layout->setAlignment(Qt::AlignCenter);
         button_layout->addWidget(delete_button);
         server_table_->setCellWidget(new_row, 3, button_container);
@@ -1197,6 +1249,9 @@ void SettingsWidget::onLanguageChanged(const QString&) {
   if (language_label_) {
     language_label_->setText(QObject::tr("Language"));
   }
+  if (enable_ad_block_label_) {
+    enable_ad_block_label_->setText(QObject::tr("Block ads"));
+  }
   if (interface_label_) {
     interface_label_->setText(QObject::tr("Network Interface (adapter)"));
   }
@@ -1205,8 +1260,19 @@ void SettingsWidget::onLanguageChanged(const QString&) {
         QObject::tr("Gateway IP Address (typically your router's address)"));
   }
   if (server_table_) {
-    server_table_->setHorizontalHeaderLabels({QObject::tr("Name"),
-        QObject::tr("User"), QObject::tr("Servers"), QObject::tr("Action")});
+    server_table_->setHorizontalHeaderLabels(
+        {QObject::tr("Service name"), QObject::tr("Token updated"),
+            QObject::tr("User"), QObject::tr("Action")});
+    for (int row = 0; row < server_table_->rowCount(); ++row) {
+      QWidget* button_container = server_table_->cellWidget(row, 3);
+      if (button_container == nullptr) {
+        continue;
+      }
+      auto* delete_button = button_container->findChild<QPushButton*>();
+      if (delete_button != nullptr) {
+        delete_button->setToolTip(QObject::tr("Delete"));
+      }
+    }
   }
   if (load_new_token_button_) {
     load_new_token_button_->setText("  " + QObject::tr("Add token") + "  ");
@@ -1217,12 +1283,35 @@ void SettingsWidget::onLanguageChanged(const QString&) {
   if (gateway_auto_checkbox_) {
     gateway_auto_checkbox_->setText(QObject::tr("Auto"));
   }
+  if (custom_dns_auto_checkbox_) {
+    custom_dns_auto_checkbox_->setText(QObject::tr("Auto"));
+  }
   // AUTOSTART (show only for Linux)
 #ifdef __linux__
   if (autostart_label_) {
     autostart_label_->setText(QObject::tr("Autostart"));
   }
 #endif
+
+  if (connection_strategy_label_) {
+    connection_strategy_label_->setText(QObject::tr("Connection strategy"));
+  }
+  if (connection_strategy_combo_box_) {
+    const QString current_strategy = settings_->ConnectionStrategy();
+    connection_strategy_combo_box_->clear();
+    connection_strategy_combo_box_->addItem(QObject::tr("Rolling tunnel"),
+        SettingsModel::kConnectionStrategyRolling);
+    connection_strategy_combo_box_->addItem(QObject::tr("Dual rolling tunnel"),
+        SettingsModel::kConnectionStrategyDual);
+    connection_strategy_combo_box_->addItem(
+        QObject::tr("Triple rolling tunnel"),
+        SettingsModel::kConnectionStrategyTriple);
+
+    const int strategy_index =
+        connection_strategy_combo_box_->findData(current_strategy);
+    connection_strategy_combo_box_->setCurrentIndex(
+        strategy_index >= 0 ? strategy_index : 0);
+  }
 
   // Bypass blocking
   if (bypass_method_label_) {
@@ -1232,8 +1321,6 @@ void SettingsWidget::onLanguageChanged(const QString&) {
   const auto current_method = settings_->BypassMethod();
   if (bypass_method_combo_box_) {
     bypass_method_combo_box_->clear();
-    bypass_method_combo_box_->addItem(
-        QObject::tr("SNI"), SettingsModel::kBypassMethodSni);
     bypass_method_combo_box_->addItem(
         QObject::tr("OBFUSCATION"), SettingsModel::kBypassMethodObfuscation);
     /* Chrome */
@@ -1269,11 +1356,7 @@ void SettingsWidget::onLanguageChanged(const QString&) {
     bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Safari 26.4)"),
         SettingsModel::kBypassMethodSniRealitySafari26_4);
 
-    if (current_method == SettingsModel::kBypassMethodSni) {
-      bypass_method_combo_box_->setCurrentText(QObject::tr("SNI"));
-    }
-    /* Obfuscation */
-    else if (current_method == SettingsModel::kBypassMethodObfuscation) {
+    if (current_method == SettingsModel::kBypassMethodObfuscation) {
       bypass_method_combo_box_->setCurrentText(QObject::tr("OBFUSCATION"));
     }
     /* Chrome */
@@ -1344,7 +1427,7 @@ void SettingsWidget::onLanguageChanged(const QString&) {
   }
 
   if (sni_label_) {
-    if (settings_->BypassMethod() == SettingsModel::kBypassMethodSniReality) {
+    if (settings_->BypassMethod() != SettingsModel::kBypassMethodSni) {
       sni_label_->setText(QObject::tr("Fake domain to bypass blocking"));
     }
   }
@@ -1364,6 +1447,9 @@ void SettingsWidget::onLanguageChanged(const QString&) {
     enable_dns_management_info_label_->setText(QObject::tr(
         "Enables advanced DNS configuration to prevent leaks. "
         "Recommended when using split tunneling. Use with caution!"));
+  }
+  if (advanced_routing_button_) {
+    advanced_routing_button_->setText(QObject::tr("Advanced"));
   }
   if (blacklist_domains_label_) {
     blacklist_domains_label_->setText(QObject::tr("Blacklist domains"));
@@ -1396,6 +1482,10 @@ void SettingsWidget::onLanguageChanged(const QString&) {
     include_tunnel_networks_info_label_->setText(
         QObject::tr("Networks that always use VPN tunnel. "
                     "Traffic to these networks always goes through VPN"));
+  }
+  if (include_tunnel_networks_text_edit_) {
+    include_tunnel_networks_text_edit_->setPlaceholderText(
+        QObject::tr("192.168.99.0/24"));
   }
 
   if (enable_split_tunnel_label_) {
@@ -1567,9 +1657,9 @@ void SettingsWidget::onBypassMethodChanged(const QString& method) {
 
   if (is_reality_mode) {
     grid_layout_->addWidget(sni_label_, 8, 0, Qt::AlignLeft | Qt::AlignVCenter);
-    grid_layout_->addWidget(sni_line_edit_, 8, 1, 1, 2);
+    grid_layout_->addWidget(sni_line_edit_, 8, 1);
     grid_layout_->addLayout(sni_buttons_layout_, 9, 0);
-    grid_layout_->addWidget(sni_files_list_widget_, 9, 1, 1, 2);
+    grid_layout_->addWidget(sni_files_list_widget_, 9, 1);
   } else {
     grid_layout_->removeWidget(sni_label_);
     grid_layout_->removeWidget(sni_line_edit_);
@@ -1731,7 +1821,6 @@ void SettingsWidget::onAutoscanClicked() {
 
 void SettingsWidget::UpdateServerTableVisibility() {
   if (server_table_) {
-    const bool has_data = (server_table_->rowCount() > 0);
-    server_table_->setVisible(has_data);
+    server_table_->setVisible(true);
   }
 }

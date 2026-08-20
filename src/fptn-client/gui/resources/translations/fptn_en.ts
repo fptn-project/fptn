@@ -73,6 +73,10 @@
             <source>DNS server error! Check your connection!</source>
             <translation>DNS server error! Check your connection!</translation>
         </message>
+        <message>
+            <source>Error message: </source>
+            <translation>Error message: </translation>
+        </message>
 
         <message>
             <source>Network Interface (adapter)</source>
@@ -83,16 +87,16 @@
             <translation>Gateway IP Address (typically your router's address)</translation>
         </message>
         <message>
-            <source>Name</source>
-            <translation>Name</translation>
+            <source>Service name</source>
+            <translation>Service name</translation>
+        </message>
+        <message>
+            <source>Token updated</source>
+            <translation>Token updated</translation>
         </message>
         <message>
             <source>User</source>
             <translation>User</translation>
-        </message>
-        <message>
-            <source>Servers</source>
-            <translation>Servers</translation>
         </message>
         <message>
             <source>Action</source>
@@ -262,6 +266,11 @@
         </message>
 
         <message>
+            <source>All servers unavailable!</source>
+            <translation>All servers unavailable!</translation>
+        </message>
+
+        <message>
             <source>The VPN connection was unexpectedly closed.</source>
             <translation>The VPN connection was unexpectedly closed.</translation>
         </message>
@@ -418,6 +427,10 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>Error</translation>
         </message>
         <message>
+            <source>Error!</source>
+            <translation>Error!</translation>
+        </message>
+        <message>
             <source>No SNI available for scanning.</source>
             <translation>No SNI available for scanning.</translation>
         </message>
@@ -479,6 +492,10 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>Routing</translation>
         </message>
         <message>
+            <source>Advanced</source>
+            <translation>Advanced</translation>
+        </message>
+        <message>
             <source>Block ads</source>
             <translation>Block ads</translation>
         </message>
@@ -516,7 +533,7 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
         </message>
         <message>
             <source>Enable split tunnel</source>
-            <translation>Enable split tunneling (experimental)</translation>
+            <translation>Enable split tunneling</translation>
         </message>
         <message>
             <source>When enabled, you can configure which sites use VPN and which go directly.</source>
@@ -547,12 +564,12 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>Domains to bypass VPN</translation>
         </message>
         <message>
-            <source>List domains that should bypass VPN tunnel. Only these domains will go through VPN, all other traffic bypasses VPN</source>
-            <translation>List domains that should bypass VPN tunnel. Only these domains will go through VPN, all other traffic bypasses VPN</translation>
+            <source>List domains that should use VPN tunnel. Only these domains will go through VPN, all other traffic bypasses VPN</source>
+            <translation>List domains that should use VPN tunnel. Only these domains will go through VPN, all other traffic bypasses VPN</translation>
         </message>
         <message>
-            <source>List websites that should bypass VPN tunnel. These domains will go directly, all other traffic uses VPN</source>
-            <translation>List websites that should bypass VPN tunnel. These domains will go directly, all other traffic uses VPN</translation>
+            <source>List domains that should bypass VPN tunnel. These domains will go directly, all other traffic uses VPN</source>
+            <translation>List domains that should bypass VPN tunnel. These domains will go directly, all other traffic uses VPN</translation>
         </message>
         <message>
             <source>Enable advanced DNS management</source>

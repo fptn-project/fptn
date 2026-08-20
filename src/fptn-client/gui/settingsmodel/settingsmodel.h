@@ -98,6 +98,7 @@ struct ServiceConfig {
   QString service_name;
   QString username;
   QString password;
+  QString token_updated_at;
   QVector<ServerConfig> servers;
   QVector<ServerConfig> censored_zone_servers;
   QString language;

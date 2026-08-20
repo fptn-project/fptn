@@ -73,6 +73,10 @@
             <source>DNS server error! Check your connection!</source>
             <translation>خطای سرور DNS! اتصال خود را بررسی کنید!</translation>
         </message>
+        <message>
+            <source>Error message: </source>
+            <translation>پیام خطا: </translation>
+        </message>
 
         <message>
             <source>Network Interface (adapter)</source>
@@ -83,16 +87,16 @@
             <translation>آدرس IP网关 (معمولاً آدرس روتر شما)</translation>
         </message>
         <message>
-            <source>Name</source>
-            <translation>نام</translation>
+            <source>Service name</source>
+            <translation>نام سرویس</translation>
+        </message>
+        <message>
+            <source>Token updated</source>
+            <translation>به‌روزرسانی توکن</translation>
         </message>
         <message>
             <source>User</source>
             <translation>کاربر</translation>
-        </message>
-        <message>
-            <source>Servers</source>
-            <translation>سرورها</translation>
         </message>
         <message>
             <source>Action</source>
@@ -262,6 +266,11 @@
         </message>
 
         <message>
+            <source>All servers unavailable!</source>
+            <translation>هیچ‌کدام از سرورها در دسترس نیستند!</translation>
+        </message>
+
+        <message>
             <source>The VPN connection was unexpectedly closed.</source>
             <translation>اتصال VPN به طور ناگهانی قطع شد.</translation>
         </message>
@@ -418,6 +427,10 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>خطا</translation>
         </message>
         <message>
+            <source>Error!</source>
+            <translation>خطا!</translation>
+        </message>
+        <message>
             <source>No SNI available for scanning.</source>
             <translation>هیچ SNI برای اسکن موجود نیست.</translation>
         </message>
@@ -479,6 +492,10 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>مسیریابی</translation>
         </message>
         <message>
+            <source>Advanced</source>
+            <translation>پیشرفته</translation>
+        </message>
+        <message>
             <source>Block ads</source>
             <translation>مسدودسازی تبلیغات</translation>
         </message>
@@ -516,7 +533,7 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
         </message>
         <message>
             <source>Enable split tunnel</source>
-            <translation>فعال کردن تونل تقسیم‌شده (آزمایشی)</translation>
+            <translation>فعال کردن تونل تقسیم‌شده</translation>
         </message>
         <message>
             <source>When enabled, you can configure which sites use VPN and which go directly.</source>
@@ -547,12 +564,12 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>دامنه‌هایی که VPN را دور بزنند</translation>
         </message>
         <message>
-            <source>List domains that should bypass VPN tunnel. Only these domains will go through VPN, all other traffic bypasses VPN</source>
-            <translation>فهرست دامنه‌هایی که باید تونل VPN را دور بزنند. فقط این دامنه‌ها از VPN عبور می‌کنند، بقیه ترافیک VPN را دور می‌زند</translation>
+            <source>List domains that should use VPN tunnel. Only these domains will go through VPN, all other traffic bypasses VPN</source>
+            <translation>فهرست دامنه‌هایی که باید از تونل VPN استفاده کنند. فقط این دامنه‌ها از VPN عبور می‌کنند، بقیه ترافیک VPN را دور می‌زند</translation>
         </message>
         <message>
-            <source>List websites that should bypass VPN tunnel. These domains will go directly, all other traffic uses VPN</source>
-            <translation>فهرست وب‌سایت‌هایی که باید تونل VPN را دور بزنند. این دامنه‌ها مستقیماً متصل می‌شوند، بقیه ترافیک از VPN استفاده می‌کند</translation>
+            <source>List domains that should bypass VPN tunnel. These domains will go directly, all other traffic uses VPN</source>
+            <translation>فهرست دامنه‌هایی که باید تونل VPN را دور بزنند. این دامنه‌ها مستقیماً متصل می‌شوند، بقیه ترافیک از VPN استفاده می‌کند</translation>
         </message>
         <message>
             <source>Enable advanced DNS management</source>
