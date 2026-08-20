@@ -6,8 +6,7 @@ from conan.tools.cmake import CMakeToolchain, CMake
 from conan.tools.files import copy
 
 
-# CI will replace this automatically
-FPTN_VERSION = "0.0.0"
+FPTN_VERSION = os.environ.get("FPTN_VERSION") or "0.0.0"
 
 
 class FPTN(ConanFile):
@@ -134,7 +133,7 @@ class FPTN(ConanFile):
         self.tool_requires("protobuf/5.29.3")
         self.tool_requires("yaff/0.0.0@local/local")
 
-        self.test_requires("gtest/1.17.0")
+        self.test_requires("gtest/1.18.0")
 
         if self.settings.os != "Windows":
             self.build_requires("meson/1.10.2", override=True)

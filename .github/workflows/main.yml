@@ -19,17 +19,23 @@ jobs:
         uses: actions/checkout@v3
         with:
           submodules: true
+          fetch-depth: 0
       - name: Set env
         if: github.event_name == 'release'
-        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+        run: |
+          echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+          echo "FPTN_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
       - name: Print Release Version
         if: github.event_name == 'release'
         run: |
           echo "Release Version: $RELEASE_VERSION"
-      - name: Update FPTN_VERSION in conanfile.py
-        if: github.event_name == 'release'
+      - name: Set dev version
+        if: github.event_name != 'release'
         run: |
-          sed -i "s/^FPTN_VERSION = \".*\"/FPTN_VERSION = \"$RELEASE_VERSION\"/" conanfile.py
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
+          DEV_VERSION="$TAG-dev-$(date -u +%Y%m%d-%H%M%S)"
+          echo "FPTN_VERSION=$DEV_VERSION" >> $GITHUB_ENV
+          echo "Dev version: $DEV_VERSION"
       - name: Install dependencies
         run: |
           conan install . --output-folder=build --build=missing -o with_gui_client=True --settings build_type=Release -s compiler.cppstd=17 -c "tools.build:defines=['QT_NO_INT128']"
@@ -91,17 +97,23 @@ jobs:
         uses: actions/checkout@v3
         with:
           submodules: true
+          fetch-depth: 0
       - name: Set env
         if: github.event_name == 'release'
-        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+        run: |
+          echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+          echo "FPTN_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
       - name: Print Release Version
         if: github.event_name == 'release'
         run: |
           echo "Release Version: $RELEASE_VERSION"
-      - name: Update FPTN_VERSION in conanfile.py
-        if: github.event_name == 'release'
+      - name: Set dev version
+        if: github.event_name != 'release'
         run: |
-          sed -i "s/^FPTN_VERSION = \".*\"/FPTN_VERSION = \"$RELEASE_VERSION\"/" conanfile.py
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
+          DEV_VERSION="$TAG-dev-$(date -u +%Y%m%d-%H%M%S)"
+          echo "FPTN_VERSION=$DEV_VERSION" >> $GITHUB_ENV
+          echo "Dev version: $DEV_VERSION"
       - name: Install dependencies
         run: |
           conan install . --output-folder=build --build=missing -o with_gui_client=True --settings build_type=Release -s compiler.cppstd=17 -c "tools.build:defines=['QT_NO_INT128']"
@@ -163,17 +175,23 @@ jobs:
         uses: actions/checkout@v3
         with:
           submodules: true
+          fetch-depth: 0
       - name: Set env
         if: github.event_name == 'release'
-        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+        run: |
+          echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+          echo "FPTN_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
       - name: Print Release Version
         if: github.event_name == 'release'
         run: |
           echo "Release Version: $RELEASE_VERSION"
-      - name: Update FPTN_VERSION in conanfile.py
-        if: github.event_name == 'release'
+      - name: Set dev version
+        if: github.event_name != 'release'
         run: |
-          sed -i '' "s/^FPTN_VERSION = \".*\"/FPTN_VERSION = \"$RELEASE_VERSION\"/" conanfile.py
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
+          DEV_VERSION="$TAG-dev-$(date -u +%Y%m%d-%H%M%S)"
+          echo "FPTN_VERSION=$DEV_VERSION" >> $GITHUB_ENV
+          echo "Dev version: $DEV_VERSION"
       - name: Install dependencies
         run: |
           conan install . --output-folder=build --build=missing -o with_gui_client=True --settings build_type=Release -s compiler.cppstd=17
@@ -220,22 +238,29 @@ jobs:
         uses: actions/checkout@v3
         with:
           submodules: true
+          fetch-depth: 0
       - name: Set env
         shell: powershell
         if: github.event_name == 'release'
         run: |
           $releaseVersion = "${{ github.ref_name }}"
           echo "RELEASE_VERSION=$releaseVersion" >> $env:GITHUB_ENV
+          echo "FPTN_VERSION=$releaseVersion" >> $env:GITHUB_ENV
       - name: Print Release Version
         shell: powershell
         if: github.event_name == 'release'
         run: |
           Write-Output "Release Version: $env:RELEASE_VERSION"
-      - name: Update FPTN_VERSION in conanfile.py
+      - name: Set dev version
         shell: powershell
-        if: github.event_name == 'release'
+        if: github.event_name != 'release'
         run: |
-          python.exe deploy\windows\conan-replace-version.py conanfile.py "$env:RELEASE_VERSION"
+          $tag = (git describe --tags --abbrev=0 2>$null)
+          if (-not $tag) { $tag = "0.0.0" }
+          $stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMdd-HHmmss")
+          $devVersion = "$tag-dev-$stamp"
+          echo "FPTN_VERSION=$devVersion" >> $env:GITHUB_ENV
+          Write-Output "Dev version: $devVersion"
       - name: Install dependencies
         shell: powershell
         run: |
