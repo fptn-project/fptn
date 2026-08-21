@@ -64,6 +64,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 namespace {
 
 bool IsPortOpen(const std::string& host, const int port) {
+  constexpr std::chrono::milliseconds kConnectTimeout{1500};
   try {
     boost::asio::io_context ioc;
     boost::asio::ip::tcp::socket socket(ioc);
@@ -82,7 +83,7 @@ bool IsPortOpen(const std::string& host, const int port) {
     }
 
     boost::asio::steady_timer timer(ioc);
-    timer.expires_after(std::chrono::milliseconds(700));
+    timer.expires_after(kConnectTimeout);
 
     bool operation_completed = false;
     bool connected = false;

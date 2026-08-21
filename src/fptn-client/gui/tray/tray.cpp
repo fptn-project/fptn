@@ -179,6 +179,11 @@ TrayApp::TrayApp(const SettingsModelPtr& settings, QObject* parent)
   connect(update_timer_, &QTimer::timeout, this, &TrayApp::handleTimer);
   update_timer_->start(1000);
 
+  // Connect
+#ifndef __APPLE__
+  connect_menu_->setIcon(LoadIcon(":/icons/menu_server_list.png"));
+#endif
+
   // Settings
   settings_action_ = new QAction(QObject::tr("Settings"), this);
 #ifndef __APPLE__
@@ -376,7 +381,8 @@ void TrayApp::UpdateTrayMenu() {
               limited_zone_connect_menu_ = new QMenu(
                   QObject::tr("Limited access servers") + "  ", connect_menu_);
 #ifndef __APPLE__
-              connect_menu_->setIcon(LoadIcon(":/icons/menu_server_list.png"));
+              limited_zone_connect_menu_->setIcon(
+                  LoadIcon(":/icons/menu_server_list.png"));
 #endif
               connect_menu_->addMenu(limited_zone_connect_menu_);
             }

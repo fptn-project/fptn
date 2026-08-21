@@ -746,6 +746,8 @@ void SettingsModel::StopPingMonitoring() {
 }
 
 void SettingsModel::PingServer(const QString& host, int port) {
+  constexpr int kConnectTimeoutMs = 3000;
+
   std::vector<int> results;
 
   for (int i = 0; start_pinging_ && i < 3; ++i) {
@@ -754,7 +756,7 @@ void SettingsModel::PingServer(const QString& host, int port) {
 
     QTcpSocket socket;
     socket.connectToHost(host, port);
-    if (socket.waitForConnected(2000)) {
+    if (socket.waitForConnected(kConnectTimeoutMs)) {
       const auto end_time = std::chrono::steady_clock::now();
       ping_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
           end_time - start_time)
