@@ -346,8 +346,9 @@ bool RouteManager::Apply(std::string tun_name) {
 #endif
   if (!config_.out_interface_name.empty()) {
     detected_out_interface_name_ = config_.out_interface_name;
-  } else if (detected_out_interface_name_.empty()) {
-    detected_out_interface_name_ = GetDefaultNetworkInterfaceName();
+  } else if (const auto interface_name = GetDefaultNetworkInterfaceName();
+             !interface_name.empty()) {
+    detected_out_interface_name_ = interface_name;
   }
   if (!config_.gateway_ipv4.IsEmpty()) {
     detected_gateway_ipv4_ = config_.gateway_ipv4;
@@ -393,16 +394,20 @@ bool RouteManager::Apply(std::string tun_name) {
       fmt::format("sysctl -w net.ipv6.conf.all.forward=1"),
       fmt::format("sysctl -p"),
       // iptables
-      fmt::format("iptables -t nat -A POSTROUTING -o {} -j MASQUERADE",
+      fmt::format("iptables -t nat -A POSTROUTING -o {} -m comment --comment "
+                  "fptn -j MASQUERADE",
           detected_out_interface_name_),
       fmt::format("iptables -A FORWARD -i {} -o {} -m state --state "
-                  "RELATED,ESTABLISHED -j ACCEPT",
+                  "RELATED,ESTABLISHED -m comment --comment fptn -j ACCEPT",
           detected_out_interface_name_, tun_interface_name_),
-      fmt::format("iptables -A FORWARD -i {} -o {} -j ACCEPT",
+      fmt::format(
+          "iptables -A FORWARD -i {} -o {} -m comment --comment fptn -j ACCEPT",
           tun_interface_name_, detected_out_interface_name_),
-      fmt::format("iptables -A OUTPUT -o {} -d {} -j ACCEPT",
+      fmt::format(
+          "iptables -A OUTPUT -o {} -d {} -m comment --comment fptn -j ACCEPT",
           detected_out_interface_name_, config_.vpn_server_ip.ToString()),
-      fmt::format("iptables -A INPUT -i {} -s {} -j ACCEPT",
+      fmt::format(
+          "iptables -A INPUT -i {} -s {} -m comment --comment fptn -j ACCEPT",
           detected_out_interface_name_, config_.vpn_server_ip.ToString()),
       // IPv4 default & DNS route
       fmt::format(
@@ -419,38 +424,52 @@ bool RouteManager::Apply(std::string tun_name) {
           config_.vpn_server_ip.ToString(), detected_gateway_ipv4_.ToString(),
           detected_out_interface_name_),
       // Allow DNS responses from TUN (sport 53, not dport 53)
-      fmt::format("iptables -A OUTPUT -o {} -p udp --sport 53 -j ACCEPT",
+      fmt::format("iptables -A OUTPUT -o {} -p udp --sport 53 -m comment "
+                  "--comment fptn -j ACCEPT",
           tun_interface_name_),
-      fmt::format("iptables -A OUTPUT -o {} -p tcp --sport 53 -j ACCEPT",
+      fmt::format("iptables -A OUTPUT -o {} -p tcp --sport 53 -m comment "
+                  "--comment fptn -j ACCEPT",
           tun_interface_name_),
-      fmt::format("ip6tables -A OUTPUT -o {} -p udp --sport 53 -j ACCEPT",
+      fmt::format("ip6tables -A OUTPUT -o {} -p udp --sport 53 -m comment "
+                  "--comment fptn -j ACCEPT",
           tun_interface_name_),
-      fmt::format("ip6tables -A OUTPUT -o {} -p tcp --sport 53 -j ACCEPT",
+      fmt::format("ip6tables -A OUTPUT -o {} -p tcp --sport 53 -m comment "
+                  "--comment fptn -j ACCEPT",
           tun_interface_name_),
       // Block DNS requests on physical interface
-      fmt::format("iptables -A OUTPUT -o {} -p udp --dport 53 -j DROP",
+      fmt::format("iptables -A OUTPUT -o {} -p udp --dport 53 -m comment "
+                  "--comment fptn -j DROP",
           detected_out_interface_name_),
-      fmt::format("iptables -A OUTPUT -o {} -p tcp --dport 53 -j DROP",
+      fmt::format("iptables -A OUTPUT -o {} -p tcp --dport 53 -m comment "
+                  "--comment fptn -j DROP",
           detected_out_interface_name_),
       // Block DNS IPv6
-      fmt::format("ip6tables -A OUTPUT -o {} -p udp --dport 53 -j DROP",
+      fmt::format("ip6tables -A OUTPUT -o {} -p udp --dport 53 -m comment "
+                  "--comment fptn -j DROP",
           detected_out_interface_name_),
-      fmt::format("ip6tables -A OUTPUT -o {} -p tcp --dport 53 -j DROP",
+      fmt::format("ip6tables -A OUTPUT -o {} -p tcp --dport 53 -m comment "
+                  "--comment fptn -j DROP",
           detected_out_interface_name_),
       // Block DoT IPv4
-      fmt::format("iptables -A OUTPUT -o {} -p udp --dport 853 -j DROP",
+      fmt::format("iptables -A OUTPUT -o {} -p udp --dport 853 -m comment "
+                  "--comment fptn -j DROP",
           detected_out_interface_name_),
-      fmt::format("iptables -A OUTPUT -o {} -p tcp --dport 853 -j DROP",
+      fmt::format("iptables -A OUTPUT -o {} -p tcp --dport 853 -m comment "
+                  "--comment fptn -j DROP",
           detected_out_interface_name_),
       // Block DoT IPv6
-      fmt::format("ip6tables -A OUTPUT -o {} -p udp --dport 853 -j DROP",
+      fmt::format("ip6tables -A OUTPUT -o {} -p udp --dport 853 -m comment "
+                  "--comment fptn -j DROP",
           detected_out_interface_name_),
-      fmt::format("ip6tables -A OUTPUT -o {} -p tcp --dport 853 -j DROP",
+      fmt::format("ip6tables -A OUTPUT -o {} -p tcp --dport 853 -m comment "
+                  "--comment fptn -j DROP",
           detected_out_interface_name_),
       // Also allow DNS to specific DNS server IP
-      fmt::format("iptables -A OUTPUT -d {} -p udp --dport 53 -j ACCEPT",
+      fmt::format("iptables -A OUTPUT -d {} -p udp --dport 53 -m comment "
+                  "--comment fptn -j ACCEPT",
           config_.dns_server_ipv4.ToString()),
-      fmt::format("iptables -A OUTPUT -d {} -p tcp --dport 53 -j ACCEPT",
+      fmt::format("iptables -A OUTPUT -d {} -p tcp --dport 53 -m comment "
+                  "--comment fptn -j ACCEPT",
           config_.dns_server_ipv4.ToString()),
       // DNS via resolvectl
       fmt::format("resolvectl resolv-conf false"),
@@ -478,10 +497,14 @@ bool RouteManager::Apply(std::string tun_name) {
   if (has_custom_dns) {
     commands.push_back(
         fmt::format("ip route add {} dev {}", custom_dns, tun_interface_name_));
-    commands.push_back(fmt::format(
-        "iptables -A OUTPUT -d {} -p udp --dport 53 -j ACCEPT", custom_dns));
-    commands.push_back(fmt::format(
-        "iptables -A OUTPUT -d {} -p tcp --dport 53 -j ACCEPT", custom_dns));
+    commands.push_back(
+        fmt::format("iptables -A OUTPUT -d {} -p udp --dport 53 -m comment "
+                    "--comment fptn -j ACCEPT",
+            custom_dns));
+    commands.push_back(
+        fmt::format("iptables -A OUTPUT -d {} -p tcp --dport 53 -m comment "
+                    "--comment fptn -j ACCEPT",
+            custom_dns));
     commands.push_back(fmt::format(
         R"(bash -c "chattr -i /etc/resolv.conf; grep -q '^nameserver {}$' /etc/resolv.conf || sed -i '1i nameserver {}' /etc/resolv.conf; chattr +i /etc/resolv.conf")",
         custom_dns, custom_dns));
@@ -758,16 +781,20 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
 
 #ifdef __linux__
   std::vector<std::string> commands = {
-      fmt::format("iptables -t nat -D POSTROUTING -o {} -j MASQUERADE",
+      fmt::format("iptables -t nat -D POSTROUTING -o {} -m comment --comment "
+                  "fptn -j MASQUERADE",
           detected_out_interface_name_),
       fmt::format("iptables -D FORWARD -i {} -o {} -m state --state "
-                  "RELATED,ESTABLISHED -j ACCEPT",
+                  "RELATED,ESTABLISHED -m comment --comment fptn -j ACCEPT",
           detected_out_interface_name_, tun_interface_name_),
-      fmt::format("iptables -D FORWARD -i {} -o {} -j ACCEPT",
+      fmt::format(
+          "iptables -D FORWARD -i {} -o {} -m comment --comment fptn -j ACCEPT",
           tun_interface_name_, detected_out_interface_name_),
-      fmt::format("iptables -D OUTPUT -o {} -d {} -j ACCEPT",
+      fmt::format(
+          "iptables -D OUTPUT -o {} -d {} -m comment --comment fptn -j ACCEPT",
           detected_out_interface_name_, config_.vpn_server_ip.ToString()),
-      fmt::format("iptables -D INPUT -i {} -s {} -j ACCEPT",
+      fmt::format(
+          "iptables -D INPUT -i {} -s {} -m comment --comment fptn -j ACCEPT",
           detected_out_interface_name_, config_.vpn_server_ip.ToString()),
       // restore default gateway
       fmt::format("ip route replace default via {} dev {}",
@@ -784,46 +811,64 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
           config_.dns_server_ipv4.ToString(),
           config_.dns_server_ipv6.ToString()),
       // Delete DNS to specific DNS server IP rules
-      fmt::format("iptables -D OUTPUT -d {} -p udp --dport 53 -j ACCEPT",
+      fmt::format("iptables -D OUTPUT -d {} -p udp --dport 53 -m comment "
+                  "--comment fptn -j ACCEPT",
           config_.dns_server_ipv4.ToString()),
-      fmt::format("iptables -D OUTPUT -d {} -p tcp --dport 53 -j ACCEPT",
+      fmt::format("iptables -D OUTPUT -d {} -p tcp --dport 53 -m comment "
+                  "--comment fptn -j ACCEPT",
           config_.dns_server_ipv4.ToString()),
       // Delete DNS block rules IPv4
-      fmt::format("iptables -D OUTPUT -o {} -p udp --dport 53 -j DROP",
+      fmt::format("iptables -D OUTPUT -o {} -p udp --dport 53 -m comment "
+                  "--comment fptn -j DROP",
           detected_out_interface_name_),
-      fmt::format("iptables -D OUTPUT -o {} -p tcp --dport 53 -j DROP",
+      fmt::format("iptables -D OUTPUT -o {} -p tcp --dport 53 -m comment "
+                  "--comment fptn -j DROP",
           detected_out_interface_name_),
-      fmt::format("iptables -D OUTPUT -o {} -p udp --dport 853 -j DROP",
+      fmt::format("iptables -D OUTPUT -o {} -p udp --dport 853 -m comment "
+                  "--comment fptn -j DROP",
           detected_out_interface_name_),
-      fmt::format("iptables -D OUTPUT -o {} -p tcp --dport 853 -j DROP",
+      fmt::format("iptables -D OUTPUT -o {} -p tcp --dport 853 -m comment "
+                  "--comment fptn -j DROP",
           detected_out_interface_name_),
       // Delete DNS block rules IPv6
-      fmt::format("ip6tables -D OUTPUT -o {} -p udp --dport 53 -j DROP",
+      fmt::format("ip6tables -D OUTPUT -o {} -p udp --dport 53 -m comment "
+                  "--comment fptn -j DROP",
           detected_out_interface_name_),
-      fmt::format("ip6tables -D OUTPUT -o {} -p tcp --dport 53 -j DROP",
+      fmt::format("ip6tables -D OUTPUT -o {} -p tcp --dport 53 -m comment "
+                  "--comment fptn -j DROP",
           detected_out_interface_name_),
-      fmt::format("ip6tables -D OUTPUT -o {} -p udp --dport 853 -j DROP",
+      fmt::format("ip6tables -D OUTPUT -o {} -p udp --dport 853 -m comment "
+                  "--comment fptn -j DROP",
           detected_out_interface_name_),
-      fmt::format("ip6tables -D OUTPUT -o {} -p tcp --dport 853 -j DROP",
+      fmt::format("ip6tables -D OUTPUT -o {} -p tcp --dport 853 -m comment "
+                  "--comment fptn -j DROP",
           detected_out_interface_name_),
       // Delete TUN allow rules IPv4
-      fmt::format("iptables -D OUTPUT -o {} -p udp --sport 53 -j ACCEPT",
+      fmt::format("iptables -D OUTPUT -o {} -p udp --sport 53 -m comment "
+                  "--comment fptn -j ACCEPT",
           tun_interface_name_),
-      fmt::format("iptables -D OUTPUT -o {} -p tcp --sport 53 -j ACCEPT",
+      fmt::format("iptables -D OUTPUT -o {} -p tcp --sport 53 -m comment "
+                  "--comment fptn -j ACCEPT",
           tun_interface_name_),
       // Delete TUN allow rules IPv6
-      fmt::format("ip6tables -D OUTPUT -o {} -p udp --sport 53 -j ACCEPT",
+      fmt::format("ip6tables -D OUTPUT -o {} -p udp --sport 53 -m comment "
+                  "--comment fptn -j ACCEPT",
           tun_interface_name_),
-      fmt::format("ip6tables -D OUTPUT -o {} -p tcp --sport 53 -j ACCEPT",
+      fmt::format("ip6tables -D OUTPUT -o {} -p tcp --sport 53 -m comment "
+                  "--comment fptn -j ACCEPT",
           tun_interface_name_)};
 
   if (has_custom_dns) {
     commands.push_back(
         fmt::format("ip route del {} dev {}", custom_dns, tun_interface_name_));
-    commands.push_back(fmt::format(
-        "iptables -D OUTPUT -d {} -p udp --dport 53 -j ACCEPT", custom_dns));
-    commands.push_back(fmt::format(
-        "iptables -D OUTPUT -d {} -p tcp --dport 53 -j ACCEPT", custom_dns));
+    commands.push_back(
+        fmt::format("iptables -D OUTPUT -d {} -p udp --dport 53 -m comment "
+                    "--comment fptn -j ACCEPT",
+            custom_dns));
+    commands.push_back(
+        fmt::format("iptables -D OUTPUT -d {} -p tcp --dport 53 -m comment "
+                    "--comment fptn -j ACCEPT",
+            custom_dns));
     commands.push_back(fmt::format(
         R"(bash -c "chattr -i /etc/resolv.conf; sed -i '/^nameserver {}$/d' /etc/resolv.conf")",
         custom_dns));
