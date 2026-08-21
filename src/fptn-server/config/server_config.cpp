@@ -7,15 +7,38 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "config/server_config.h"
 
 #include <algorithm>
+#include <charconv>
 #include <memory>
+#include <stdexcept>
 #include <string>
+#include <system_error>
 #include <vector>
 
+#include <fmt/format.h>     // NOLINT(build/include_order)
 #include <spdlog/spdlog.h>  // NOLINT(build/include_order)
 
 #include "common/utils/utils.h"
 
 namespace {
+int ParseInt(
+    const std::string& value, int default_value, int min_value, int max_value) {
+  if (value.empty()) {
+    return default_value;
+  }
+  int result = 0;
+  const auto [end, error] =
+      std::from_chars(value.data(), value.data() + value.size(), result);
+  if (error != std::errc() || end != value.data() + value.size()) {
+    throw std::runtime_error("Invalid number: '" + value + "'");
+  }
+  if (result < min_value || result > max_value) {
+    throw std::runtime_error(
+        fmt::format("Value {} is out of range [{}..{}]", result, min_value,
+            max_value));
+  }
+  return result;
+}
+
 bool ParseBoolean(std::string value) noexcept {
   try {
     // С++17
@@ -46,51 +69,76 @@ ServerConfig::ServerConfig(int argc, char* argv[])
   args_.add_argument("--server-port")
       .default_value(443)
       .help("Port number")
-      .scan<'i', int>();
+      .action([](const std::string& v) -> int {
+        return ParseInt(v, 443, 1, 65535);
+      });
   args_.add_argument("--mtu-size")
       .default_value(FPTN_DEFAULT_MTU_SIZE)
       .help("MTU size")
-      .scan<'i', int>();
+      .action([](const std::string& v) -> int {
+        return ParseInt(v, FPTN_DEFAULT_MTU_SIZE, 576, 65535);
+      });
   args_.add_argument("--tun-interface-name")
       .default_value("tun0")
-      .help("Network interface name");
+      .help("Network interface name")
+      .action([](const std::string& v) -> std::string {
+        return v.empty() ? "tun0" : v;
+      });
   /* IPv4 */
   args_.add_argument("--tun-interface-ip")
       .default_value(FPTN_SERVER_DEFAULT_ADDRESS_IP4)
-      .help("IP address of the virtual interface");
+      .help("IP address of the virtual interface")
+      .action([](const std::string& v) -> std::string {
+        return v.empty() ? FPTN_SERVER_DEFAULT_ADDRESS_IP4 : v;
+      });
   args_.add_argument("--tun-interface-network-address")
       .default_value(FPTN_SERVER_DEFAULT_NET_ADDRESS_IP4)
-      .help("IP network of the virtual interface");
+      .help("IP network of the virtual interface")
+      .action([](const std::string& v) -> std::string {
+        return v.empty() ? FPTN_SERVER_DEFAULT_NET_ADDRESS_IP4 : v;
+      });
   args_.add_argument("--tun-interface-network-mask")
       .default_value(16)
       .help("Network mask")
-      .scan<'i', int>();
+      .action([](const std::string& v) -> int {
+        return ParseInt(v, 16, 1, 32);
+      });
   /* IPv6 */
   args_.add_argument("--tun-interface-ipv6")
       .default_value(FPTN_SERVER_DEFAULT_ADDRESS_IP6)
-      .help("IPv6 address of the virtual interface");
+      .help("IPv6 address of the virtual interface")
+      .action([](const std::string& v) -> std::string {
+        return v.empty() ? FPTN_SERVER_DEFAULT_ADDRESS_IP6 : v;
+      });
   args_.add_argument("--tun-interface-network-ipv6-address")
       .default_value(FPTN_SERVER_DEFAULT_NET_ADDRESS_IP6)
-      .help("IPv6 network address of the virtual interface");
+      .help("IPv6 network address of the virtual interface")
+      .action([](const std::string& v) -> std::string {
+        return v.empty() ? FPTN_SERVER_DEFAULT_NET_ADDRESS_IP6 : v;
+      });
   args_.add_argument("--tun-interface-network-ipv6-mask")
       .default_value(64)
       .help("IPv6 network mask")
-      .scan<'i', int>();
+      .action([](const std::string& v) -> int {
+        return ParseInt(v, 64, 1, 128);
+      });
   args_.add_argument("--userfile")
       .help("Path to users file (default: /etc/fptn/users.list)")
-      .default_value("/etc/fptn/users.list");
+      .default_value("/etc/fptn/users.list")
+      .action([](const std::string& v) -> std::string {
+        return v.empty() ? "/etc/fptn/users.list" : v;
+      });
   // Packet filters
   args_.add_argument("--domain-blacklist-file")
       .help(
           "Path to a file with domains to block, one per line ('#' starts a "
-          "comment). On a DNS response for a listed domain or any of its "
-          "subdomains the answer is rewritten to loopback (127.0.0.1 / ::1). "
-          "Empty (default) disables the feature.")
+          "comment). Traffic to the addresses a listed domain or any of its "
+          "subdomains resolves to is dropped. The list extends the built-in "
+          "one. Empty (default) uses only the built-in list.")
       .default_value("");
   args_.add_argument("--disable-bittorrent")
       .help(
-          "Disable BitTorrent traffic filtering. Use this flag to disable "
-          "filtering.")
+          "Block BitTorrent traffic. Set to 'true' to drop BitTorrent packets.")
       .default_value("false");
   // Allow prometheus metric
   args_.add_argument("--prometheus-access-key")
@@ -108,17 +156,24 @@ ServerConfig::ServerConfig(int argc, char* argv[])
       .help(
           "Specify the remote server's IP address or hostname for "
           "authentication.")
-      .default_value("1.1.1.1");
+      .default_value("1.1.1.1")
+      .action([](const std::string& v) -> std::string {
+        return v.empty() ? "1.1.1.1" : v;
+      });
   args_.add_argument("--remote-server-auth-port")
       .help(
           "Specify the port number for the remote server authentication. Set "
           "to 0 to use the default port.")
       .default_value(443)
-      .scan<'i', int>();
+      .action([](const std::string& v) -> int {
+        return ParseInt(v, 443, 0, 65535);
+      });
   args_.add_argument("--max-active-sessions-per-user")
       .help("Maximum number of active sessions allowed per VPN user")
       .default_value(3)
-      .scan<'i', int>();
+      .action([](const std::string& v) -> int {
+        return ParseInt(v, 3, 1, 1000);
+      });
   // Probing
   args_.add_argument("--enable-detect-probing")
       .help(

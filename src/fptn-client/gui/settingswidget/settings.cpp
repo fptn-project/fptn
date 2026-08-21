@@ -264,110 +264,17 @@ void SettingsWidget::SetupUi() {
   bypass_method_label_ =
       new QLabel(QObject::tr("Bypass blocking method"), this);
   bypass_method_combo_box_ = new QComboBox(this);
-  bypass_method_combo_box_->addItem(
-      QObject::tr("OBFUSCATION"), SettingsModel::kBypassMethodObfuscation);
-  /* Chrome */
-  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Chrome 149)"),
-      SettingsModel::kBypassMethodSniRealityChrome149);
-  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Chrome 148)"),
-      SettingsModel::kBypassMethodSniRealityChrome148);
-  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Chrome 147)"),
-      SettingsModel::kBypassMethodSniRealityChrome147);
-  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Chrome 146)"),
-      SettingsModel::kBypassMethodSniRealityChrome146);
-  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Chrome 145)"),
-      SettingsModel::kBypassMethodSniRealityChrome145);
-  /* Firefox */
-  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Firefox 151)"),
-      SettingsModel::kBypassMethodSniRealityFirefox151);
-  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Firefox 150)"),
-      SettingsModel::kBypassMethodSniRealityFirefox150);
-  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Firefox 149)"),
-      SettingsModel::kBypassMethodSniRealityFirefox149);
-  /* Yandex */
-  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Yandex 26.4)"),
-      SettingsModel::kBypassMethodSniRealityYandex26_4);
-  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Yandex 26.3)"),
-      SettingsModel::kBypassMethodSniRealityYandex26_3);
-  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Yandex 25)"),
-      SettingsModel::kBypassMethodSniRealityYandex25);
-  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Yandex 24)"),
-      SettingsModel::kBypassMethodSniRealityYandex24);
-  /* Safari */
-  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Safari 26.5)"),
-      SettingsModel::kBypassMethodSniRealitySafari26_5);
-  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Safari 26.4)"),
-      SettingsModel::kBypassMethodSniRealitySafari26_4);
+  FillBypassMethodComboBox();
 
   bypass_method_combo_box_->setSizePolicy(
       QSizePolicy::Expanding, QSizePolicy::Fixed);
   bypass_method_combo_box_->setMinimumWidth(200);
 
-  const QString current_method = settings_->BypassMethod();
-  if (current_method == SettingsModel::kBypassMethodObfuscation) {
-    bypass_method_combo_box_->setCurrentText(QObject::tr("OBFUSCATION"));
-  }
-  /* Chrome */
-  else if (current_method == SettingsModel::kBypassMethodSniRealityChrome149) {
-    bypass_method_combo_box_->setCurrentText(
-        QObject::tr("SNI-REALITY (Chrome 149)"));
-  } else if (current_method ==
-             SettingsModel::kBypassMethodSniRealityChrome148) {
-    bypass_method_combo_box_->setCurrentText(
-        QObject::tr("SNI-REALITY (Chrome 148)"));
-  } else if (current_method ==
-             SettingsModel::kBypassMethodSniRealityChrome147) {
-    bypass_method_combo_box_->setCurrentText(
-        QObject::tr("SNI-REALITY (Chrome 147)"));
-  } else if (current_method ==
-             SettingsModel::kBypassMethodSniRealityChrome146) {
-    bypass_method_combo_box_->setCurrentText(
-        QObject::tr("SNI-REALITY (Chrome 146)"));
-  } else if (current_method ==
-             SettingsModel::kBypassMethodSniRealityChrome145) {
-    bypass_method_combo_box_->setCurrentText(
-        QObject::tr("SNI-REALITY (Chrome 145)"));
-  }
-  /* Firefox */
-  else if (current_method == SettingsModel::kBypassMethodSniRealityFirefox151) {
-    bypass_method_combo_box_->setCurrentText(
-        QObject::tr("SNI-REALITY (Firefox 151)"));
-  } else if (current_method ==
-             SettingsModel::kBypassMethodSniRealityFirefox150) {
-    bypass_method_combo_box_->setCurrentText(
-        QObject::tr("SNI-REALITY (Firefox 150)"));
-  } else if (current_method ==
-             SettingsModel::kBypassMethodSniRealityFirefox149) {
-    bypass_method_combo_box_->setCurrentText(
-        QObject::tr("SNI-REALITY (Firefox 149)"));
-  }
-  /* Yandex */
-  else if (current_method == SettingsModel::kBypassMethodSniRealityYandex26_4) {
-    bypass_method_combo_box_->setCurrentText(
-        QObject::tr("SNI-REALITY (Yandex 26.4)"));
-  } else if (current_method ==
-             SettingsModel::kBypassMethodSniRealityYandex26_3) {
-    bypass_method_combo_box_->setCurrentText(
-        QObject::tr("SNI-REALITY (Yandex 26.3)"));
-  } else if (current_method == SettingsModel::kBypassMethodSniRealityYandex24) {
-    bypass_method_combo_box_->setCurrentText(
-        QObject::tr("SNI-REALITY (Yandex 24)"));
-  }
-  /* Safari */
-  else if (current_method == SettingsModel::kBypassMethodSniRealitySafari26_5) {
-    bypass_method_combo_box_->setCurrentText(
-        QObject::tr("SNI-REALITY (Safari 26.5)"));
-  } else if (current_method ==
-             SettingsModel::kBypassMethodSniRealitySafari26_4) {
-    bypass_method_combo_box_->setCurrentText(
-        QObject::tr("SNI-REALITY (Safari 26.4)"));
-  } else {
-    bypass_method_combo_box_->setCurrentText(
-        QObject::tr("SNI-REALITY (Yandex 25)"));
-  }
-
-  connect(bypass_method_combo_box_, &QComboBox::currentTextChanged, this,
-      &SettingsWidget::onBypassMethodChanged);
+  connect(bypass_method_combo_box_, &QComboBox::currentIndexChanged, this,
+      [this](int) {
+        onBypassMethodChanged(
+            bypass_method_combo_box_->currentData().toString());
+      });
 
   grid_layout_->addWidget(bypass_method_label_, 7, 0, Qt::AlignLeft);
   grid_layout_->addWidget(bypass_method_combo_box_, 7, 1);
@@ -1032,7 +939,7 @@ void SettingsWidget::SetupUi() {
     }
   }
 
-  onBypassMethodChanged(bypass_method_combo_box_->currentText());
+  onBypassMethodChanged(bypass_method_combo_box_->currentData().toString());
 
   UpdateSniFilesList();
 
@@ -1043,7 +950,51 @@ void SettingsWidget::SetupUi() {
   UpdateServerTableVisibility();
 }
 
-// NOLINTNEXTLINE(bugprone-branch-clone)
+void SettingsWidget::FillBypassMethodComboBox() {
+  const QString current_method = settings_->BypassMethod();
+
+  bypass_method_combo_box_->blockSignals(true);
+  bypass_method_combo_box_->clear();
+  bypass_method_combo_box_->addItem(
+      QObject::tr("OBFUSCATION"), SettingsModel::kBypassMethodObfuscation);
+  /* Chrome */
+  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Chrome 149)"),
+      SettingsModel::kBypassMethodSniRealityChrome149);
+  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Chrome 148)"),
+      SettingsModel::kBypassMethodSniRealityChrome148);
+  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Chrome 147)"),
+      SettingsModel::kBypassMethodSniRealityChrome147);
+  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Chrome 146)"),
+      SettingsModel::kBypassMethodSniRealityChrome146);
+  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Chrome 145)"),
+      SettingsModel::kBypassMethodSniRealityChrome145);
+  /* Firefox */
+  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Firefox 151)"),
+      SettingsModel::kBypassMethodSniRealityFirefox151);
+  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Firefox 150)"),
+      SettingsModel::kBypassMethodSniRealityFirefox150);
+  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Firefox 149)"),
+      SettingsModel::kBypassMethodSniRealityFirefox149);
+  /* Yandex */
+  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Yandex 26.4)"),
+      SettingsModel::kBypassMethodSniRealityYandex26_4);
+  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Yandex 26.3)"),
+      SettingsModel::kBypassMethodSniRealityYandex26_3);
+  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Yandex 25)"),
+      SettingsModel::kBypassMethodSniRealityYandex25);
+  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Yandex 24)"),
+      SettingsModel::kBypassMethodSniRealityYandex24);
+  /* Safari */
+  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Safari 26.5)"),
+      SettingsModel::kBypassMethodSniRealitySafari26_5);
+  bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Safari 26.4)"),
+      SettingsModel::kBypassMethodSniRealitySafari26_4);
+
+  const int index = bypass_method_combo_box_->findData(current_method);
+  bypass_method_combo_box_->setCurrentIndex(index >= 0 ? index : 0);
+  bypass_method_combo_box_->blockSignals(false);
+}
+
 void SettingsWidget::onExit() {
   settings_->SetUsingNetworkInterface(interface_combo_box_->currentText());
   settings_->SetLanguage(language_combo_box_->currentText());
@@ -1062,83 +1013,8 @@ void SettingsWidget::onExit() {
     }
   }
 
-  const QString current_method = bypass_method_combo_box_->currentText();
-
-  if (current_method == QObject::tr("SNI") ||
-      current_method == SettingsModel::kBypassMethodSni) {
-    settings_->SetBypassMethod(SettingsModel::kBypassMethodSni);
-  }
-  /* Obfuscation */
-  else if (current_method == QObject::tr("OBFUSCATION") ||
-           current_method == SettingsModel::kBypassMethodObfuscation) {
-    settings_->SetBypassMethod(SettingsModel::kBypassMethodObfuscation);
-  }
-  /* Chrome */
-  else if (current_method == QObject::tr("SNI-REALITY (Chrome 149)") ||
-           current_method == SettingsModel::kBypassMethodSniRealityChrome149) {
-    settings_->SetBypassMethod(SettingsModel::kBypassMethodSniRealityChrome149);
-  } else if (current_method == QObject::tr("SNI-REALITY (Chrome 148)") ||
-             current_method ==
-                 SettingsModel::kBypassMethodSniRealityChrome148) {
-    settings_->SetBypassMethod(SettingsModel::kBypassMethodSniRealityChrome148);
-  } else if (current_method == QObject::tr("SNI-REALITY (Chrome 147)") ||
-             current_method ==
-                 SettingsModel::kBypassMethodSniRealityChrome147) {
-    settings_->SetBypassMethod(SettingsModel::kBypassMethodSniRealityChrome147);
-  } else if (current_method == QObject::tr("SNI-REALITY (Chrome 146)") ||
-             current_method ==
-                 SettingsModel::kBypassMethodSniRealityChrome146) {
-    settings_->SetBypassMethod(SettingsModel::kBypassMethodSniRealityChrome146);
-  } else if (current_method == QObject::tr("SNI-REALITY (Chrome 145)") ||
-             current_method ==
-                 SettingsModel::kBypassMethodSniRealityChrome145) {
-    settings_->SetBypassMethod(SettingsModel::kBypassMethodSniRealityChrome145);
-  }
-  /* Firefox */
-  else if (current_method == QObject::tr("SNI-REALITY (Firefox 151)") ||
-           current_method == SettingsModel::kBypassMethodSniRealityFirefox151) {
-    settings_->SetBypassMethod(
-        SettingsModel::kBypassMethodSniRealityFirefox151);
-  } else if (current_method == QObject::tr("SNI-REALITY (Firefox 150)") ||
-             current_method ==
-                 SettingsModel::kBypassMethodSniRealityFirefox150) {
-    settings_->SetBypassMethod(
-        SettingsModel::kBypassMethodSniRealityFirefox150);
-  } else if (current_method == QObject::tr("SNI-REALITY (Firefox 149)") ||
-             current_method ==
-                 SettingsModel::kBypassMethodSniRealityFirefox149) {
-    settings_->SetBypassMethod(
-        SettingsModel::kBypassMethodSniRealityFirefox149);
-  }
-  /* Yandex */
-  else if (current_method == QObject::tr("SNI-REALITY (Yandex 26.4)") ||
-           current_method == SettingsModel::kBypassMethodSniRealityYandex26_4) {
-    settings_->SetBypassMethod(
-        SettingsModel::kBypassMethodSniRealityYandex26_4);
-  } else if (current_method == QObject::tr("SNI-REALITY (Yandex 26.3)") ||
-             current_method ==
-                 SettingsModel::kBypassMethodSniRealityYandex26_3) {
-    settings_->SetBypassMethod(
-        SettingsModel::kBypassMethodSniRealityYandex26_3);
-  } else if (current_method == QObject::tr("SNI-REALITY (Yandex 24)") ||
-             current_method == SettingsModel::kBypassMethodSniRealityYandex24) {
-    settings_->SetBypassMethod(SettingsModel::kBypassMethodSniRealityYandex24);
-  }
-  /* Safari */
-  else if (current_method == QObject::tr("SNI-REALITY (Safari 26.5)") ||
-           current_method == SettingsModel::kBypassMethodSniRealitySafari26_5) {
-    settings_->SetBypassMethod(
-        SettingsModel::kBypassMethodSniRealitySafari26_5);
-  } else if (current_method == QObject::tr("SNI-REALITY (Safari 26.4)") ||
-             current_method ==
-                 SettingsModel::kBypassMethodSniRealitySafari26_4) {
-    settings_->SetBypassMethod(
-        SettingsModel::kBypassMethodSniRealitySafari26_4);
-  }
-  /* Default */
-  else {
-    settings_->SetBypassMethod(SettingsModel::kBypassMethodSniRealityYandex25);
-  }
+  settings_->SetBypassMethod(
+      bypass_method_combo_box_->currentData().toString());
 
   if (!settings_->Save()) {
     QMessageBox::critical(this, QObject::tr("Save Failed"),
@@ -1318,112 +1194,8 @@ void SettingsWidget::onLanguageChanged(const QString&) {
     bypass_method_label_->setText(QObject::tr("Bypass blocking method"));
   }
 
-  const auto current_method = settings_->BypassMethod();
   if (bypass_method_combo_box_) {
-    bypass_method_combo_box_->clear();
-    bypass_method_combo_box_->addItem(
-        QObject::tr("OBFUSCATION"), SettingsModel::kBypassMethodObfuscation);
-    /* Chrome */
-    bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Chrome 149)"),
-        SettingsModel::kBypassMethodSniRealityChrome149);
-    bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Chrome 148)"),
-        SettingsModel::kBypassMethodSniRealityChrome148);
-    bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Chrome 147)"),
-        SettingsModel::kBypassMethodSniRealityChrome147);
-    bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Chrome 146)"),
-        SettingsModel::kBypassMethodSniRealityChrome146);
-    bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Chrome 145)"),
-        SettingsModel::kBypassMethodSniRealityChrome145);
-    /* Firefox */
-    bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Firefox 151)"),
-        SettingsModel::kBypassMethodSniRealityFirefox151);
-    bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Firefox 150)"),
-        SettingsModel::kBypassMethodSniRealityFirefox150);
-    bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Firefox 149)"),
-        SettingsModel::kBypassMethodSniRealityFirefox149);
-    /* Yandex */
-    bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Yandex 26.4)"),
-        SettingsModel::kBypassMethodSniRealityYandex26_4);
-    bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Yandex 26.3)"),
-        SettingsModel::kBypassMethodSniRealityYandex26_3);
-    bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Yandex 25)"),
-        SettingsModel::kBypassMethodSniRealityYandex25);
-    bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Yandex 24)"),
-        SettingsModel::kBypassMethodSniRealityYandex24);
-    /* Safari */
-    bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Safari 26.5)"),
-        SettingsModel::kBypassMethodSniRealitySafari26_5);
-    bypass_method_combo_box_->addItem(QObject::tr("SNI-REALITY (Safari 26.4)"),
-        SettingsModel::kBypassMethodSniRealitySafari26_4);
-
-    if (current_method == SettingsModel::kBypassMethodObfuscation) {
-      bypass_method_combo_box_->setCurrentText(QObject::tr("OBFUSCATION"));
-    }
-    /* Chrome */
-    else if (current_method ==
-             SettingsModel::kBypassMethodSniRealityChrome149) {
-      bypass_method_combo_box_->setCurrentText(
-          QObject::tr("SNI-REALITY (Chrome 149)"));
-    } else if (current_method ==
-               SettingsModel::kBypassMethodSniRealityChrome148) {
-      bypass_method_combo_box_->setCurrentText(
-          QObject::tr("SNI-REALITY (Chrome 148)"));
-    } else if (current_method ==
-               SettingsModel::kBypassMethodSniRealityChrome147) {
-      bypass_method_combo_box_->setCurrentText(
-          QObject::tr("SNI-REALITY (Chrome 147)"));
-    } else if (current_method ==
-               SettingsModel::kBypassMethodSniRealityChrome146) {
-      bypass_method_combo_box_->setCurrentText(
-          QObject::tr("SNI-REALITY (Chrome 146)"));
-    } else if (current_method ==
-               SettingsModel::kBypassMethodSniRealityChrome145) {
-      bypass_method_combo_box_->setCurrentText(
-          QObject::tr("SNI-REALITY (Chrome 145)"));
-    }
-    /* Firefox */
-    else if (current_method ==
-             SettingsModel::kBypassMethodSniRealityFirefox151) {
-      bypass_method_combo_box_->setCurrentText(
-          QObject::tr("SNI-REALITY (Firefox 151)"));
-    } else if (current_method ==
-               SettingsModel::kBypassMethodSniRealityFirefox150) {
-      bypass_method_combo_box_->setCurrentText(
-          QObject::tr("SNI-REALITY (Firefox 150)"));
-    } else if (current_method ==
-               SettingsModel::kBypassMethodSniRealityFirefox149) {
-      bypass_method_combo_box_->setCurrentText(
-          QObject::tr("SNI-REALITY (Firefox 149)"));
-    }
-    /* Yandex */
-    else if (current_method ==
-             SettingsModel::kBypassMethodSniRealityYandex26_4) {
-      bypass_method_combo_box_->setCurrentText(
-          QObject::tr("SNI-REALITY (Yandex 26.4)"));
-    } else if (current_method ==
-               SettingsModel::kBypassMethodSniRealityYandex26_3) {
-      bypass_method_combo_box_->setCurrentText(
-          QObject::tr("SNI-REALITY (Yandex 26.3)"));
-    } else if (current_method ==
-               SettingsModel::kBypassMethodSniRealityYandex24) {
-      bypass_method_combo_box_->setCurrentText(
-          QObject::tr("SNI-REALITY (Yandex 24)"));
-    }
-    /* Safari */
-    else if (current_method ==
-             SettingsModel::kBypassMethodSniRealitySafari26_5) {
-      bypass_method_combo_box_->setCurrentText(
-          QObject::tr("SNI-REALITY (Safari 26.5)"));
-    } else if (current_method ==
-               SettingsModel::kBypassMethodSniRealitySafari26_4) {
-      bypass_method_combo_box_->setCurrentText(
-          QObject::tr("SNI-REALITY (Safari 26.4)"));
-    }
-    /* Default */
-    else {
-      bypass_method_combo_box_->setCurrentText(
-          QObject::tr("SNI-REALITY (Yandex 25)"));
-    }
+    FillBypassMethodComboBox();
   }
 
   if (sni_label_) {
@@ -1612,39 +1384,7 @@ void SettingsWidget::onAutoCustomDnsChanged(bool checked) {
 }
 void SettingsWidget::onBypassMethodChanged(const QString& method) {
   const bool is_reality_mode =
-      method == QObject::tr("SNI") ||
-      /* Chrome */
-      method == QObject::tr("SNI-REALITY (Chrome 149)") ||
-      method == SettingsModel::kBypassMethodSniRealityChrome149 ||
-      method == QObject::tr("SNI-REALITY (Chrome 148)") ||
-      method == SettingsModel::kBypassMethodSniRealityChrome148 ||
-      method == QObject::tr("SNI-REALITY (Chrome 147)") ||
-      method == SettingsModel::kBypassMethodSniRealityChrome147 ||
-      method == QObject::tr("SNI-REALITY (Chrome 146)") ||
-      method == SettingsModel::kBypassMethodSniRealityChrome146 ||
-      method == QObject::tr("SNI-REALITY (Chrome 145)") ||
-      method == SettingsModel::kBypassMethodSniRealityChrome145 ||
-      /* Firefox */
-      method == QObject::tr("SNI-REALITY (Firefox 151)") ||
-      method == SettingsModel::kBypassMethodSniRealityFirefox151 ||
-      method == QObject::tr("SNI-REALITY (Firefox 150)") ||
-      method == SettingsModel::kBypassMethodSniRealityFirefox150 ||
-      method == QObject::tr("SNI-REALITY (Firefox 149)") ||
-      method == SettingsModel::kBypassMethodSniRealityFirefox149 ||
-      /* Yandex */
-      method == QObject::tr("SNI-REALITY (Yandex 26.4)") ||
-      method == SettingsModel::kBypassMethodSniRealityYandex26_4 ||
-      method == QObject::tr("SNI-REALITY (Yandex 26.3)") ||
-      method == SettingsModel::kBypassMethodSniRealityYandex26_3 ||
-      method == QObject::tr("SNI-REALITY (Yandex 25)") ||
-      method == SettingsModel::kBypassMethodSniRealityYandex25 ||
-      method == QObject::tr("SNI-REALITY (Yandex 24)") ||
-      method == SettingsModel::kBypassMethodSniRealityYandex24 ||
-      /* Safari */
-      method == QObject::tr("SNI-REALITY (Safari 26.5)") ||
-      method == SettingsModel::kBypassMethodSniRealitySafari26_5 ||
-      method == QObject::tr("SNI-REALITY (Safari 26.4)") ||
-      method == SettingsModel::kBypassMethodSniRealitySafari26_4;
+      method != SettingsModel::kBypassMethodObfuscation;
 
   // Show/hide SNI field
   sni_label_->setVisible(is_reality_mode);
@@ -1667,72 +1407,7 @@ void SettingsWidget::onBypassMethodChanged(const QString& method) {
     grid_layout_->removeWidget(sni_files_list_widget_);
   }
 
-  // Set the bypass method
-  if (method == QObject::tr("SNI") ||
-      method == SettingsModel::kBypassMethodSni) {
-    settings_->SetBypassMethod(SettingsModel::kBypassMethodSni);
-  } else if (method == QObject::tr("OBFUSCATION") ||
-             method == SettingsModel::kBypassMethodObfuscation) {
-    settings_->SetBypassMethod(SettingsModel::kBypassMethodObfuscation);
-  }
-  /* Chrome */
-  else if (method == QObject::tr("SNI-REALITY (Chrome 149)") ||
-           method == SettingsModel::kBypassMethodSniRealityChrome149) {
-    settings_->SetBypassMethod(SettingsModel::kBypassMethodSniRealityChrome149);
-  } else if (method == QObject::tr("SNI-REALITY (Chrome 148)") ||
-             method == SettingsModel::kBypassMethodSniRealityChrome148) {
-    settings_->SetBypassMethod(SettingsModel::kBypassMethodSniRealityChrome148);
-  } else if (method == QObject::tr("SNI-REALITY (Chrome 147)") ||
-             method == SettingsModel::kBypassMethodSniRealityChrome147) {
-    settings_->SetBypassMethod(SettingsModel::kBypassMethodSniRealityChrome147);
-  } else if (method == QObject::tr("SNI-REALITY (Chrome 146)") ||
-             method == SettingsModel::kBypassMethodSniRealityChrome146) {
-    settings_->SetBypassMethod(SettingsModel::kBypassMethodSniRealityChrome146);
-  } else if (method == QObject::tr("SNI-REALITY (Chrome 145)") ||
-             method == SettingsModel::kBypassMethodSniRealityChrome145) {
-    settings_->SetBypassMethod(SettingsModel::kBypassMethodSniRealityChrome145);
-  }
-  /* Firefox */
-  else if (method == QObject::tr("SNI-REALITY (Firefox 151)") ||
-           method == SettingsModel::kBypassMethodSniRealityFirefox151) {
-    settings_->SetBypassMethod(
-        SettingsModel::kBypassMethodSniRealityFirefox151);
-  } else if (method == QObject::tr("SNI-REALITY (Firefox 150)") ||
-             method == SettingsModel::kBypassMethodSniRealityFirefox150) {
-    settings_->SetBypassMethod(
-        SettingsModel::kBypassMethodSniRealityFirefox150);
-  } else if (method == QObject::tr("SNI-REALITY (Firefox 149)") ||
-             method == SettingsModel::kBypassMethodSniRealityFirefox149) {
-    settings_->SetBypassMethod(
-        SettingsModel::kBypassMethodSniRealityFirefox149);
-  }
-  /* Yandex */
-  else if (method == QObject::tr("SNI-REALITY (Yandex 26.4)") ||
-           method == SettingsModel::kBypassMethodSniRealityYandex26_4) {
-    settings_->SetBypassMethod(
-        SettingsModel::kBypassMethodSniRealityYandex26_4);
-  } else if (method == QObject::tr("SNI-REALITY (Yandex 26.3)") ||
-             method == SettingsModel::kBypassMethodSniRealityYandex26_3) {
-    settings_->SetBypassMethod(
-        SettingsModel::kBypassMethodSniRealityYandex26_3);
-  } else if (method == QObject::tr("SNI-REALITY (Yandex 24)") ||
-             method == SettingsModel::kBypassMethodSniRealityYandex24) {
-    settings_->SetBypassMethod(SettingsModel::kBypassMethodSniRealityYandex24);
-  }
-  /* Safari */
-  else if (method == QObject::tr("SNI-REALITY (Safari 26.5)") ||
-           method == SettingsModel::kBypassMethodSniRealitySafari26_5) {
-    settings_->SetBypassMethod(
-        SettingsModel::kBypassMethodSniRealitySafari26_5);
-  } else if (method == QObject::tr("SNI-REALITY (Safari 26.4)") ||
-             method == SettingsModel::kBypassMethodSniRealitySafari26_4) {
-    settings_->SetBypassMethod(
-        SettingsModel::kBypassMethodSniRealitySafari26_4);
-  }
-  /* Default */
-  else {
-    settings_->SetBypassMethod(SettingsModel::kBypassMethodSniRealityYandex25);
-  }
+  settings_->SetBypassMethod(method);
 
   if (sni_label_) {
     if (settings_->BypassMethod() != SettingsModel::kBypassMethodSni) {

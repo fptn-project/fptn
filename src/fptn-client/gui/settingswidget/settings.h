@@ -34,6 +34,7 @@ class SettingsWidget : public QDialog {
 
  protected:
   void SetupUi();
+  void FillBypassMethodComboBox();
   void UpdateSniFilesList();
   void UpdateServerTableVisibility();
 

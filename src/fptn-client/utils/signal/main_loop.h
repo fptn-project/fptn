@@ -16,6 +16,9 @@ namespace fptn::utils {
 void WaitForSignal(fptn::vpn::VpnManager& vpn_client) {
   boost::asio::io_context io_context;
   boost::asio::signal_set signals(io_context, SIGINT, SIGTERM);
+#ifndef _WIN32
+  signals.add(SIGHUP);
+#endif
 
   boost::asio::steady_timer check_timer(io_context);
 

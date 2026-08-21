@@ -45,6 +45,14 @@ SERVER_CRT=
 PORT=443
 TUN_INTERFACE_NAME=fptn0
 
+# MTU size of the VPN tunnel interface
+# Leave empty to use the built-in default
+MTU_SIZE=1420
+
+# Path to the file with VPN users (created by fptn-passwd)
+# Leave empty to use the default (/etc/fptn/users.list)
+USERFILE=/etc/fptn/users.list
+
 # Enable detection of probing attempts (experimental; accepted values: true or false)
 ENABLE_DETECT_PROBING=false
 
@@ -72,6 +80,12 @@ ALLOWED_SNI_LIST=
 
 # Block BitTorrent traffic to prevent abuse (accepted values: true or false)
 DISABLE_BITTORRENT=true
+
+# Optional: path to a file with extra domains to block, one per line
+# ('#' starts a comment). Traffic to the addresses these domains and their
+# subdomains resolve to is dropped. The file extends the built-in list.
+# Empty (default) uses only the built-in list.
+DOMAIN_BLACKLIST_FILE=
 
 # Set the USE_REMOTE_SERVER_AUTH variable to true if you need to
 # redirect requests to a master FPTN server for authorization.
@@ -115,7 +129,10 @@ ExecStart=/usr/bin/$(basename "$SERVER_BIN") \
   --default-proxy-domain=\${DEFAULT_PROXY_DOMAIN} \
   --allowed-sni-list=\${ALLOWED_SNI_LIST} \
   --tun-interface-name=\${TUN_INTERFACE_NAME} \
+  --mtu-size=\${MTU_SIZE} \
+  --userfile=\${USERFILE} \
   --disable-bittorrent=\${DISABLE_BITTORRENT} \
+  --domain-blacklist-file=\${DOMAIN_BLACKLIST_FILE} \
   --prometheus-access-key=\${PROMETHEUS_SECRET_ACCESS_KEY} \
   --use-remote-server-auth=\${USE_REMOTE_SERVER_AUTH} \
   --remote-server-auth-host=\${REMOTE_SERVER_AUTH_HOST} \

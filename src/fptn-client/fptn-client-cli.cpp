@@ -10,9 +10,12 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <unistd.h>  // NOLINT(build/include_order)
 #endif
 
+#include <charconv>
 #include <memory>
 #include <set>
+#include <stdexcept>
 #include <string>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -77,24 +80,52 @@ int main(int argc, char* argv[]) {
     args.add_argument("--mtu-size")
         .default_value(FPTN_DEFAULT_MTU_SIZE)
         .help("MTU size")
-        .scan<'i', int>();
+        .action([](const std::string& v) -> int {
+          if (v.empty()) {
+            return FPTN_DEFAULT_MTU_SIZE;
+          }
+          int mtu_size = 0;
+          const auto [end, error] =
+              std::from_chars(v.data(), v.data() + v.size(), mtu_size);
+          if (error != std::errc() || end != v.data() + v.size()) {
+            throw std::runtime_error(
+                fmt::format("Invalid MTU size '{}'. It must be a number", v));
+          }
+          if (mtu_size < 576 || mtu_size > 65535) {
+            throw std::runtime_error(fmt::format(
+                "MTU size {} is out of range [576..65535]", mtu_size));
+          }
+          return mtu_size;
+        });
     args.add_argument("--preferred-server")
         .default_value("")
         .help("Preferred server name (case-insensitive)");
     args.add_argument("--tun-interface-name")
         .default_value("tun0")
-        .help("Network interface name");
+        .help("Network interface name")
+        .action([](const std::string& v) -> std::string {
+          return v.empty() ? "tun0" : v;
+        });
     args.add_argument("--tun-interface-ip")
         .default_value(FPTN_CLIENT_DEFAULT_ADDRESS_IP4)
-        .help("Network interface IPv4 address");
+        .help("Network interface IPv4 address")
+        .action([](const std::string& v) -> std::string {
+          return v.empty() ? FPTN_CLIENT_DEFAULT_ADDRESS_IP4 : v;
+        });
     args.add_argument("--tun-interface-ipv6")
         .default_value(FPTN_CLIENT_DEFAULT_ADDRESS_IP6)
-        .help("Network interface IPv6 address");
+        .help("Network interface IPv6 address")
+        .action([](const std::string& v) -> std::string {
+          return v.empty() ? FPTN_CLIENT_DEFAULT_ADDRESS_IP6 : v;
+        });
     args.add_argument("--sni")
         .default_value(FPTN_DEFAULT_SNI)
         .help(
             "Domain name for SNI in TLS handshake (used to obfuscate VPN "
-            "traffic)");
+            "traffic)")
+        .action([](const std::string& v) -> std::string {
+          return v.empty() ? FPTN_DEFAULT_SNI : v;
+        });
     args.add_argument("--blacklist-domains")
         .default_value(FPTN_CLIENT_DEFAULT_BLACKLIST_DOMAINS)
         .help(
@@ -152,7 +183,10 @@ int main(int argc, char* argv[]) {
             "handshake\n"
             "  sni-spoofing-safari-26-4 - SNI spoofing with Safari 26.4 "
             "handshake\n")
-        .action([&bypass_methods](const std::string& v) {
+        .action([&bypass_methods](const std::string& v) -> std::string {
+          if (v.empty() || v == "sni-spoofing") {
+            return "sni-spoofing-yandex-26-4";
+          }
           if (!bypass_methods.contains(v)) {
             throw std::runtime_error(
                 fmt::format("Invalid bypass method '{}'. Choose from: {}", v,
@@ -167,7 +201,10 @@ int main(int argc, char* argv[]) {
             "  rolling-tunnel        - a single tunnel renewed every 10 mins\n"
             "  dual-rolling-tunnel   - two rolling tunnels in parallel\n"
             "  triple-rolling-tunnel - three rolling tunnels in parallel\n")
-        .action([](const std::string& v) {
+        .action([](const std::string& v) -> std::string {
+          if (v.empty()) {
+            return "rolling-tunnel";
+          }
           if (v != "rolling-tunnel" && v != "dual-rolling-tunnel" &&
               v != "triple-rolling-tunnel") {
             throw std::runtime_error(fmt::format(
@@ -224,7 +261,10 @@ int main(int argc, char* argv[]) {
             "traffic through VPN.\n"
             "  include - Route only specified domains through VPN, bypass VPN "
             "for all other traffic.\n")
-        .action([&tunnel_modes](const std::string& v) {
+        .action([&tunnel_modes](const std::string& v) -> std::string {
+          if (v.empty()) {
+            return "exclude";
+          }
           if (!tunnel_modes.contains(v)) {
             throw std::runtime_error(
                 fmt::format("Invalid tunnel mode '{}'. Choose from: {}", v,
@@ -336,14 +376,13 @@ int main(int argc, char* argv[]) {
       censorship_strategy = CensorshipStrategy::kSniRealityModeFirefox151;
     } else if (bypass_method == "sni-spoofing-firefox-150") {
       censorship_strategy = CensorshipStrategy::kSniRealityModeFirefox150;
-    } else if (bypass_method == "sni-spoofing-firefox149") {
+    } else if (bypass_method == "sni-spoofing-firefox-149") {
       censorship_strategy = CensorshipStrategy::kSniRealityModeFirefox149;
     }
     /* Yandex */
-    // else if (bypass_method == "sni-spoofing-yandex-26-4") {
-    //   censorship_strategy = CensorshipStrategy::kSniRealityModeYandex26_4;
-    // }
-    else if (bypass_method == "sni-spoofing-yandex-26-3") {
+    else if (bypass_method == "sni-spoofing-yandex-26-4") {
+      censorship_strategy = CensorshipStrategy::kSniRealityModeYandex26_4;
+    } else if (bypass_method == "sni-spoofing-yandex-26-3") {
       censorship_strategy = CensorshipStrategy::kSniRealityModeYandex26_3;
     } else if (bypass_method == "sni-spoofing-yandex-25") {
       censorship_strategy = CensorshipStrategy::kSniRealityModeYandex25;

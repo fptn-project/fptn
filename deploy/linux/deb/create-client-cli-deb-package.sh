@@ -62,10 +62,16 @@ GATEWAY_IP=
 # Optional: Specify the gateway IPv6 (e.g., router IPv6)
 GATEWAY_IPv6=
 
+# Optional: MTU size of the VPN tunnel interface
+# Leave empty to use the built-in default
+MTU_SIZE=1420
+
+# Block ads and trackers at the DNS level (accepted values: true or false)
+ENABLE_AD_BLOCK=true
+
 # Censorship Bypass Settings
 # Optional: Method to bypass censorship mechanisms
 # Available options:
-#   - sni-spoofing              - SNI spoofing (default fingerprint)
 #   - obfuscation               - Masks traffic as regular HTTPS using TLS obfuscation
 #   - sni-spoofing-chrome-149   - SNI spoofing with Chrome 149 browser fingerprint
 #   - sni-spoofing-chrome-148   - SNI spoofing with Chrome 148 browser fingerprint
@@ -75,12 +81,14 @@ GATEWAY_IPv6=
 #   - sni-spoofing-firefox-151  - SNI spoofing with Firefox 151 browser fingerprint
 #   - sni-spoofing-firefox-150  - SNI spoofing with Firefox 150 browser fingerprint
 #   - sni-spoofing-firefox-149  - SNI spoofing with Firefox 149 browser fingerprint
-#   - sni-spoofing-yandex-26-3  - SNI spoofing with Yandex Browser 26 fingerprint
+#   - sni-spoofing-yandex-26-4  - SNI spoofing with Yandex Browser 26.4 fingerprint
+#   - sni-spoofing-yandex-26-3  - SNI spoofing with Yandex Browser 26.3 fingerprint
 #   - sni-spoofing-yandex-25    - SNI spoofing with Yandex Browser 25 fingerprint
 #   - sni-spoofing-yandex-24    - SNI spoofing with Yandex Browser 24 fingerprint
-#   - sni-spoofing-safari-26-5  - SNI spoofing with Safari 26 browser fingerprint
-#   - sni-spoofing-safari-26-4  - SNI spoofing with Safari 26 browser fingerprint
-BYPASS_METHOD=sni-spoofing
+#   - sni-spoofing-safari-26-5  - SNI spoofing with Safari 26.5 browser fingerprint
+#   - sni-spoofing-safari-26-4  - SNI spoofing with Safari 26.4 browser fingerprint
+# Leave empty to use the default (sni-spoofing-yandex-26-4)
+BYPASS_METHOD=sni-spoofing-yandex-26-4
 
 
 # Blacklist domains - always blocked regardless of other settings
@@ -144,7 +152,9 @@ ExecStart=/usr/bin/$(basename "$CLIENT_CLI") \
     --gateway-ip "\${GATEWAY_IP}" \
     --gateway-ipv6 "\${GATEWAY_IPv6}" \
     --sni "\${SNI}" \
+    --mtu-size=\${MTU_SIZE} \
     --bypass-method "\${BYPASS_METHOD}" \
+    --enable-ad-block=\${ENABLE_AD_BLOCK} \
     --blacklist-domains "\${BLACKLIST_DOMAINS}" \
     --enable-split-tunnel=\${ENABLE_SPLIT_TUNNEL} \
     --split-tunnel-mode "\${SPLIT_TUNNEL_MODE}" \
