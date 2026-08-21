@@ -177,7 +177,9 @@ bool AddIPv4RouteToSystem(const std::string& destination,
 #else
     return false;
 #endif
-    fptn::common::system::command::run(command);
+    if (!fptn::common::system::command::run(command)) {
+      SPDLOG_ERROR("Failed to add IPv4 route: {}", command);
+    }
     return true;
   } catch (const std::exception& e) {
     SPDLOG_ERROR("Failed to add IPv4 route {}: {}", destination, e.what());
@@ -214,7 +216,9 @@ bool AddIPv6RouteToSystem(const std::string& destination,
 #else
     return false;
 #endif
-    fptn::common::system::command::run(command);
+    if (!fptn::common::system::command::run(command)) {
+      SPDLOG_ERROR("Failed to add IPv6 route: {}", command);
+    }
     return true;
   } catch (const std::exception& e) {
     SPDLOG_ERROR("Failed to add IPv6 route {}: {}", destination, e.what());
@@ -347,13 +351,15 @@ bool RouteManager::Apply(std::string tun_name) {
   }
   if (!config_.gateway_ipv4.IsEmpty()) {
     detected_gateway_ipv4_ = config_.gateway_ipv4;
-  } else if (detected_gateway_ipv4_.IsEmpty()) {
-    detected_gateway_ipv4_ = GetDefaultGatewayIPAddress();
+  } else if (const auto gateway_ipv4 = GetDefaultGatewayIPAddress();
+             !gateway_ipv4.IsEmpty()) {
+    detected_gateway_ipv4_ = gateway_ipv4;
   }
   if (!config_.gateway_ipv6.IsEmpty()) {
     detected_gateway_ipv6_ = config_.gateway_ipv6;
-  } else if (detected_gateway_ipv6_.IsEmpty()) {
-    detected_gateway_ipv6_ = GetDefaultGatewayIPv6Address();
+  } else if (const auto gateway_ipv6 = GetDefaultGatewayIPv6Address();
+             !gateway_ipv6.IsEmpty()) {
+    detected_gateway_ipv6_ = gateway_ipv6;
   }
 
   const bool has_custom_dns = config_.custom_dns_ipv4.IsValid();
@@ -695,7 +701,7 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
       interface_name = tun_interface_name_;
     }
     del_commands.push_back(BuildRemoveIPv4RouteCommand(
-        ip.destination, config_.gateway_ipv4.ToString(), interface_name));
+        ip.destination, detected_gateway_ipv4_.ToString(), interface_name));
   }
   dns_routes_ipv4_.clear();
 
@@ -714,15 +720,19 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
       interface_name = tun_interface_name_;
     }
     del_commands.push_back(BuildRemoveIPv6RouteCommand(
-        ip.destination, config_.gateway_ipv6.ToString(), interface_name));
+        ip.destination, detected_gateway_ipv6_.ToString(), interface_name));
   }
   dns_routes_ipv6_.clear();
+
+  const std::string exclude_interface_name =
+      !detected_out_interface_name_.empty() ? detected_out_interface_name_
+                                            : config_.out_interface_name;
 
   // clean route ipv4
   for (const auto& route : additional_routes_ipv4_) {
     if (route.policy == RoutingPolicy::kExcludeFromVpn) {
       del_commands.push_back(BuildRemoveIPv4RouteCommand(route.destination,
-          config_.gateway_ipv4.ToString(), config_.out_interface_name));
+          detected_gateway_ipv4_.ToString(), exclude_interface_name));
     } else {
       // Include route - remove through VPN interface
       del_commands.push_back(BuildRemoveIPv4RouteCommand(route.destination,
@@ -735,7 +745,7 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
   for (const auto& route : additional_routes_ipv6_) {
     if (route.policy == RoutingPolicy::kExcludeFromVpn) {
       del_commands.push_back(BuildRemoveIPv6RouteCommand(route.destination,
-          config_.gateway_ipv6.ToString(), config_.out_interface_name));
+          detected_gateway_ipv6_.ToString(), exclude_interface_name));
     } else {
       // Include route - remove through VPN interface
       del_commands.push_back(BuildRemoveIPv6RouteCommand(route.destination,
@@ -1049,7 +1059,9 @@ bool RouteManager::ApplyDnsRoutesIPv4(
       } else {
         interface_name = config_.out_interface_name;
       }
-      gateway_ip = config_.gateway_ipv4.ToString();
+      if (!detected_gateway_ipv4_.IsEmpty()) {
+        gateway_ip = detected_gateway_ipv4_.ToString();
+      }
     } else {
       interface_name = tun_interface_name_;
       gateway_ip = config_.tun_interface_address_ipv4.ToString();
@@ -1062,6 +1074,12 @@ bool RouteManager::ApplyDnsRoutesIPv4(
   if (interface_name.empty()) {
     SPDLOG_WARN(
         "Cannot add DNS IPv4 routes: interface name is empty for policy {}",
+        policy == RoutingPolicy::kExcludeFromVpn ? "EXCLUDE" : "INCLUDE");
+    return false;
+  }
+
+  if (gateway_ip.empty()) {
+    SPDLOG_WARN("Cannot add DNS IPv4 routes: gateway IP is empty for policy {}",
         policy == RoutingPolicy::kExcludeFromVpn ? "EXCLUDE" : "INCLUDE");
     return false;
   }
@@ -1134,7 +1152,9 @@ bool RouteManager::ApplyDnsRoutesIPv6(
       } else {
         interface_name = config_.out_interface_name;
       }
-      gateway_ip = config_.gateway_ipv6.ToString();
+      if (!detected_gateway_ipv6_.IsEmpty()) {
+        gateway_ip = detected_gateway_ipv6_.ToString();
+      }
     } else {
       interface_name = tun_interface_name_;
       gateway_ip = config_.tun_interface_address_ipv6.ToString();
@@ -1242,10 +1262,10 @@ bool RouteManager::AddExcludeNetworks(
 
       if (is_ipv6) {
         success = AddIPv6RouteToSystem(
-            network, config_.gateway_ipv6.ToString(), interface_name);
+            network, detected_gateway_ipv6_.ToString(), interface_name);
       } else {
         success = AddIPv4RouteToSystem(
-            network, config_.gateway_ipv4.ToString(), interface_name);
+            network, detected_gateway_ipv4_.ToString(), interface_name);
       }
 
       if (success) {
