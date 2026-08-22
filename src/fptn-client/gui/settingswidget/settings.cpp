@@ -34,7 +34,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "gui/translations/translations.h"
 
 namespace {
-constexpr int kAdvancedIndent = 20;
+constexpr int kAdvancedIndent = 10;
 
 QString CleanDomain(const QString& domain) {
   if (domain.isEmpty()) {
@@ -129,7 +129,7 @@ void SettingsWidget::SetupUi() {
   auto* settings_content_widget = new QWidget();
   settings_content_widget->setMinimumWidth(600);
   auto* settings_layout = new QVBoxLayout(settings_content_widget);
-  settings_layout->setContentsMargins(5, 5, 5, 5);
+  settings_layout->setContentsMargins(10, 5, 5, 5);
 
   grid_layout_ = new QGridLayout();
   grid_layout_->setContentsMargins(0, 0, 0, 0);
@@ -380,7 +380,7 @@ void SettingsWidget::SetupUi() {
 
   auto* routing_content_widget = new QWidget();
   auto* routing_layout = new QVBoxLayout(routing_content_widget);
-  routing_layout->setContentsMargins(10, 10, 10, 10);
+  routing_layout->setContentsMargins(10, 10, 5, 10);
   routing_layout->setSpacing(5);
 
   routing_grid_layout_ = new QGridLayout();
@@ -410,6 +410,8 @@ void SettingsWidget::SetupUi() {
                   "Recommended when using split tunneling. Use with caution!"),
       this);
   enable_dns_management_info_label_->setWordWrap(true);
+  enable_dns_management_info_label_->setAlignment(
+      Qt::AlignLeft | Qt::AlignTop);
   enable_dns_management_info_label_->setStyleSheet(kInfoLabelStyle);
   enable_dns_management_info_label_->setMinimumHeight(70);
   auto* dns_label_container = new QWidget(this);
@@ -440,11 +442,9 @@ void SettingsWidget::SetupUi() {
                              "VPN and which go directly."),
           this);
   enable_split_tunnel_info_label_->setWordWrap(true);
+  enable_split_tunnel_info_label_->setAlignment(Qt::AlignLeft | Qt::AlignTop);
   enable_split_tunnel_info_label_->setMinimumHeight(60);
   enable_split_tunnel_info_label_->setStyleSheet(kInfoLabelStyle);
-  enable_split_tunnel_info_label_->setSizePolicy(
-      QSizePolicy::Expanding, QSizePolicy::Fixed);
-  enable_split_tunnel_info_label_->setFixedHeight(40);
 
   auto* enable_split_label_container = new QWidget(this);
   auto* enable_split_label_layout =
@@ -480,9 +480,8 @@ void SettingsWidget::SetupUi() {
       QObject::tr("Defines traffic routing strategy for split tunneling."),
       this);
   split_tunnel_mode_info_label_->setWordWrap(true);
-  split_tunnel_mode_info_label_->setSizePolicy(
-      QSizePolicy::Expanding, QSizePolicy::Fixed);
-  split_tunnel_mode_info_label_->setFixedHeight(40);
+  split_tunnel_mode_info_label_->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+  split_tunnel_mode_info_label_->setMinimumHeight(60);
   split_tunnel_mode_info_label_->setStyleSheet(kInfoLabelStyle);
 
   auto* split_mode_label_container = new QWidget(this);
@@ -495,6 +494,7 @@ void SettingsWidget::SetupUi() {
   split_mode_label_layout->addStretch(1);
 
   split_tunnel_mode_combo_box_ = new QComboBox(this);
+  split_tunnel_mode_combo_box_->setMinimumWidth(200);
   split_tunnel_mode_combo_box_->addItem(
       QObject::tr("Exclude"), SettingsModel::kSplitTunnelModeExclude);
   split_tunnel_mode_combo_box_->addItem(
@@ -552,6 +552,7 @@ void SettingsWidget::SetupUi() {
                     "will go directly, all other traffic uses VPN"));
   }
   split_tunnel_domains_info_label_->setWordWrap(true);
+  split_tunnel_domains_info_label_->setAlignment(Qt::AlignLeft | Qt::AlignTop);
   split_tunnel_domains_info_label_->setStyleSheet(kInfoLabelStyle);
 
   auto* split_domains_label_container = new QWidget(this);
@@ -631,6 +632,7 @@ void SettingsWidget::SetupUi() {
                   "subdomains. Format: example.com (one per line)"),
       this);
   blacklist_domains_info_label_->setWordWrap(true);
+  blacklist_domains_info_label_->setAlignment(Qt::AlignLeft | Qt::AlignTop);
   blacklist_domains_info_label_->setMinimumHeight(60);
   blacklist_domains_info_label_->setStyleSheet(kInfoLabelStyle);
 
@@ -668,6 +670,8 @@ void SettingsWidget::SetupUi() {
                   "Traffic to these networks goes directly, never through VPN"),
       this);
   exclude_tunnel_networks_info_label_->setWordWrap(true);
+  exclude_tunnel_networks_info_label_->setAlignment(
+      Qt::AlignLeft | Qt::AlignTop);
   exclude_tunnel_networks_info_label_->setMinimumHeight(60);
   exclude_tunnel_networks_info_label_->setStyleSheet(kInfoLabelStyle);
 
@@ -706,6 +710,8 @@ void SettingsWidget::SetupUi() {
                   "Traffic to these networks always goes through VPN"),
       this);
   include_tunnel_networks_info_label_->setWordWrap(true);
+  include_tunnel_networks_info_label_->setAlignment(
+      Qt::AlignLeft | Qt::AlignTop);
   include_tunnel_networks_info_label_->setMinimumHeight(60);
   include_tunnel_networks_info_label_->setStyleSheet(kInfoLabelStyle);
 
@@ -764,7 +770,7 @@ void SettingsWidget::SetupUi() {
 
   auto* about_content_widget = new QWidget();
   auto* about_layout = new QVBoxLayout(about_content_widget);
-  about_layout->setContentsMargins(5, 5, 5, 5);
+  about_layout->setContentsMargins(10, 5, 5, 5);
   about_layout->setSpacing(10);
 
   auto* fptn_label = new QLabel("FPTN", this);

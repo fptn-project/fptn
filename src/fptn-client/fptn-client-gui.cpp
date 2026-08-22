@@ -95,8 +95,8 @@ int main(int argc, char* argv[]) {
 
     QApplication app(argc, argv);
     const auto settings =
-        std::make_shared<fptn::gui::SettingsModel>(QMap<QString, QString>{
-            {"en", "English"}, {"ru", "Русский"}, {"fa", "فارسی"}});
+        std::make_shared<fptn::gui::SettingsModel>(
+            QMap<QString, QString>{{"en", "English"}, {"ru", "Русский"}});
 
     // Start GUI app
     fptn::gui::TrayApp tray(settings);

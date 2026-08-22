@@ -21,17 +21,22 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <vector>
 
 #include <boost/asio.hpp>
+#include <openssl/evp.h>    // NOLINT(build/include_order)
 #include <spdlog/spdlog.h>  // NOLINT(build/include_order)
 
-#include <QDateTime>          // NOLINT(build/include_order)
-#include <QDir>               // NOLINT(build/include_order)
-#include <QFile>              // NOLINT(build/include_order)
-#include <QJsonArray>         // NOLINT(build/include_order)
-#include <QJsonDocument>      // NOLINT(build/include_order)
-#include <QJsonObject>        // NOLINT(build/include_order)
-#include <QNetworkInterface>  // NOLINT(build/include_order)
-#include <QStandardPaths>     // NOLINT(build/include_order)
-#include <QTcpSocket>         // NOLINT(build/include_order)
+#include <QCryptographicHash>  // NOLINT(build/include_order)
+#include <QDateTime>           // NOLINT(build/include_order)
+#include <QDir>                // NOLINT(build/include_order)
+#include <QFile>               // NOLINT(build/include_order)
+#include <QJsonArray>          // NOLINT(build/include_order)
+#include <QJsonDocument>       // NOLINT(build/include_order)
+#include <QJsonObject>         // NOLINT(build/include_order)
+#include <QNetworkInterface>   // NOLINT(build/include_order)
+#include <QRandomGenerator>    // NOLINT(build/include_order)
+#include <QSaveFile>           // NOLINT(build/include_order)
+#include <QStandardPaths>      // NOLINT(build/include_order)
+#include <QSysInfo>            // NOLINT(build/include_order)
+#include <QTcpSocket>          // NOLINT(build/include_order)
 
 #include "routing//route_manager.h"
 // cppcheck-suppress missingInclude
@@ -88,6 +93,106 @@ QVector<QString> SplitStringToVector(const QString& str) {
 
 QString JoinVectorToString(const QVector<QString>& vec) {
   return vec.join(',');
+}
+
+constexpr char kEncryptedMagic[] = "FPTNSET1";
+constexpr char kKeySalt[] = "fptn-settings-key-v1";
+constexpr int kMagicSize = 8;
+constexpr int kKeySize = 32;
+constexpr int kNonceSize = 12;
+constexpr int kTagSize = 16;
+
+QByteArray RandomBytes(int size) {
+  QByteArray bytes(size, 0);
+  QRandomGenerator::system()->fillRange(
+      reinterpret_cast<quint32*>(bytes.data()), size / 4);
+  return bytes;
+}
+
+QByteArray DerivedKey() {
+  const QByteArray machine_id = QSysInfo::machineUniqueId();
+  if (machine_id.isEmpty()) {
+    SPDLOG_WARN("Machine ID is unavailable, using fallback settings key");
+  }
+  return QCryptographicHash::hash(
+      QByteArray(kKeySalt) + machine_id, QCryptographicHash::Sha256);
+}
+
+QByteArray Encrypt(const QByteArray& plain, const QByteArray& key) {
+  if (key.size() != kKeySize) {
+    return {};
+  }
+
+  EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+  if (ctx == nullptr) {
+    return {};
+  }
+
+  const QByteArray nonce = RandomBytes(kNonceSize);
+  QByteArray cipher(plain.size(), 0);
+  QByteArray tag(kTagSize, 0);
+
+  int len = 0;
+  int final_len = 0;
+  const bool ok =
+      EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), nullptr,
+          reinterpret_cast<const unsigned char*>(key.constData()),
+          reinterpret_cast<const unsigned char*>(nonce.constData())) == 1 &&
+      EVP_EncryptUpdate(ctx, reinterpret_cast<unsigned char*>(cipher.data()),
+          &len, reinterpret_cast<const unsigned char*>(plain.constData()),
+          static_cast<int>(plain.size())) == 1 &&
+      EVP_EncryptFinal_ex(ctx,
+          reinterpret_cast<unsigned char*>(cipher.data()) + len,
+          &final_len) == 1 &&
+      EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, kTagSize, tag.data()) == 1;
+  EVP_CIPHER_CTX_free(ctx);
+
+  if (!ok) {
+    return {};
+  }
+  cipher.resize(len + final_len);
+  return QByteArray(kEncryptedMagic, kMagicSize) + nonce + cipher + tag;
+}
+
+QByteArray Decrypt(const QByteArray& blob, const QByteArray& key) {
+  if (key.size() != kKeySize ||
+      blob.size() < kMagicSize + kNonceSize + kTagSize ||
+      !blob.startsWith(QByteArray(kEncryptedMagic, kMagicSize))) {
+    return {};
+  }
+
+  EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+  if (ctx == nullptr) {
+    return {};
+  }
+
+  const QByteArray nonce = blob.mid(kMagicSize, kNonceSize);
+  const QByteArray cipher = blob.mid(kMagicSize + kNonceSize,
+      blob.size() - kMagicSize - kNonceSize - kTagSize);
+  QByteArray tag = blob.last(kTagSize);
+
+  QByteArray plain(cipher.size(), 0);
+  int len = 0;
+  int final_len = 0;
+  const bool ok =
+      EVP_DecryptInit_ex(ctx, EVP_aes_256_gcm(), nullptr,
+          reinterpret_cast<const unsigned char*>(key.constData()),
+          reinterpret_cast<const unsigned char*>(nonce.constData())) == 1 &&
+      EVP_DecryptUpdate(ctx, reinterpret_cast<unsigned char*>(plain.data()),
+          &len, reinterpret_cast<const unsigned char*>(cipher.constData()),
+          static_cast<int>(cipher.size())) == 1 &&
+      EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, kTagSize, tag.data()) ==
+          1 &&
+      EVP_DecryptFinal_ex(ctx,
+          reinterpret_cast<unsigned char*>(plain.data()) + len,
+          &final_len) == 1;
+  EVP_CIPHER_CTX_free(ctx);
+
+  if (!ok) {
+    return {};
+  }
+  plain.resize(len + final_len);
+  return plain;
 }
 
 };  // namespace
@@ -153,7 +258,7 @@ SettingsModel::~SettingsModel() {
 
 QString SettingsModel::GetSettingsFilePath() const {
   const QString directory = GetSettingsFolderPath();
-  return directory + "/fptn-settings-5.json";
+  return directory + "/settings-1.bin";
 }
 
 // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
@@ -184,8 +289,14 @@ void SettingsModel::Load(bool dont_load_server) {
     return;
   }
 
-  const QByteArray data = file.readAll();
+  const QByteArray raw = file.readAll();
   file.close();
+
+  const QByteArray data = Decrypt(raw, DerivedKey());
+  if (data.isEmpty()) {
+    SPDLOG_WARN("Failed to decrypt settings: {}", file_path.toStdString());
+  }
+
   const QJsonDocument document = QJsonDocument::fromJson(data);
   const QJsonObject service_obj = document.object();
 
@@ -219,6 +330,10 @@ void SettingsModel::Load(bool dont_load_server) {
 
   if (service_obj.contains("language")) {
     selected_language_ = service_obj["language"].toString();
+  }
+  if (!selected_language_.isEmpty() &&
+      !languages_.contains(selected_language_)) {
+    selected_language_ = default_language_;
   }
   if (service_obj.contains("autostart")) {
     client_autostart_ = service_obj["autostart"].toBool();
@@ -333,7 +448,7 @@ void SettingsModel::Load(bool dont_load_server) {
   }
   if (!custom_dns_.isEmpty() &&
       !fptn::common::network::IPv4Address(custom_dns_.toStdString())
-           .IsValid()) {
+          .IsValid()) {
     custom_dns_.clear();
   }
 }
@@ -387,14 +502,6 @@ bool SettingsModel::ExistsTranslation(const QString& language_code) const {
 
 bool SettingsModel::Save() {
   const std::unique_lock<std::mutex> lock(mutex_);  // mutex
-
-  QString file_path = GetSettingsFilePath();
-  QFile file(file_path);
-  if (!file.open(QIODevice::WriteOnly)) {
-    SPDLOG_ERROR(
-        "Failed to open file for writing: {}", file_path.toStdString());
-    return false;
-  }
 
   QJsonObject json_object;
   QJsonArray services_array;
@@ -455,13 +562,30 @@ bool SettingsModel::Save() {
   json_object["split_tunnel_domains"] = split_tunnel_domains_;
   json_object["custom_dns"] = custom_dns_;
 
-  QJsonDocument document(json_object);
-  auto len = file.write(document.toJson());
-  file.close();
+  const QJsonDocument document(json_object);
+  const QByteArray data = Encrypt(document.toJson(), DerivedKey());
+  if (data.isEmpty()) {
+    SPDLOG_ERROR("Failed to encrypt settings");
+    return false;
+  }
+
+  const QString file_path = GetSettingsFilePath();
+  QSaveFile file(file_path);
+  if (!file.open(QIODevice::WriteOnly)) {
+    SPDLOG_ERROR(
+        "Failed to open file for writing: {}", file_path.toStdString());
+    return false;
+  }
+  if (file.write(data) != data.size() || !file.commit()) {
+    SPDLOG_ERROR("Failed to write settings: {}", file_path.toStdString());
+    return false;
+  }
+  QFile::setPermissions(
+      file_path, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
 
   emit dataChanged();
 
-  return len > 0;
+  return true;
 }
 
 // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
