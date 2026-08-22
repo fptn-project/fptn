@@ -40,6 +40,19 @@ add_executable(AntiScanTest filter/antiscan/AntiScanTest.cpp ${FPTN_SERVER_PATH}
 target_link_libraries(AntiScanTest PRIVATE ${LIBS})
 add_test(NAME AntiScanTest COMMAND AntiScanTest)
 
+# --- AntiSpam test ---
+add_executable(AntiSpamTest filter/antispam/AntiSpamTest.cpp ${FPTN_SERVER_PATH}/filter/filters/antispam/antispam.h
+                            ${FPTN_SERVER_PATH}/filter/filters/antispam/antispam.cpp)
+target_link_libraries(AntiSpamTest PRIVATE ${LIBS})
+add_test(NAME AntiSpamTest COMMAND AntiSpamTest)
+
+# --- BitTorrent test ---
+add_executable(
+  BitTorrentTest filter/bittorrent/BitTorrentTest.cpp ${FPTN_SERVER_PATH}/filter/filters/bittorrent/bittorrent.h
+                 ${FPTN_SERVER_PATH}/filter/filters/bittorrent/bittorrent.cpp)
+target_link_libraries(BitTorrentTest PRIVATE ${LIBS})
+add_test(NAME BitTorrentTest COMMAND BitTorrentTest)
+
 # --- DomainBlacklist test ---
 add_executable(
   DomainBlacklistTest filter/domain_blacklist/DomainBlacklistTest.cpp

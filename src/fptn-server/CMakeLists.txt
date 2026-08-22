@@ -62,6 +62,8 @@ add_executable(
   filter/filters/base_filter.h
   filter/filters/antiscan/antiscan.h
   filter/filters/antiscan/antiscan.cpp
+  filter/filters/antispam/antispam.h
+  filter/filters/antispam/antispam.cpp
   filter/filters/bittorrent/bittorrent.h
   filter/filters/bittorrent/bittorrent.cpp
   filter/filters/domain_blacklist/domain_blacklist.h

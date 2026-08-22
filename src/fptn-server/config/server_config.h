@@ -42,7 +42,8 @@ class ServerConfig {
   [[nodiscard]] std::uint32_t TunInterfaceNetworkIPv6Mask() const;
 
   [[nodiscard]] std::string UserFile() const;
-  [[nodiscard]] bool DisableBittorrent() const;
+  [[nodiscard]] bool DisableTorrentFilter() const;
+  [[nodiscard]] bool DisableSpamFilter() const;
   [[nodiscard]] std::string DomainBlacklistFile() const;
   [[nodiscard]] std::string PrometheusAccessKey() const;
 
