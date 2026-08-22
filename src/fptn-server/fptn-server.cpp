@@ -22,6 +22,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include "config/server_config.h"
 #include "filter/filters/antiscan/antiscan.h"
+#include "filter/filters/antispam/antispam.h"
 #include "filter/filters/bittorrent/bittorrent.h"
 #include "filter/filters/domain_blacklist/domain_blacklist.h"
 #include "filter/manager.h"
@@ -123,9 +124,13 @@ int main(int argc, char* argv[]) {
 
     /* init from-client packet filter */
     auto from_client_filter_manager = std::make_shared<fptn::filter::Manager>();
-    if (config->DisableBittorrent()) {  // block bittorrent traffic
+    if (config->DisableTorrentFilter()) {  // block bittorrent traffic
       from_client_filter_manager->Add(
           std::make_shared<fptn::filter::BitTorrent>());
+    }
+    if (config->DisableSpamFilter()) {
+      from_client_filter_manager->Add(
+          std::make_shared<fptn::filter::AntiSpam>());
     }
     // Prevent sending requests to the VPN virtual network from the client
     from_client_filter_manager->Add(std::make_shared<fptn::filter::AntiScan>(
@@ -178,7 +183,8 @@ int main(int argc, char* argv[]) {
         "DEFAULT_PROXY_DOMAIN: {}\n"
         "ALLOWED_SNI_LIST:     {}\n"
         "DOMAIN BLACKLIST:     {}\n"
-        "BLOCK BITTORRENT:     {}\n"
+        "TORRENT FILTER:       {}\n"
+        "SPAM FILTER:          {}\n"
         "MAX_ACTIVE_SESSIONS_PER_USER: {}\n",
         FPTN_VERSION,
         // Network settings
@@ -191,7 +197,8 @@ int main(int argc, char* argv[]) {
         config->DefaultProxyDomain(),
         fmt::format("[{}]", fmt::join(config->AllowedSniList(), ", ")),
         // Packet filters
-        domain_blacklist_status, config->DisableBittorrent() ? "YES" : "NO",
+        domain_blacklist_status, config->DisableTorrentFilter() ? "YES" : "NO",
+        config->DisableSpamFilter() ? "YES" : "NO",
         // max session
         config->MaxActiveSessionsPerUser());
 

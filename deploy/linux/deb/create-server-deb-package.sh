@@ -78,8 +78,20 @@ DEFAULT_PROXY_DOMAIN=cdnvideo.com
 #   This allows: example.com, test.org and ALL their subdomains
 ALLOWED_SNI_LIST=
 
-# Block BitTorrent traffic to prevent abuse (accepted values: true or false)
-DISABLE_BITTORRENT=true
+# Block BitTorrent traffic to prevent abuse
+# (accepted values: true or false; enabled unless set to false)
+DISABLE_TORRENT_FILTER=true
+
+# Block the client traffic that gets this server blacklisted
+# (accepted values: true or false; enabled unless set to false). It drops:
+#   - outgoing mail: TCP 25, 465, 587, 2525, and any TCP stream that starts
+#     with an SMTP command, whatever port it uses
+#   - telnet brute-force: TCP 23
+#   - NetBIOS and SMB worms: TCP 135, 137-139, 445 and UDP 137, 138
+#   - amplification reflectors: UDP 1900, 11211
+# NOTE: the mail part also stops desktop mail clients (Thunderbird, Outlook)
+# of your legitimate users from sending mail through the tunnel.
+DISABLE_SPAM_FILTER=true
 
 # Optional: path to a file with extra domains to block, one per line
 # ('#' starts a comment). Traffic to the addresses these domains and their
@@ -131,7 +143,8 @@ ExecStart=/usr/bin/$(basename "$SERVER_BIN") \
   --tun-interface-name=\${TUN_INTERFACE_NAME} \
   --mtu-size=\${MTU_SIZE} \
   --userfile=\${USERFILE} \
-  --disable-bittorrent=\${DISABLE_BITTORRENT} \
+  --disable-torrent-filter=\${DISABLE_TORRENT_FILTER} \
+  --disable-spam-filter=\${DISABLE_SPAM_FILTER} \
   --domain-blacklist-file=\${DOMAIN_BLACKLIST_FILE} \
   --prometheus-access-key=\${PROMETHEUS_SECRET_ACCESS_KEY} \
   --use-remote-server-auth=\${USE_REMOTE_SERVER_AUTH} \

@@ -87,18 +87,23 @@ inline std::string ParseDnsName(const std::uint8_t* base,
       break;
     }
     if ((len & 0xC0u) == 0xC0u) {
-      if (ptr + 2 > end) {
+      if (end - ptr < 2) {
         break;
       }
       if (!jumped) {
         cur = ptr + 2;
       }
       jumped = true;
-      ptr = base + (static_cast<std::uint16_t>(len & 0x3Fu) << 8 | ptr[1]);
+      const std::size_t offset =
+          (static_cast<std::size_t>(len & 0x3Fu) << 8) | ptr[1];
+      if (offset >= static_cast<std::size_t>(end - base)) {
+        break;
+      }
+      ptr = base + offset;
       continue;
     }
     ++ptr;
-    if (ptr + len > end) {
+    if (static_cast<std::size_t>(end - ptr) < len) {
       break;
     }
     if (!name.empty()) {
@@ -108,6 +113,27 @@ inline std::string ParseDnsName(const std::uint8_t* base,
     ptr += len;
   }
   return name;
+}
+
+template <typename Byte>
+inline bool SkipDnsName(Byte*& cur, const std::uint8_t* end) noexcept {
+  for (int i = 0; i < 256 && cur < end; ++i) {
+    const std::uint8_t len = *cur;
+    if (len == 0u) {
+      ++cur;
+      return true;
+    }
+    const bool compressed = (len & 0xC0u) == 0xC0u;
+    const std::size_t step = compressed ? 2u : 1u + len;
+    if (static_cast<std::size_t>(end - cur) < step) {
+      return false;
+    }
+    cur += step;
+    if (compressed) {
+      return true;
+    }
+  }
+  return false;
 }
 
 inline const std::uint8_t* DnsAnswerStart(const std::uint8_t* dns,
@@ -127,17 +153,8 @@ inline const std::uint8_t* DnsAnswerStart(const std::uint8_t* dns,
 
   const std::uint8_t* cur = dns + kDnsHdr;
   for (int q = 0; q < qdcount && cur < end; ++q) {
-    for (int s = 0; s < 256 && cur < end; ++s) {
-      const std::uint8_t l = *cur;
-      if (l == 0u) {
-        ++cur;
-        break;
-      }
-      if ((l & 0xC0u) == 0xC0u) {
-        cur += 2;
-        break;
-      }
-      cur += 1 + l;
+    if (!SkipDnsName(cur, end) || end - cur < 4) {
+      return nullptr;
     }
     cur += 4;  // QTYPE + QCLASS
   }
@@ -423,6 +440,25 @@ class IPPacket {
     return name;
   }
 
+  bool IsDnsMxQuery() const noexcept {
+    constexpr std::uint16_t kMxRecordType = 15;
+
+    const std::uint8_t* dns = DnsPtr();
+    if (!dns) {
+      return false;
+    }
+    if ((dns[2] & 0x80u) != 0u || ReadU16Be(dns + 4) == 0) {
+      return false;
+    }
+    const std::uint8_t* end = data_.data() + data_.size();
+    const std::uint8_t* cur = dns + detail::kDnsHdr;
+    detail::ParseDnsName(dns, end, cur);
+    if (cur < dns || end - cur < 2) {
+      return false;
+    }
+    return ReadU16Be(cur) == kMxRecordType;
+  }
+
   std::vector<IPv4Address> GetDnsIPv4Addresses() const noexcept {
     const std::uint8_t* dns = DnsPtr();
     if (!dns) {
@@ -437,20 +473,7 @@ class IPPacket {
 
     std::vector<IPv4Address> out;
     for (int a = 0; a < ancount && cur < end; ++a) {
-      // skip NAME
-      for (int s = 0; s < 256 && cur < end; ++s) {
-        const std::uint8_t l = *cur;
-        if (l == 0u) {
-          ++cur;
-          break;
-        }
-        if ((l & 0xC0u) == 0xC0u) {
-          cur += 2;
-          break;
-        }
-        cur += 1 + l;
-      }
-      if (cur + 10 > end) {
+      if (!detail::SkipDnsName(cur, end) || end - cur < 10) {
         break;
       }
 
@@ -459,7 +482,7 @@ class IPPacket {
       const std::uint16_t rdlen = ReadU16Be(cur);
       cur += 2;
 
-      if (cur + rdlen > end) {
+      if (static_cast<std::size_t>(end - cur) < rdlen) {
         break;
       }
       if (rtype == 1u && rdlen == 4u) {  // A record
@@ -492,27 +515,14 @@ class IPPacket {
 
     std::vector<IPv6Address> out;
     for (int a = 0; a < ancount && cur < end; ++a) {
-      // skip NAME
-      for (int s = 0; s < 256 && cur < end; ++s) {
-        const std::uint8_t l = *cur;
-        if (l == 0u) {
-          ++cur;
-          break;
-        }
-        if ((l & 0xC0u) == 0xC0u) {
-          cur += 2;
-          break;
-        }
-        cur += 1 + l;
-      }
-      if (cur + 10 > end) {
+      if (!detail::SkipDnsName(cur, end) || end - cur < 10) {
         break;
       }
       const std::uint16_t rtype = ReadU16Be(cur);
       cur += 8;  // TYPE + CLASS + TTL
       const std::uint16_t rdlen = ReadU16Be(cur);
       cur += 2;
-      if (cur + rdlen > end) {
+      if (static_cast<std::size_t>(end - cur) < rdlen) {
         break;
       }
       if (rtype == 28u && rdlen == 16u) {  // AAAA record
@@ -545,27 +555,14 @@ class IPPacket {
 
     bool rewritten = false;
     for (int a = 0; a < ancount && cur < end; ++a) {
-      // skip NAME
-      for (int s = 0; s < 256 && cur < end; ++s) {
-        const std::uint8_t l = *cur;
-        if (l == 0u) {
-          ++cur;
-          break;
-        }
-        if ((l & 0xC0u) == 0xC0u) {
-          cur += 2;
-          break;
-        }
-        cur += 1 + l;
-      }
-      if (cur + 10 > end) {
+      if (!detail::SkipDnsName(cur, end) || end - cur < 10) {
         break;
       }
       const std::uint16_t rtype = ReadU16Be(cur);
       cur += 8;  // TYPE + CLASS + TTL
       const std::uint16_t rdlen = ReadU16Be(cur);
       cur += 2;
-      if (cur + rdlen > end) {
+      if (static_cast<std::size_t>(end - cur) < rdlen) {
         break;
       }
       if (rtype == 1u && rdlen == 4u) {  // A record -> 127.0.0.1

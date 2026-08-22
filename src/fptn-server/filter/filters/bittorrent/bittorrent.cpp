@@ -6,67 +6,91 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include "filter/filters/bittorrent/bittorrent.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <string_view>
+
+#include "common/network/ip_utils.h"
 
 namespace {
 
-constexpr std::uint8_t kClassic[] = {0x13, 'B', 'i', 't', 'T', 'o', 'r', 'r',
-'e', 'n', 't', ' ', 'p', 'r', 'o', 't', 'o', 'c', 'o', 'l'};
+using fptn::common::network::ReadU16Be;
 
-constexpr std::uint8_t kExtensionProtocol[] = {
-0x14, 'e', 'x', 't', 'e', 'n', 's', 'i', 'o', 'n'};
+bool StartsWith(const std::uint8_t* payload,
+    const std::size_t size,
+    std::string_view signature) {
+  return size >= signature.size() &&
+         std::memcmp(payload, signature.data(), signature.size()) == 0;
+}
 
-constexpr std::uint8_t kDht[] = {
-'d', '1', ':', 'a', 'd', '2', ':', 'i', 'd', '2'};
+bool IsPeerPort(const std::uint16_t port) {
+  constexpr std::uint16_t kFirstPeerPort = 6881;
+  constexpr std::uint16_t kLastPeerPort = 6889;
 
-bool DetectBitTorrent(const std::uint8_t* payload, std::size_t payload_size) {
-  if (!payload_size) {
+  return port >= kFirstPeerPort && port <= kLastPeerPort;
+}
+
+bool IsDht(const std::uint8_t* payload, const std::size_t size) {
+  constexpr std::string_view kQuerySignature = "d1:ad2:id";
+  constexpr std::string_view kResponseSignature = "d1:rd2:id";
+  constexpr std::string_view kErrorSignature = "d1:eli";
+
+  return StartsWith(payload, size, kQuerySignature) ||
+         StartsWith(payload, size, kResponseSignature) ||
+         StartsWith(payload, size, kErrorSignature);
+}
+
+bool IsUtpSyn(const std::uint8_t* payload, const std::size_t size) {
+  constexpr std::uint8_t kSynTypeAndVersion = 0x41;
+  constexpr std::uint8_t kMaxExtension = 2;
+  constexpr std::size_t kAckOffset = 18;
+  constexpr std::size_t kHeaderSize = kAckOffset + sizeof(std::uint16_t);
+
+  if (size < kHeaderSize) {
     return false;
   }
-  const std::uint8_t first_byte = payload[0];
-  // Classic Protocol
-  if (first_byte == kClassic[0]) {
-    constexpr std::size_t kClassicSignatureSize = sizeof(kClassic);
-    return payload_size >= kClassicSignatureSize &&
-           std::memcmp(payload, kClassic, kClassicSignatureSize) == 0;
-  }
+  return payload[0] == kSynTypeAndVersion && payload[1] <= kMaxExtension &&
+         ReadU16Be(payload + kAckOffset) == 0;
+}
 
-  // Extension Protocol
-  if (first_byte == kExtensionProtocol[0]) {
-    constexpr std::size_t kExtProtocolSignSize = sizeof(kExtensionProtocol);
-    return payload_size >= kExtProtocolSignSize &&
-           std::memcmp(payload, kExtensionProtocol, kExtProtocolSignSize) == 0;
-  }
+bool IsUdpTracker(const std::uint8_t* payload, const std::size_t size) {
+  constexpr std::string_view kConnectSignature(
+      "\x00\x00\x04\x17\x27\x10\x19\x80", 8);
 
-  // BT-DHT
-  if (first_byte == kDht[0]) {
-    constexpr std::size_t kDhtSignatureSize = sizeof(kDht);
-    return payload_size >= kDhtSignatureSize &&
-           std::memcmp(payload, kDht, kDhtSignatureSize) == 0;
-  }
-  return false;
+  return StartsWith(payload, size, kConnectSignature);
+}
+
+bool IsPeerHandshake(const std::uint8_t* payload, const std::size_t size) {
+  constexpr std::string_view kHandshakeSignature =
+      "\x13"
+      "BitTorrent protocol";
+
+  return StartsWith(payload, size, kHandshakeSignature);
 }
 
 }  // namespace
 
 namespace fptn::filter {
 
-IPPacketPtr BitTorrent::Apply(
-    IPPacketPtr packet, Direction /*direction*/) const {
-  const auto [udp_data, udp_size] = packet->GetUdpPayload();
-  if (udp_data) {
-    if (DetectBitTorrent(udp_data, udp_size)) {
-      return nullptr;
-    }
+IPPacketPtr BitTorrent::Apply(IPPacketPtr packet, Direction direction) const {
+  if (direction != Direction::kFromClient) {
     return packet;
   }
-  const auto [tcp_data, tcp_size] = packet->GetTcpPayload();
-  if (tcp_data) {
-    if (DetectBitTorrent(tcp_data, tcp_size)) {
+
+  if (packet->IsTCP()) {
+    const auto [payload, size] = packet->GetTcpPayload();
+    if (IsPeerPort(packet->GetTcpDstPort()) ||
+        (payload && IsPeerHandshake(payload, size))) {
       return nullptr;
     }
-    return packet;
+  } else if (packet->IsUDP()) {
+    const auto [payload, size] = packet->GetUdpPayload();
+    if (IsPeerPort(packet->GetUdpDstPort()) ||
+        (payload && (IsDht(payload, size) || IsUtpSyn(payload, size) ||
+                        IsUdpTracker(payload, size)))) {
+      return nullptr;
+    }
   }
   return packet;
 }

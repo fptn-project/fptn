@@ -136,10 +136,25 @@ ServerConfig::ServerConfig(int argc, char* argv[])
           "subdomains resolves to is dropped. The list extends the built-in "
           "one. Empty (default) uses only the built-in list.")
       .default_value("");
-  args_.add_argument("--disable-bittorrent")
+  args_.add_argument("--disable-torrent-filter")
       .help(
-          "Block BitTorrent traffic. Set to 'true' to drop BitTorrent packets.")
-      .default_value("false");
+          "Block BitTorrent traffic. Enabled by default, set to 'false' to let "
+          "BitTorrent packets through.")
+      .default_value("true")
+      .action([](const std::string& v) -> std::string {
+        return v.empty() ? "true" : v;
+      });
+  args_.add_argument("--disable-spam-filter")
+      .help(
+          "Block the client traffic that gets this server blacklisted: "
+          "outgoing mail (the SMTP ports, any TCP stream that starts with an "
+          "SMTP command, DNS MX lookups) together with the telnet, NetBIOS, "
+          "SMB, SSDP and memcached ports. Enabled by default, set to 'false' "
+          "to let this traffic through.")
+      .default_value("true")
+      .action([](const std::string& v) -> std::string {
+        return v.empty() ? "true" : v;
+      });
   // Allow prometheus metric
   args_.add_argument("--prometheus-access-key")
       .help(
@@ -264,8 +279,12 @@ std::string ServerConfig::UserFile() const {
   return args_.get<std::string>("--userfile");
 }
 
-bool ServerConfig::DisableBittorrent() const {
-  return ParseBoolean(args_.get<std::string>("--disable-bittorrent"));
+bool ServerConfig::DisableTorrentFilter() const {
+  return ParseBoolean(args_.get<std::string>("--disable-torrent-filter"));
+}
+
+bool ServerConfig::DisableSpamFilter() const {
+  return ParseBoolean(args_.get<std::string>("--disable-spam-filter"));
 }
 
 std::string ServerConfig::DomainBlacklistFile() const {

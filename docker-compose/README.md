@@ -80,7 +80,8 @@ services:
       - ENABLE_DETECT_PROBING=${ENABLE_DETECT_PROBING}
       - DEFAULT_PROXY_DOMAIN=${DEFAULT_PROXY_DOMAIN}
       - ALLOWED_SNI_LIST=${ALLOWED_SNI_LIST}
-      - DISABLE_BITTORRENT=${DISABLE_BITTORRENT}
+      - DISABLE_TORRENT_FILTER=${DISABLE_TORRENT_FILTER}
+      - DISABLE_SPAM_FILTER=${DISABLE_SPAM_FILTER}
       - PROMETHEUS_SECRET_ACCESS_KEY=${PROMETHEUS_SECRET_ACCESS_KEY}
       - USE_REMOTE_SERVER_AUTH=${USE_REMOTE_SERVER_AUTH}
       - REMOTE_SERVER_AUTH_HOST=${REMOTE_SERVER_AUTH_HOST}
@@ -154,8 +155,20 @@ DEFAULT_PROXY_DOMAIN=rutube.ru
 # ALLOWED_SNI_LIST=vprok.ru,vk.com,perekrestok.ru,x5.ru,yandex.ru,yandex.com,max.ru,alfabank.ru,ozone.ru,rutube.ru
 ALLOWED_SNI_LIST=
 
-# Block BitTorrent traffic to prevent abuse (accepted values: true or false)
-DISABLE_BITTORRENT=true
+# Block BitTorrent traffic to prevent abuse
+# (accepted values: true or false; enabled unless set to false)
+DISABLE_TORRENT_FILTER=true
+
+# Block the client traffic that gets this server blacklisted
+# (accepted values: true or false; enabled unless set to false). It drops:
+#   - outgoing mail: TCP 25, 465, 587, 2525, and any TCP stream that starts
+#     with an SMTP command, whatever port it uses
+#   - telnet brute-force: TCP 23
+#   - NetBIOS and SMB worms: TCP 135, 137-139, 445 and UDP 137, 138
+#   - amplification reflectors: UDP 1900, 11211
+# NOTE: the mail part also stops desktop mail clients (Thunderbird, Outlook)
+# of your legitimate users from sending mail through the tunnel.
+DISABLE_SPAM_FILTER=true
 
 # Set the USE_REMOTE_SERVER_AUTH variable to true if you need to
 # redirect requests to a master FPTN server for authorization.

@@ -30,7 +30,8 @@ exec /usr/local/bin/fptn-server \
     --default-proxy-domain="${DEFAULT_PROXY_DOMAIN}" \
     --allowed-sni-list="${ALLOWED_SNI_LIST}" \
     --tun-interface-name=fptn0 \
-    --disable-bittorrent="$DISABLE_BITTORRENT" \
+    --disable-torrent-filter="$DISABLE_TORRENT_FILTER" \
+    --disable-spam-filter="$DISABLE_SPAM_FILTER" \
     --prometheus-access-key="$PROMETHEUS_SECRET_ACCESS_KEY" \
     --use-remote-server-auth="$USE_REMOTE_SERVER_AUTH" \
     --remote-server-auth-host="$REMOTE_SERVER_AUTH_HOST" \
