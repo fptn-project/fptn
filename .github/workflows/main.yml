@@ -346,3 +346,48 @@ jobs:
             -t "$DOCKER_REGISTRY/$IMAGE_NAME":latest \
             $DOCKER_REGISTRY/$IMAGE_NAME:$RELEASE_VERSION-amd64 \
             $DOCKER_REGISTRY/$IMAGE_NAME:$RELEASE_VERSION-arm64
+
+  deploy_website:
+    if: github.event_name == 'release' || github.ref == 'refs/heads/master'
+    needs: [build_ubuntu_x86_64, build_ubuntu_arm64, build_macos_arm64, build_windows_AMD64]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: true
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@v3
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Set version in docs
+        run: |
+          VERSION=$(git tag --sort=-v:refname | head -n1)
+          if [ -z "$VERSION" ]; then
+            echo "No tags found"
+            exit 1
+          fi
+          echo "Website version: $VERSION"
+          sed -i -E "s|(<span id=\"version\">)[^<]*(</span>)|\1${VERSION}\2|" docs/index.html docs/index-ru.html
+          sed -i -E "s|(const tag_name = ')[^']*(')|\1${VERSION}\2|" docs/index.html docs/index-ru.html
+          grep -n 'id="version"\|const tag_name' docs/index.html docs/index-ru.html
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

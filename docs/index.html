@@ -389,7 +389,7 @@
             <aside class="sidebar">
                 <img src="images/fptn.png" alt="" width="300">
                 <div class="version-info">
-                    <p>Version: <span id="version">2024.2.0.1</span></p>
+                    <p>Version: <span id="version">0.4.3</span></p>
                 </div>
                 <nav class="nav-links">
                     <a href="/" onclick="downloadUrl('notes')">
@@ -1004,21 +1004,10 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
 <script>
-    const owner = 'batchar2';
+    const owner = 'fptn-project';
     const repo = 'fptn';
-    let tag_name = ''
+    const tag_name = '0.4.3'
 
-    fetch(`https://api.github.com/repos/${owner}/${repo}/releases/latest`)
-        .then(response => response.json())
-        .then(data => {
-            const releaseInfo = document.getElementById('version');
-            releaseInfo.innerHTML = data.tag_name;
-            tag_name = data.tag_name
-        })
-        .catch(error => {
-            console.error('Error fetching release data:', error);
-            document.getElementById('release-info').textContent = 'Failed to load release information.';
-        })
     function openTab(tabName) {
         const tabs = document.getElementsByClassName('tablink');
         const downloads = document.getElementsByClassName('download');
@@ -1035,31 +1024,31 @@
         let url = ''
         switch (name) {
             case 'macos_m':
-                url = `https://github.com/${owner}/${repo}/releases/latest/download/fptn-client-${tag_name}-apple-silicon.pkg`
+                url = `https://github.com/${owner}/${repo}/releases/download/${tag_name}/fptn-client-${tag_name}-apple-silicon.pkg`
                 break;
               case 'macos_intel':
-                url = `https://github.com/${owner}/${repo}/releases/latest/download/fptn-client-${tag_name}-intel.pkg`
+                url = `https://github.com/${owner}/${repo}/releases/download/${tag_name}/fptn-client-${tag_name}-intel.pkg`
                 break;
             case 'linux_l_server':
-                url = `https://github.com/${owner}/${repo}/releases/latest/download/fptn-server-${tag_name}-ubuntu22.04-amd64.deb`
+                url = `https://github.com/${owner}/${repo}/releases/download/${tag_name}/fptn-server-${tag_name}-ubuntu22.04-amd64.deb`
                 break;
             case 'linux_a_server':
-                url = `https://github.com/${owner}/${repo}/releases/latest/download/fptn-server-${tag_name}-ubuntu22.04-arm64.deb`
+                url = `https://github.com/${owner}/${repo}/releases/download/${tag_name}/fptn-server-${tag_name}-ubuntu22.04-arm64.deb`
                 break;
             case 'linux_l_client':
-                url = `https://github.com/${owner}/${repo}/releases/latest/download/fptn-client-${tag_name}-ubuntu22.04-amd64.deb`
+                url = `https://github.com/${owner}/${repo}/releases/download/${tag_name}/fptn-client-${tag_name}-ubuntu22.04-amd64.deb`
                 break;
             case 'linux_a_client':
-                url = `https://github.com/${owner}/${repo}/releases/latest/download/fptn-client-${tag_name}-ubuntu22.04-arm64.deb`
+                url = `https://github.com/${owner}/${repo}/releases/download/${tag_name}/fptn-client-${tag_name}-ubuntu22.04-arm64.deb`
                 break;
             case 'linux_l_client_cli':
-                url = `https://github.com/${owner}/${repo}/releases/latest/download/fptn-client-cli-${tag_name}-ubuntu22.04-amd64.deb`
+                url = `https://github.com/${owner}/${repo}/releases/download/${tag_name}/fptn-client-cli-${tag_name}-ubuntu22.04-amd64.deb`
                 break;
             case 'linux_a_client_cli':
-                url = `https://github.com/${owner}/${repo}/releases/latest/download/fptn-client-cli-${tag_name}-ubuntu22.04-arm64.deb`
+                url = `https://github.com/${owner}/${repo}/releases/download/${tag_name}/fptn-client-cli-${tag_name}-ubuntu22.04-arm64.deb`
                 break;
             case 'w_client':
-                url = `https://github.com/${owner}/${repo}/releases/latest/download/FptnClientInstaller-${tag_name}-windows-x64_x86.zip`
+                url = `https://github.com/${owner}/${repo}/releases/download/${tag_name}/FptnClientInstaller-${tag_name}-windows-x64_x86.zip`
                 break;
             case 'notes':
                 url = `https://github.com/${owner}/${repo}/releases/latest`
