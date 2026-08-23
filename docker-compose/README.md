@@ -82,6 +82,7 @@ services:
       - ALLOWED_SNI_LIST=${ALLOWED_SNI_LIST}
       - DISABLE_TORRENT_FILTER=${DISABLE_TORRENT_FILTER}
       - DISABLE_SPAM_FILTER=${DISABLE_SPAM_FILTER}
+      - BLACKLIST_URL=${BLACKLIST_URL:-}
       - PROMETHEUS_SECRET_ACCESS_KEY=${PROMETHEUS_SECRET_ACCESS_KEY}
       - USE_REMOTE_SERVER_AUTH=${USE_REMOTE_SERVER_AUTH}
       - REMOTE_SERVER_AUTH_HOST=${REMOTE_SERVER_AUTH_HOST}
@@ -169,6 +170,11 @@ DISABLE_TORRENT_FILTER=true
 # NOTE: the mail part also stops desktop mail clients (Thunderbird, Outlook)
 # of your legitimate users from sending mail through the tunnel.
 DISABLE_SPAM_FILTER=true
+
+# URL of the domain blacklist, downloaded on every container start.
+# Traffic to the addresses a listed domain or any of its subdomains resolves
+# to is dropped. Set it to empty to use only the built-in list.
+BLACKLIST_URL=https://raw.githubusercontent.com/fptn-project/fptn/refs/heads/master/deploy/domain_blacklist/russia.txt
 
 # Set the USE_REMOTE_SERVER_AUTH variable to true if you need to
 # redirect requests to a master FPTN server for authorization.
