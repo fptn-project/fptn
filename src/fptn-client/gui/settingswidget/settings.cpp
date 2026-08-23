@@ -870,7 +870,12 @@ void SettingsWidget::SetupUi() {
       "  - puffffik<br>"
       "  - draserg1<br>"
       "  - Artem Kushner<br>"
-      "  - AgNeSYUT<br>";
+      "  - AgNeSYUT<br>"
+      "  - Blink<br>"
+      "  - charlie b.<br>"
+      "  - alex_pol<br>"
+      "  - Vox<br>"
+      "  - Rucozhop4ik<br>";
 
   sponsors_names_label_ = new QLabel(sponsors_list, this);
   sponsors_names_label_->setAlignment(Qt::AlignLeft);
