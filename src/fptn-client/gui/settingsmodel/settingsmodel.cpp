@@ -33,7 +33,6 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <QJsonObject>         // NOLINT(build/include_order)
 #include <QNetworkInterface>   // NOLINT(build/include_order)
 #include <QRandomGenerator>    // NOLINT(build/include_order)
-#include <QSaveFile>           // NOLINT(build/include_order)
 #include <QStandardPaths>      // NOLINT(build/include_order)
 #include <QSysInfo>            // NOLINT(build/include_order)
 #include <QTcpSocket>          // NOLINT(build/include_order)
@@ -258,7 +257,7 @@ SettingsModel::~SettingsModel() {
 
 QString SettingsModel::GetSettingsFilePath() const {
   const QString directory = GetSettingsFolderPath();
-  return directory + "/settings-1.bin";
+  return directory + "/fptn-client-gui-settings-1.bin";
 }
 
 // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
@@ -285,7 +284,8 @@ void SettingsModel::Load(bool dont_load_server) {
   const QString file_path = GetSettingsFilePath();
   QFile file(file_path);
   if (!file.open(QIODevice::ReadOnly)) {
-    SPDLOG_WARN("Failed to open file for reading: {}", file_path.toStdString());
+    SPDLOG_WARN("Failed to open file for reading: {}: {}",
+        file_path.toStdString(), file.errorString().toStdString());
     return;
   }
 
@@ -570,16 +570,18 @@ bool SettingsModel::Save() {
   }
 
   const QString file_path = GetSettingsFilePath();
-  QSaveFile file(file_path);
+  QFile file(file_path);
   if (!file.open(QIODevice::WriteOnly)) {
-    SPDLOG_ERROR(
-        "Failed to open file for writing: {}", file_path.toStdString());
+    SPDLOG_ERROR("Failed to open file for writing: {}: {}",
+        file_path.toStdString(), file.errorString().toStdString());
     return false;
   }
-  if (file.write(data) != data.size() || !file.commit()) {
-    SPDLOG_ERROR("Failed to write settings: {}", file_path.toStdString());
+  if (file.write(data) != data.size()) {
+    SPDLOG_ERROR("Failed to write settings: {}: {}", file_path.toStdString(),
+        file.errorString().toStdString());
     return false;
   }
+  file.close();
   QFile::setPermissions(
       file_path, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
 
