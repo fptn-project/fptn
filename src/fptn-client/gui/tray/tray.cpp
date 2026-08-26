@@ -490,8 +490,11 @@ void TrayApp::UpdateTrayMenu() {
     case ConnectionState::Connected: {
       tray_icon_->setIcon(QIcon(active_icon_path_));
       if (disconnect_action_) {
-        disconnect_action_->setText(QString(QObject::tr("Disconnect") + ": %1")
-                .arg(QString::fromStdString(selected_server_.name)));
+        const QString server_name =
+            QString::fromStdString(selected_server_.name);
+        disconnect_action_->setText(
+            QString(QObject::tr("Disconnect") + ": %1")
+                .arg(server_name));
         disconnect_action_->setVisible(true);
       }
       if (speed_widget_) {
@@ -820,9 +823,10 @@ void TrayApp::RetranslateUi() {
   }
 
   if (disconnect_action_) {
+    const QString server_name =
+        QString::fromStdString(selected_server_.name);
     const QString disconnect_text =
-        QString(QObject::tr("Disconnect") + ": %1")
-            .arg(QString::fromStdString(selected_server_.name));
+        QString(QObject::tr("Disconnect") + ": %1").arg(server_name);
     disconnect_action_->setText(disconnect_text);
   }
   if (auto_update_action_) {
@@ -1171,16 +1175,16 @@ bool TrayApp::startVpn(QString& err_msg) {
 
   // setup vpn client
   auto vpn_client = std::make_shared<fptn::vpn::VpnManager>(
-      fptn::vpn::VpnManager::Config{.http_client = std::move(http_client),
-                                    .route_manager = route_manager,
-                                    .virtual_net_interface = virtual_network_interface,
-                                    .plugins = std::move(client_plugins),
-                                    .ad_blocker = std::move(ad_blocker),
-                                    .max_full_restarts =
-                                        settings_->ReconnectAttempts(),
-                                    .on_reconnect_limit_reached = [this]() {
-                                      OnReconnectLimitReached();
-                                    }});
+      fptn::vpn::VpnManager::Config{
+          .http_client = std::move(http_client),
+          .route_manager = route_manager,
+          .virtual_net_interface = virtual_network_interface,
+          .plugins = std::move(client_plugins),
+          .ad_blocker = std::move(ad_blocker),
+          .max_full_restarts = settings_->ReconnectAttempts(),
+          .on_reconnect_limit_reached = [this]() {
+            OnReconnectLimitReached();
+          }});
   {
     const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
