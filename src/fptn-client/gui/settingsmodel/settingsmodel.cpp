@@ -400,7 +400,8 @@ void SettingsModel::Load(bool dont_load_server) {
   }
   if (service_obj.contains("reconnect_attempts")) {
     const int v = service_obj["reconnect_attempts"].toInt();
-    reconnect_attempts_ = (v == 5 || v == 10 || v == 15 || v == 35 || v == 0) ? v : 10;
+    reconnect_attempts_ =
+        (v == 5 || v == 10 || v == 15 || v == 35 || v == 0) ? v : 10;
   }
   if (connection_strategy_ != kConnectionStrategyRolling &&
       connection_strategy_ != kConnectionStrategyDual &&

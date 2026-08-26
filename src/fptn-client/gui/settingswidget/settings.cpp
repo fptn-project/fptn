@@ -1451,7 +1451,8 @@ void SettingsWidget::onBypassMethodChanged(const QString& method) {
   sni_import_button_->setVisible(is_reality_mode);
 
   if (is_reality_mode) {
-    grid_layout_->addWidget(sni_label_, 10, 0, Qt::AlignLeft | Qt::AlignVCenter);
+    grid_layout_->addWidget(
+        sni_label_, 10, 0, Qt::AlignLeft | Qt::AlignVCenter);
     grid_layout_->addWidget(sni_line_edit_, 10, 1);
     grid_layout_->addLayout(sni_buttons_layout_, 11, 0);
     grid_layout_->addWidget(sni_files_list_widget_, 11, 1);
