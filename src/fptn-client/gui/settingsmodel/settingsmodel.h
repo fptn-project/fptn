@@ -217,6 +217,8 @@ class SettingsModel : public QObject {
 
   QString ConnectionStrategy() const;
   void SetConnectionStrategy(const QString& strategy);
+  int ReconnectAttempts() const;
+  void SetReconnectAttempts(int attempts);
 
   SNIManagerSPtr SniManager() const;
 
@@ -283,6 +285,7 @@ class SettingsModel : public QObject {
 
   QString bypass_method_;
   QString connection_strategy_;
+  int reconnect_attempts_;
 
   bool enable_ad_block_;
   bool enable_kill_switch_;

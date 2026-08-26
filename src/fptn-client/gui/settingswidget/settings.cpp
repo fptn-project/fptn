@@ -269,6 +269,29 @@ void SettingsWidget::SetupUi() {
   grid_layout_->addWidget(connection_strategy_label_, 7, 0, Qt::AlignLeft);
   grid_layout_->addWidget(connection_strategy_combo_box_, 7, 1);
 
+  reconnect_attempts_label_ =
+      new QLabel(QObject::tr("Reconnect attempts"), this);
+  reconnect_attempts_combo_box_ = new QComboBox(this);
+  reconnect_attempts_combo_box_->addItem("5", 5);
+  reconnect_attempts_combo_box_->addItem("10", 10);
+  reconnect_attempts_combo_box_->addItem("15", 15);
+  reconnect_attempts_combo_box_->addItem("35", 35);
+  reconnect_attempts_combo_box_->addItem(QObject::tr("Infinity"), 0);
+  reconnect_attempts_combo_box_->setSizePolicy(
+      QSizePolicy::Expanding, QSizePolicy::Fixed);
+  reconnect_attempts_combo_box_->setMinimumWidth(200);
+  const int reconnect_index =
+      reconnect_attempts_combo_box_->findData(settings_->ReconnectAttempts());
+  reconnect_attempts_combo_box_->setCurrentIndex(
+      reconnect_index >= 0 ? reconnect_index : 1);
+  connect(reconnect_attempts_combo_box_, &QComboBox::currentIndexChanged, this,
+      [this](int) {
+        settings_->SetReconnectAttempts(
+            reconnect_attempts_combo_box_->currentData().toInt());
+      });
+  grid_layout_->addWidget(reconnect_attempts_label_, 8, 0, Qt::AlignLeft);
+  grid_layout_->addWidget(reconnect_attempts_combo_box_, 8, 1);
+
   bypass_method_label_ =
       new QLabel(QObject::tr("Bypass blocking method"), this);
   bypass_method_combo_box_ = new QComboBox(this);
@@ -284,8 +307,8 @@ void SettingsWidget::SetupUi() {
             bypass_method_combo_box_->currentData().toString());
       });
 
-  grid_layout_->addWidget(bypass_method_label_, 8, 0, Qt::AlignLeft);
-  grid_layout_->addWidget(bypass_method_combo_box_, 8, 1);
+  grid_layout_->addWidget(bypass_method_label_, 9, 0, Qt::AlignLeft);
+  grid_layout_->addWidget(bypass_method_combo_box_, 9, 1);
 
   sni_label_ = new QLabel(this);
   if (settings_->BypassMethod() != SettingsModel::kBypassMethodSni) {
@@ -313,8 +336,8 @@ void SettingsWidget::SetupUi() {
         settings_->SetSNI(normalized);
       });
 
-  grid_layout_->addWidget(sni_label_, 9, 0, Qt::AlignLeft | Qt::AlignVCenter);
-  grid_layout_->addWidget(sni_line_edit_, 9, 1);
+  grid_layout_->addWidget(sni_label_, 10, 0, Qt::AlignLeft | Qt::AlignVCenter);
+  grid_layout_->addWidget(sni_line_edit_, 10, 1);
 
   sni_files_list_widget_ = new QListWidget(this);
   sni_files_list_widget_->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
@@ -333,8 +356,8 @@ void SettingsWidget::SetupUi() {
   sni_autoscan_button_->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
   sni_import_button_->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
 
-  grid_layout_->addLayout(sni_buttons_layout_, 10, 0, 1, 2);
-  grid_layout_->addWidget(sni_files_list_widget_, 11, 0, 1, 2);
+  grid_layout_->addLayout(sni_buttons_layout_, 11, 0, 1, 2);
+  grid_layout_->addWidget(sni_files_list_widget_, 12, 0, 1, 2);
   connect(sni_autoscan_button_, &QPushButton::clicked, this,
       &SettingsWidget::onAutoscanClicked);
 
@@ -367,8 +390,8 @@ void SettingsWidget::SetupUi() {
   server_table_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
   server_table_->setMinimumHeight(120);
 
-  grid_layout_->addWidget(server_table_, 12, 0, 1, 2);
-  grid_layout_->setRowStretch(12, 1);
+  grid_layout_->addWidget(server_table_, 13, 0, 1, 2);
+  grid_layout_->setRowStretch(13, 1);
 
   settings_scroll_area->setWidget(settings_content_widget);
   main_settings_layout->addWidget(settings_scroll_area);
@@ -1194,6 +1217,16 @@ void SettingsWidget::onLanguageChanged(const QString&) {
   if (connection_strategy_label_) {
     connection_strategy_label_->setText(QObject::tr("Connection strategy"));
   }
+  if (reconnect_attempts_label_) {
+    reconnect_attempts_label_->setText(QObject::tr("Reconnect attempts"));
+  }
+  if (reconnect_attempts_combo_box_) {
+    const int inf_index = reconnect_attempts_combo_box_->findData(0);
+    if (inf_index >= 0) {
+      reconnect_attempts_combo_box_->setItemText(
+          inf_index, QObject::tr("Infinity"));
+    }
+  }
   if (connection_strategy_combo_box_) {
     const QString current_strategy = settings_->ConnectionStrategy();
     connection_strategy_combo_box_->clear();
@@ -1418,10 +1451,10 @@ void SettingsWidget::onBypassMethodChanged(const QString& method) {
   sni_import_button_->setVisible(is_reality_mode);
 
   if (is_reality_mode) {
-    grid_layout_->addWidget(sni_label_, 9, 0, Qt::AlignLeft | Qt::AlignVCenter);
-    grid_layout_->addWidget(sni_line_edit_, 9, 1);
-    grid_layout_->addLayout(sni_buttons_layout_, 10, 0);
-    grid_layout_->addWidget(sni_files_list_widget_, 10, 1);
+    grid_layout_->addWidget(sni_label_, 10, 0, Qt::AlignLeft | Qt::AlignVCenter);
+    grid_layout_->addWidget(sni_line_edit_, 10, 1);
+    grid_layout_->addLayout(sni_buttons_layout_, 11, 0);
+    grid_layout_->addWidget(sni_files_list_widget_, 11, 1);
   } else {
     grid_layout_->removeWidget(sni_label_);
     grid_layout_->removeWidget(sni_line_edit_);

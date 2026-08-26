@@ -91,6 +91,8 @@ class SettingsWidget : public QDialog {
 
   QLabel* connection_strategy_label_ = nullptr;
   QComboBox* connection_strategy_combo_box_ = nullptr;
+  QLabel* reconnect_attempts_label_ = nullptr;
+  QComboBox* reconnect_attempts_combo_box_ = nullptr;
 
   QLabel* bypass_method_label_ = nullptr;
   QComboBox* bypass_method_combo_box_ = nullptr;

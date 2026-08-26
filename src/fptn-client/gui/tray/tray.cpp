@@ -523,10 +523,10 @@ void TrayApp::UpdateTrayMenu() {
         disconnect_action_->setVisible(false);
       }
       if (speed_widget_action_) {
-        speed_widget_action_->setVisible(true);
+        speed_widget_action_->setVisible(false);
       }
       if (connection_time_action_) {
-        connection_time_action_->setVisible(true);
+        connection_time_action_->setVisible(false);
       }
       if (settings_action_) {
         settings_action_->setEnabled(false);
@@ -612,8 +612,8 @@ void TrayApp::handleDefaultState() {
     connection_state_ = ConnectionState::None;
     if (!kill_switch_active_) {
       vpn_client = std::move(vpn_client_);
+    }
   }
-}
   if (vpn_client) {
     vpn_client->Stop();
   }
@@ -721,11 +721,13 @@ void TrayApp::handleTimer() {
         }
         if (reconnecting_label_action_) {
           const int n = vpn_client_->ReconnectAttempt();
+          const int max_attempts = vpn_client_->MaxReconnectAttempts();
           QString text = QObject::tr("Reconnecting...");
           if (n > 0) {
             text += QString(" (%1/%2)")
                         .arg(n)
-                        .arg(vpn_client_->MaxReconnectAttempts());
+                        .arg(max_attempts == 0 ? QString("∞")
+                                               : QString::number(max_attempts));
           }
           reconnecting_label_action_->setText(text);
           reconnecting_label_action_->setVisible(true);
@@ -1174,6 +1176,8 @@ bool TrayApp::startVpn(QString& err_msg) {
                                     .virtual_net_interface = virtual_network_interface,
                                     .plugins = std::move(client_plugins),
                                     .ad_blocker = std::move(ad_blocker),
+                                    .max_full_restarts =
+                                        settings_->ReconnectAttempts(),
                                     .on_reconnect_limit_reached = [this]() {
                                       OnReconnectLimitReached();
                                     }});

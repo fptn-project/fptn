@@ -585,7 +585,7 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
         </message>
         <message>
             <source>Kill Switch enabled. Click to disconnect</source>
-            <translation>Kill Switch enabled. Disconnect</translation>
+            <translation>Kill Switch enabled. Click to disconnect</translation>
         </message>
 		<message>
     		<source>Connection time: %1</source>
@@ -594,6 +594,14 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
 		<message>
     		<source>%1 (pause)</source>
     		<translation>%1 (pause)</translation>
+		</message>
+		<message>
+    		<source>Reconnect attempts</source>
+    		<translation>Reconnect attempts</translation>
+		</message>
+		<message>
+    		<source>Infinity</source>
+    		<translation>Infinity</translation>
 		</message>
     </context>
 </TS>

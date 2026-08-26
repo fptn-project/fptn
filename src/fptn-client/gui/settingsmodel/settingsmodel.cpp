@@ -210,6 +210,7 @@ SettingsModel::SettingsModel(const QMap<QString, QString>& languages,
       enable_advanced_dns_management_(false),
 #endif
       client_autostart_(false),
+      reconnect_attempts_(10),
       enable_ad_block_(true),
       enable_kill_switch_(false),
       blacklist_domains_(FPTN_CLIENT_DEFAULT_BLACKLIST_DOMAINS),
@@ -397,6 +398,10 @@ void SettingsModel::Load(bool dont_load_server) {
   if (service_obj.contains("connection_strategy")) {
     connection_strategy_ = service_obj["connection_strategy"].toString();
   }
+  if (service_obj.contains("reconnect_attempts")) {
+    const int v = service_obj["reconnect_attempts"].toInt();
+    reconnect_attempts_ = (v == 5 || v == 10 || v == 15 || v == 35 || v == 0) ? v : 10;
+  }
   if (connection_strategy_ != kConnectionStrategyRolling &&
       connection_strategy_ != kConnectionStrategyDual &&
       connection_strategy_ != kConnectionStrategyTriple) {
@@ -552,6 +557,7 @@ bool SettingsModel::Save() {
   json_object["sni"] = sni_;
   json_object["bypass_method"] = bypass_method_;
   json_object["connection_strategy"] = connection_strategy_;
+  json_object["reconnect_attempts"] = reconnect_attempts_;
 
 #if _WIN32
   json_object["enable_advanced_dns_management"] =
@@ -929,5 +935,12 @@ bool SettingsModel::EnableKillSwitch() const { return enable_kill_switch_; }
 
 void SettingsModel::SetEnableKillSwitch(bool enable) {
   enable_kill_switch_ = enable;
+  Save();
+}
+
+int SettingsModel::ReconnectAttempts() const { return reconnect_attempts_; }
+
+void SettingsModel::SetReconnectAttempts(int attempts) {
+  reconnect_attempts_ = attempts;
   Save();
 }
