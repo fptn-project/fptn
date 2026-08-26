@@ -15,9 +15,26 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 namespace fptn::common::network {
 
+// Domain names on the wire are ASCII (LDH labels or punycode) and compare
+// case-insensitively, so they are normalized to lower case on extraction.
+inline std::string ToLowerAscii(std::string value) {
+  std::ranges::transform(value, value.begin(), [](unsigned char c) {
+    return static_cast<char>(
+        (c >= 'A' && c <= 'Z') ? c - 'A' + 'a' : static_cast<char>(c));
+  });
+  return value;
+}
+
 inline std::uint16_t ReadU16Be(const std::uint8_t* p) {
   return static_cast<std::uint16_t>(static_cast<std::uint16_t>(p[0]) << 8) |
          p[1];
+}
+
+inline std::uint32_t ReadU32Be(const std::uint8_t* p) {
+  return (static_cast<std::uint32_t>(p[0]) << 24) |
+         (static_cast<std::uint32_t>(p[1]) << 16) |
+         (static_cast<std::uint32_t>(p[2]) << 8) |
+         static_cast<std::uint32_t>(p[3]);
 }
 
 inline void WriteU16Be(std::uint8_t* p, std::uint16_t v) {
@@ -487,7 +504,8 @@ inline std::optional<std::string> GetTlsSNI(
       if (p + 5 + name_len > ext_end) {
         return std::nullopt;
       }
-      return std::string(reinterpret_cast<const char*>(p + 5), name_len);
+      return ToLowerAscii(
+          std::string(reinterpret_cast<const char*>(p + 5), name_len));
     }
     p += elen;
   }

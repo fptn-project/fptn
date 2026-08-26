@@ -6,11 +6,13 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #pragma once
 
+#include <chrono>
 #include <cstdint>
 #include <functional>
 #include <shared_mutex>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -20,7 +22,8 @@ namespace fptn::filter {
 
 /**
  * @class DomainBlacklist
- * @brief Blocks blacklisted domains by the IPs they resolve to.
+ * @brief Blocks blacklisted domains by their TLS SNI and by the IPs they are
+ * seen on, learned from DNS answers and from blocked handshakes.
  *
  * @note This filter is applied on both paths and shared across their thread
  * pools, so its mutable state is guarded by a read-write mutex.
@@ -36,12 +39,20 @@ class DomainBlacklist final : public BaseFilter {
   [[nodiscard]] std::size_t Size() const noexcept { return domains_.size(); }
 
  protected:
-  [[nodiscard]] bool IsBlacklisted(const std::string& domain) const;
+  [[nodiscard]] std::string_view GetBlacklistedDomain(
+      const std::string& domain) const;
 
-  void RememberAddresses(
-      const std::vector<fptn::common::network::IPv4Address>& ipv4_addresses,
-      const std::vector<fptn::common::network::IPv6Address>& ipv6_addresses)
-      const;
+  void RememberIPv4Address(const fptn::common::network::IPv4Address& address,
+      std::string_view domain) const;
+
+  void RememberIPv6Address(const fptn::common::network::IPv6Address& address,
+      std::string_view domain) const;
+
+  [[nodiscard]] std::string_view GetBlockedIPv4Domain(
+      const fptn::common::network::IPv4Address& address) const;
+
+  [[nodiscard]] std::string_view GetBlockedIPv6Domain(
+      const fptn::common::network::IPv6Address& address) const;
 
  private:
   using IPv6Bytes = fptn::common::network::IPv6Address::Bytes;
@@ -53,11 +64,17 @@ class DomainBlacklist final : public BaseFilter {
     }
   };
 
+  struct Entry {
+    std::string_view domain;
+    std::chrono::steady_clock::time_point expires_at;
+  };
+
+ private:
   std::unordered_set<std::string> domains_;
 
   mutable std::shared_mutex mutex_;
-  mutable std::unordered_set<std::uint32_t> ipv4_addresses_;
-  mutable std::unordered_set<IPv6Bytes, IPv6BytesHash> ipv6_addresses_;
+  mutable std::unordered_map<std::uint32_t, Entry> ipv4_addresses_;
+  mutable std::unordered_map<IPv6Bytes, Entry, IPv6BytesHash> ipv6_addresses_;
 };
 
 }  // namespace fptn::filter

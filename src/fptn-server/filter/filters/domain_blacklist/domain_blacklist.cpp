@@ -8,6 +8,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <shared_mutex>
 #include <string>
 #include <string_view>
@@ -16,10 +17,15 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 namespace fptn::filter {
 
+using fptn::common::network::GetTlsSNI;
 using fptn::common::network::IPv4Address;
 using fptn::common::network::IPv6Address;
+using fptn::common::network::IsTlsClientHello;
 
 namespace {
+
+constexpr std::chrono::hours kAddressTtl{1};
+
 // Strips inline comments and whitespace, lowercases and drops a trailing dot.
 std::string Normalize(const std::string& raw) {
   std::string out;
@@ -48,11 +54,13 @@ DomainBlacklist::DomainBlacklist(const std::vector<std::string>& domains) {
   SPDLOG_INFO("Domain blacklist loaded: {} domains", domains_.size());
 }
 
-bool DomainBlacklist::IsBlacklisted(const std::string& domain) const {
+std::string_view DomainBlacklist::GetBlacklistedDomain(
+    const std::string& domain) const {
   std::string_view suffix(domain);
   while (!suffix.empty()) {
-    if (domains_.contains(std::string(suffix))) {
-      return true;
+    const auto it = domains_.find(std::string(suffix));
+    if (it != domains_.end()) {
+      return *it;
     }
     const auto pos = suffix.find('.');
     if (pos == std::string_view::npos) {
@@ -60,77 +68,146 @@ bool DomainBlacklist::IsBlacklisted(const std::string& domain) const {
     }
     suffix.remove_prefix(pos + 1);
   }
-  return false;
+  return {};
 }
 
-void DomainBlacklist::RememberAddresses(
-    const std::vector<IPv4Address>& ipv4_addresses,
-    const std::vector<IPv6Address>& ipv6_addresses) const {
-  {
-    const std::shared_lock<std::shared_mutex> lock(mutex_);  // mutex
-
-    const bool known =
-        std::ranges::all_of(ipv4_addresses,
-            [this](const auto& address) {
-              return ipv4_addresses_.contains(address.ToInt());
-            }) &&
-        std::ranges::all_of(ipv6_addresses, [this](const auto& address) {
-          return ipv6_addresses_.contains(address.ToBytes());
-        });
-    if (known) {
-      return;
-    }
-  }
-
+void DomainBlacklist::RememberIPv4Address(
+    const IPv4Address& address, std::string_view domain) const {
   const std::unique_lock<std::shared_mutex> lock(mutex_);  // mutex
 
-  for (const auto& address : ipv4_addresses) {
-    ipv4_addresses_.insert(address.ToInt());
+  ipv4_addresses_[address.ToInt()] = {.domain = domain,
+      .expires_at = std::chrono::steady_clock::now() + kAddressTtl};
+}
+
+void DomainBlacklist::RememberIPv6Address(
+    const IPv6Address& address, std::string_view domain) const {
+  const std::unique_lock<std::shared_mutex> lock(mutex_);  // mutex
+
+  ipv6_addresses_[address.ToBytes()] = {.domain = domain,
+      .expires_at = std::chrono::steady_clock::now() + kAddressTtl};
+}
+
+std::string_view DomainBlacklist::GetBlockedIPv4Domain(
+    const IPv4Address& address) const {
+  const std::unique_lock<std::shared_mutex> lock(mutex_);  // mutex
+
+  const auto it = ipv4_addresses_.find(address.ToInt());
+  if (it == ipv4_addresses_.end()) {
+    return {};
   }
-  for (const auto& address : ipv6_addresses) {
-    ipv6_addresses_.insert(address.ToBytes());
+  const auto now = std::chrono::steady_clock::now();
+  if (it->second.expires_at <= now) {
+    ipv4_addresses_.erase(it);
+    return {};
   }
+  it->second.expires_at = now + kAddressTtl;
+  return it->second.domain;
+}
+
+std::string_view DomainBlacklist::GetBlockedIPv6Domain(
+    const IPv6Address& address) const {
+  const std::unique_lock<std::shared_mutex> lock(mutex_);  // mutex
+
+  const auto it = ipv6_addresses_.find(address.ToBytes());
+  if (it == ipv6_addresses_.end()) {
+    return {};
+  }
+  const auto now = std::chrono::steady_clock::now();
+  if (it->second.expires_at <= now) {
+    ipv6_addresses_.erase(it);
+    return {};
+  }
+  it->second.expires_at = now + kAddressTtl;
+  return it->second.domain;
 }
 
 IPPacketPtr DomainBlacklist::Apply(
     IPPacketPtr packet, Direction direction) const {
+  // DNS: remember resolved addresses
   if (direction == Direction::kToClient) {
     if (!packet->IsDns()) {
       return packet;
     }
-    auto domain_opt = packet->GetDnsDomain();
+    const auto domain_opt = packet->GetDnsDomain();
     if (domain_opt.has_value()) {
-      std::string domain = std::move(domain_opt).value();
-      std::ranges::transform(domain, domain.begin(),
-          [](unsigned char c) { return std::tolower(c); });
+      const std::string& domain = domain_opt.value();
+      const std::string_view blacklisted = GetBlacklistedDomain(domain);
 
-      if (IsBlacklisted(domain)) {
-        RememberAddresses(
-            packet->GetDnsIPv4Addresses(), packet->GetDnsIPv6Addresses());
-        SPDLOG_INFO("Domain {} is blacklisted", domain);
+      if (!blacklisted.empty()) {
+        for (const auto& address : packet->GetDnsIPv4Addresses()) {
+          RememberIPv4Address(address, blacklisted);
+          SPDLOG_INFO("Blacklisted dns {} {}", address.ToString(), domain);
+        }
+        for (const auto& address : packet->GetDnsIPv6Addresses()) {
+          RememberIPv6Address(address, blacklisted);
+          SPDLOG_INFO("Blacklisted dns {} {}", address.ToString(), domain);
+        }
       }
     }
     return packet;
   }
 
-  if (packet->IsIPv4()) {
-    const std::uint32_t dst_ipv4 = packet->GetDstIPv4Address().ToInt();
+  // TLS: block by SNI
+  if (packet->IsTCP()) {
+    const auto [payload, size] = packet->GetTcpPayload();
+    // pass all packet except TLS-handshake
+    if (!IsTlsClientHello(payload, size)) {
+      return packet;
+    }
+    const auto sni_opt = GetTlsSNI(payload, size);
+    if (sni_opt.has_value()) {
+      const std::string& sni = sni_opt.value();
+      const std::string_view blacklisted = GetBlacklistedDomain(sni);
 
-    const std::shared_lock<std::shared_mutex> lock(mutex_);  // mutex
-
-    if (ipv4_addresses_.contains(dst_ipv4)) {
-      SPDLOG_INFO(
-          "Blocked IPv4 packet to {}", packet->GetDstIPv4Address().ToString());
+      if (blacklisted.empty()) {
+        return packet;
+      }
+      if (packet->IsIPv4()) {
+        const IPv4Address dst_ipv4 = packet->GetDstIPv4Address();
+        RememberIPv4Address(dst_ipv4, blacklisted);
+        SPDLOG_INFO("Blocked tls {} {}", dst_ipv4.ToString(), sni);
+      } else if (packet->IsIPv6()) {
+        const IPv6Address dst_ipv6 = packet->GetDstIPv6Address();
+        RememberIPv6Address(dst_ipv6, blacklisted);
+        SPDLOG_INFO("Blocked tls {} {}", dst_ipv6.ToString(), sni);
+      }
       return nullptr;
     }
+    return packet;
+  }
+
+  if (!packet->IsQuicInitial() && !packet->IsICMPv4() && !packet->IsICMPv6()) {
+    return packet;
+  }
+
+  // ICMP and QUIC: block by address
+  if (packet->IsIPv4()) {
+    const IPv4Address dst_ipv4 = packet->GetDstIPv4Address();
+    const std::string_view domain = GetBlockedIPv4Domain(dst_ipv4);
+
+    if (!domain.empty()) {
+      if (packet->IsQuicInitial()) {
+        SPDLOG_INFO("Blocked quic {} {}", dst_ipv4.ToString(), domain);
+        return nullptr;
+      }
+      if (packet->IsICMPv4()) {
+        SPDLOG_INFO("Blocked icmp {} {}", dst_ipv4.ToString(), domain);
+        return nullptr;
+      }
+    }
   } else if (packet->IsIPv6()) {
-    const auto dst_ipv6 = packet->GetDstIPv6Address();
+    const IPv6Address dst_ipv6 = packet->GetDstIPv6Address();
+    const std::string_view domain = GetBlockedIPv6Domain(dst_ipv6);
 
-    const std::shared_lock<std::shared_mutex> lock(mutex_);  // mutex
-
-    if (ipv6_addresses_.contains(dst_ipv6.ToBytes())) {
-      SPDLOG_INFO("Blocked IPv6 packet to {}", dst_ipv6.ToString());
-      return nullptr;
+    if (!domain.empty()) {
+      if (packet->IsQuicInitial()) {
+        SPDLOG_INFO("Blocked quic {} {}", dst_ipv6.ToString(), domain);
+        return nullptr;
+      }
+      if (packet->IsICMPv6()) {
+        SPDLOG_INFO("Blocked icmp {} {}", dst_ipv6.ToString(), domain);
+        return nullptr;
+      }
     }
   }
   return packet;

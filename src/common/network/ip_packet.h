@@ -420,6 +420,23 @@ class IPPacket {
 
   bool IsDns() const noexcept { return DnsPtr() != nullptr; }
 
+  // QUIC long header carrying an Initial packet (RFC 9000 17.2.2). The rest
+  // of a QUIC flow is indistinguishable from any other UDP datagram.
+  bool IsQuicInitial() const noexcept {
+    constexpr std::uint32_t kVersion1 = 0x00000001u;
+    constexpr std::uint32_t kVersion2 = 0x6B3343CFu;
+    constexpr std::size_t kMinLongHeader = 7;
+
+    const auto [payload, size] = GetUdpPayload();
+    if (!payload || size < kMinLongHeader || (payload[0] & 0xC0u) != 0xC0u) {
+      return false;
+    }
+    const std::uint32_t version = ReadU32Be(payload + 1);
+    const std::uint8_t type = (payload[0] & 0x30u) >> 4;
+    return (version == kVersion1 && type == 0u) ||
+           (version == kVersion2 && type == 1u);
+  }
+
   std::optional<std::string> GetDnsDomain() const noexcept {
     const std::uint8_t* dns = DnsPtr();
     if (!dns) {
@@ -429,8 +446,8 @@ class IPPacket {
       return std::nullopt;  // qdcount == 0
     }
     const std::uint8_t* cur = dns + detail::kDnsHdr;
-    std::string name =
-        detail::ParseDnsName(dns, data_.data() + data_.size(), cur);
+    std::string name = ToLowerAscii(
+        detail::ParseDnsName(dns, data_.data() + data_.size(), cur));
     if (name.empty()) {
       return std::nullopt;
     }
