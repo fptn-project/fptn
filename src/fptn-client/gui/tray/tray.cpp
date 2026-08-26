@@ -1317,15 +1317,17 @@ void TrayApp::UpdateConnectionTimeLabel() {
         std::chrono::steady_clock::now() - session_start_);
   }
   const auto t = total.count();
-  QString text = QString("%1:%2:%3")
-                     .arg(t / 3600, 2, 10, QChar('0'))
-                     .arg((t % 3600) / 60, 2, 10, QChar('0'))
-                     .arg(t % 60, 2, 10, QChar('0'));
+  const QString time_str = QString("%1:%2:%3")
+                               .arg(t / 3600, 2, 10, QChar('0'))
+                               .arg((t % 3600) / 60, 2, 10, QChar('0'))
+                               .arg(t % 60, 2, 10, QChar('0'));
+  QString text = time_str;
   if (paused_) {
     text = QObject::tr("%1 (pause)").arg(text);
   }
-  connection_time_action_->setText(
-      QObject::tr("Connection time: %1").arg(text));
+  const QString label =
+      QObject::tr("Connection time: %1").arg(text);
+  connection_time_action_->setText(label);
 }
 
 void TrayApp::ResetConnectionTime() {
