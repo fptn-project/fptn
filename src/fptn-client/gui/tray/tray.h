@@ -5,7 +5,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 =============================================================================*/
 
 #pragma once
-
+#include <chrono>
 #include <future>
 #include <mutex>
 #include <string>
@@ -60,6 +60,9 @@ class TrayApp : public QWidget {
  protected slots:
   void onConnectToServer();
   void onDisconnectFromServer();
+  void onKillSwitchActivated();
+  void OnReconnectLimitReached();
+  void UpdateKillSwitchState(bool active);
   void onShowSettings();
 
   // cppcheck-suppress unknownMacro
@@ -74,6 +77,8 @@ class TrayApp : public QWidget {
  protected:
   void UpdateTrayMenu();
   void UpdatePings();
+  void UpdateConnectionTimeLabel();
+  void ResetConnectionTime();
   void OpenWebBrowser(const std::string& url);
 
  protected:
@@ -98,6 +103,7 @@ class TrayApp : public QWidget {
   QMenu* limited_zone_connect_menu_ = nullptr;
   QAction* empty_configuration_action_ = nullptr;
   QAction* disconnect_action_ = nullptr;
+  QAction* kill_switch_action_ = nullptr;
   //  QAction* connecting_action_ = nullptr;
   QAction* settings_action_ = nullptr;
 
@@ -110,6 +116,10 @@ class TrayApp : public QWidget {
   QAction* reconnecting_label_action_ = nullptr;
   QWidgetAction* speed_widget_action_ = nullptr;
   SpeedWidget* speed_widget_ = nullptr;
+  QAction* connection_time_action_ = nullptr;
+  std::chrono::seconds accumulated_{0};
+  std::chrono::steady_clock::time_point session_start_;
+  bool paused_ = false;
   QTimer* update_timer_ = nullptr;
   ConnectionState connection_state_ = ConnectionState::None;
   QString connected_server_address_;
@@ -121,6 +131,7 @@ class TrayApp : public QWidget {
 
   // connecting
   std::atomic<bool> connecting_in_progress_{false};
+  std::atomic<bool> kill_switch_active_{false};
 
   QTimer* ping_update_timer_{nullptr};
 

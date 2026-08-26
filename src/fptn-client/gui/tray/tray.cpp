@@ -170,8 +170,19 @@ TrayApp::TrayApp(const SettingsModelPtr& settings, QObject* parent)
   connect(disconnect_action_, &QAction::triggered, this,
       &TrayApp::onDisconnectFromServer);
 
+  kill_switch_action_ = new QAction(
+    QObject::tr("Kill Switch enabled. Click to disconnect"), this);
+  kill_switch_action_->setVisible(false);
+  connect(kill_switch_action_, &QAction::triggered, this,
+      &TrayApp::onKillSwitchActivated);
+
   speed_widget_action_ = new QWidgetAction(this);
   speed_widget_action_->setDefaultWidget(speed_widget_);
+
+  connection_time_action_ = new QAction(
+      QObject::tr("Connection time: %1").arg("00:00:00"), this);
+  connection_time_action_->setEnabled(false);
+  connection_time_action_->setVisible(false);
 
   // Settings
   connect(settings_.get(), &SettingsModel::dataChanged, this,
@@ -214,10 +225,12 @@ TrayApp::TrayApp(const SettingsModelPtr& settings, QObject* parent)
   // Show menu
   // tray_menu_->addAction(connecting_action_);
   tray_menu_->addAction(disconnect_action_);
+  tray_menu_->addAction(kill_switch_action_);
   tray_menu_->addAction(connecting_label_action_);
   tray_menu_->addAction(disconnecting_label_action_);
   tray_menu_->addAction(reconnecting_label_action_);
   tray_menu_->addAction(speed_widget_action_);
+  tray_menu_->addAction(connection_time_action_);
   tray_menu_->addSeparator();
   tray_menu_->addAction(settings_action_);
   tray_menu_->addSeparator();
@@ -429,6 +442,9 @@ void TrayApp::UpdateTrayMenu() {
       if (speed_widget_action_) {
         speed_widget_action_->setVisible(false);
       }
+      if (connection_time_action_) {
+        connection_time_action_->setVisible(false);
+      }
       if (settings_action_) {
         settings_action_->setEnabled(true);
       }
@@ -457,6 +473,9 @@ void TrayApp::UpdateTrayMenu() {
       if (speed_widget_action_) {
         speed_widget_action_->setVisible(false);
       }
+      if (connection_time_action_) {
+        connection_time_action_->setVisible(false);
+      }
       if (settings_action_) {
         settings_action_->setEnabled(false);
       }
@@ -471,8 +490,11 @@ void TrayApp::UpdateTrayMenu() {
     case ConnectionState::Connected: {
       tray_icon_->setIcon(QIcon(active_icon_path_));
       if (disconnect_action_) {
-        disconnect_action_->setText(QString(QObject::tr("Disconnect") + ": %1")
-                .arg(QString::fromStdString(selected_server_.name)));
+        const QString server_name =
+            QString::fromStdString(selected_server_.name);
+        disconnect_action_->setText(
+            QString(QObject::tr("Disconnect") + ": %1")
+                .arg(server_name));
         disconnect_action_->setVisible(true);
       }
       if (speed_widget_) {
@@ -483,6 +505,9 @@ void TrayApp::UpdateTrayMenu() {
       }
       if (speed_widget_action_) {
         speed_widget_action_->setVisible(true);
+      }
+      if (connection_time_action_) {
+        connection_time_action_->setVisible(true);
       }
       if (connecting_label_action_) {
         connecting_label_action_->setVisible(false);
@@ -502,6 +527,9 @@ void TrayApp::UpdateTrayMenu() {
       }
       if (speed_widget_action_) {
         speed_widget_action_->setVisible(false);
+      }
+      if (connection_time_action_) {
+        connection_time_action_->setVisible(false);
       }
       if (settings_action_) {
         settings_action_->setEnabled(false);
@@ -525,6 +553,10 @@ void TrayApp::UpdateTrayMenu() {
     fptn::gui::SetTranslation(selected_language);
   }
   RetranslateUi();
+
+  if (kill_switch_active_) {
+    UpdateKillSwitchState(true);
+  }
 }
 
 void TrayApp::onConnectToServer() {
@@ -549,6 +581,7 @@ void TrayApp::onDisconnectFromServer() {
 
     settings_->StartPingMonitoring();
 
+    ResetConnectionTime();
     UpdateTrayMenu();
   }
   if (vpn_client) {
@@ -580,11 +613,14 @@ void TrayApp::handleDefaultState() {
     settings_->StartPingMonitoring();
 
     connection_state_ = ConnectionState::None;
-    vpn_client = std::move(vpn_client_);
+    if (!kill_switch_active_) {
+      vpn_client = std::move(vpn_client_);
+    }
   }
   if (vpn_client) {
     vpn_client->Stop();
   }
+  ResetConnectionTime();
   UpdateTrayMenu();
 }
 
@@ -631,6 +667,12 @@ void TrayApp::handleConnected() {
     const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
     connection_state_ = ConnectionState::Connected;
+    if (vpn_client_) {
+      vpn_client_->MarkConnected();
+    }
+    accumulated_ = std::chrono::seconds::zero();
+    session_start_ = std::chrono::steady_clock::now();
+    paused_ = false;
   }
   UpdateTrayMenu();
 }
@@ -654,6 +696,7 @@ void TrayApp::handleTimer() {
 
   // check connection state
   bool is_disconnected = false;
+  bool kill_switch_handled = false;
   {
     const std::unique_lock<std::mutex> lock(mutex_, std::try_to_lock);  // mutex
 
@@ -670,15 +713,24 @@ void TrayApp::handleTimer() {
           reconnection_in_progress = true;
           last_reconnection_time = now;
           is_disconnected = true;
+          kill_switch_handled =
+              settings_->EnableKillSwitch() && vpn_client_->IsGaveUp();
         }
       } else if (vpn_client_->IsReconnecting()) {
+        if (!paused_) {
+          accumulated_ += std::chrono::duration_cast<std::chrono::seconds>(
+              std::chrono::steady_clock::now() - session_start_);
+          paused_ = true;
+        }
         if (reconnecting_label_action_) {
           const int n = vpn_client_->ReconnectAttempt();
+          const int max_attempts = vpn_client_->MaxReconnectAttempts();
           QString text = QObject::tr("Reconnecting...");
           if (n > 0) {
-            text += QString(" (%1/%2)")
-                        .arg(n)
-                        .arg(vpn_client_->MaxReconnectAttempts());
+            const QString max_str = (max_attempts == 0)
+                ? QString::fromUtf8("∞")
+                : QString::number(max_attempts);
+            text += QString(" (%1/%2)").arg(n).arg(max_str);
           }
           reconnecting_label_action_->setText(text);
           reconnecting_label_action_->setVisible(true);
@@ -690,6 +742,10 @@ void TrayApp::handleTimer() {
         // Re-arm the check: the tunnel is healthy again, so the next
         // unexpected close has to be reported too.
         reconnection_in_progress = false;
+        if (paused_) {   // ← ДОБАВИТЬ
+          session_start_ = std::chrono::steady_clock::now();
+          paused_ = false;
+        }
         if (reconnecting_label_action_) {
           reconnecting_label_action_->setVisible(false);
         }
@@ -704,10 +760,15 @@ void TrayApp::handleTimer() {
     }
   }
 
+  if (connection_state_ == ConnectionState::Connected) {
+    UpdateConnectionTimeLabel();
+  }
+
   if (is_disconnected) {
-    // show error
-    ShowError(QObject::tr("FPTN Connection Error"),
-        QObject::tr("The VPN connection was unexpectedly closed."));
+    if (!kill_switch_handled) {
+      ShowError(QObject::tr("FPTN Connection Error"),
+          QObject::tr("The VPN connection was unexpectedly closed."));
+    }
     SPDLOG_INFO("FPTN Connection Error");
     emit disconnecting();
   }
@@ -737,6 +798,10 @@ void TrayApp::RetranslateUi() {
   if (connecting_label_action_) {
     connecting_label_action_->setText(QObject::tr("Connecting..."));
   }
+  if (kill_switch_action_) {
+    kill_switch_action_->setText(
+        QObject::tr("Kill Switch enabled. Click to disconnect"));
+  }
   if (empty_configuration_action_) {
     empty_configuration_action_->setText(QObject::tr("No servers"));
   }
@@ -758,9 +823,10 @@ void TrayApp::RetranslateUi() {
   }
 
   if (disconnect_action_) {
+    const QString server_name =
+        QString::fromStdString(selected_server_.name);
     const QString disconnect_text =
-        QString(QObject::tr("Disconnect") + ": %1")
-            .arg(QString::fromStdString(selected_server_.name));
+        QString(QObject::tr("Disconnect") + ": %1").arg(server_name);
     disconnect_action_->setText(disconnect_text);
   }
   if (auto_update_action_) {
@@ -1109,11 +1175,16 @@ bool TrayApp::startVpn(QString& err_msg) {
 
   // setup vpn client
   auto vpn_client = std::make_shared<fptn::vpn::VpnManager>(
-      fptn::vpn::VpnManager::Config{.http_client = std::move(http_client),
+      fptn::vpn::VpnManager::Config{
+          .http_client = std::move(http_client),
           .route_manager = route_manager,
           .virtual_net_interface = virtual_network_interface,
           .plugins = std::move(client_plugins),
-          .ad_blocker = std::move(ad_blocker)});
+          .ad_blocker = std::move(ad_blocker),
+          .max_full_restarts = settings_->ReconnectAttempts(),
+          .on_reconnect_limit_reached = [this]() {
+            OnReconnectLimitReached();
+          }});
   {
     const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
@@ -1146,6 +1217,11 @@ bool TrayApp::startVpn(QString& err_msg) {
 
 bool TrayApp::stopVpn() {
   SPDLOG_INFO("Stopping vpn");
+
+  if (kill_switch_active_) {
+    SPDLOG_INFO("Kill Switch active: keeping TUN alive to preserve the block");
+    return true;
+  }
 
   fptn::vpn::VpnClientPtr vpn_client;
   {
@@ -1191,5 +1267,77 @@ void TrayApp::UpdatePings() {
         }
       }
     }
+  }
+}
+
+void TrayApp::onKillSwitchActivated() {
+  kill_switch_active_ = false;
+  if (vpn_client_ && vpn_client_->GetRouteManager()) {
+    vpn_client_->GetRouteManager()->RemoveKillSwitch();
+  }
+  UpdateKillSwitchState(false);
+  stopVpn();
+}
+
+void TrayApp::OnReconnectLimitReached() {
+  if (settings_->EnableKillSwitch()) {
+    kill_switch_active_ = true;
+    if (vpn_client_ && vpn_client_->GetRouteManager()) {
+      vpn_client_->GetRouteManager()->ApplyKillSwitch();
+    }
+    QMetaObject::invokeMethod(this, [this] {
+      UpdateKillSwitchState(true);
+    }, Qt::QueuedConnection);
+  }
+}
+
+void TrayApp::UpdateKillSwitchState(bool active) {
+  if (active) {
+    if (connect_menu_) connect_menu_->setEnabled(false);
+    if (settings_action_) settings_action_->setEnabled(false);
+    if (disconnect_action_) disconnect_action_->setEnabled(false);
+    if (kill_switch_action_) {
+      kill_switch_action_->setVisible(true);
+      kill_switch_action_->setEnabled(true);
+    }
+    if (connection_time_action_) {
+      connection_time_action_->setVisible(false);
+    }
+  } else {
+    if (connect_menu_) connect_menu_->setEnabled(true);
+    if (settings_action_) settings_action_->setEnabled(true);
+    if (disconnect_action_) disconnect_action_->setEnabled(true);
+    if (kill_switch_action_) kill_switch_action_->setVisible(false);
+  }
+}
+
+void TrayApp::UpdateConnectionTimeLabel() {
+  if (!connection_time_action_) {
+    return;
+  }
+  std::chrono::seconds total = accumulated_;
+  if (!paused_) {
+    total += std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::steady_clock::now() - session_start_);
+  }
+  const auto t = total.count();
+  const QString time_str = QString("%1:%2:%3")
+                               .arg(t / 3600, 2, 10, QChar('0'))
+                               .arg((t % 3600) / 60, 2, 10, QChar('0'))
+                               .arg(t % 60, 2, 10, QChar('0'));
+  QString text = time_str;
+  if (paused_) {
+    text = QObject::tr("%1 (pause)").arg(text);
+  }
+  const QString label =
+      QObject::tr("Connection time: %1").arg(text);
+  connection_time_action_->setText(label);
+}
+
+void TrayApp::ResetConnectionTime() {
+  accumulated_ = std::chrono::seconds::zero();
+  paused_ = false;
+  if (connection_time_action_) {
+    connection_time_action_->setVisible(false);
   }
 }

@@ -580,5 +580,29 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <source>Enables advanced DNS configuration to prevent leaks. Recommended when using split tunneling. Use with caution!</source>
             <translation>Включает расширенную конфигурацию DNS для защиты от утечек. Рекомендуется активировать при использовании раздельного туннелирования. Используйте с осторожностью!</translation>
         </message>
+        <message>
+            <source>Kill Switch</source>
+            <translation>Kill Switch</translation>
+        </message>
+        <message>
+            <source>Kill Switch enabled. Click to disconnect</source>
+            <translation>Kill Switch включён. Отключиться</translation>
+        </message>
+		<message>
+    		<source>Connection time: %1</source>
+    		<translation>Время соединения: %1</translation>
+		</message>
+		<message>
+    		<source>%1 (pause)</source>
+    		<translation>%1 (пауза)</translation>
+		</message>
+		<message>
+    		<source>Reconnect attempts</source>
+    		<translation>Попытки переподключения</translation>
+		</message>
+		<message>
+    		<source>Infinity</source>
+    		<translation>Бесконечно</translation>
+		</message>
     </context>
 </TS>
