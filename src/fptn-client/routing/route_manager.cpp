@@ -1530,4 +1530,51 @@ std::string GetDefaultNetworkInterfaceName() {
   }
   return result;
 }
+
+void RouteManager::ApplyKillSwitch() {
+  const std::unique_lock<std::mutex> lock(mutex_);
+  if (tun_interface_name_.empty()) {
+    SPDLOG_WARN("Cannot apply Kill Switch: TUN interface name is empty");
+    return;
+  }
+  
+  SPDLOG_INFO("Applying Kill Switch - blocking all traffic through {}", tun_interface_name_);
+  
+#ifdef __linux__
+  fptn::common::system::command::run(
+      fmt::format("ip route add 0.0.0.0/0 dev {}", tun_interface_name_));
+  fptn::common::system::command::run(
+      fmt::format("ip -6 route add ::/0 dev {}", tun_interface_name_));
+#elif __APPLE__
+  fptn::common::system::command::run(
+      fmt::format("route -n add -net 0.0.0.0/0 -interface {}", tun_interface_name_));
+  fptn::common::system::command::run(
+      fmt::format("route -n add -net ::/0 -interface {}", tun_interface_name_));
+#elif _WIN32
+  const std::string tun_ip = config_.tun_interface_address_ipv4.ToString();
+  fptn::common::system::command::run(
+      fmt::format("route add 0.0.0.0 mask 0.0.0.0 {} METRIC 1", tun_ip));
+#endif
+}
+
+void RouteManager::RemoveKillSwitch() {
+  const std::unique_lock<std::mutex> lock(mutex_);
+  
+  SPDLOG_INFO("Removing Kill Switch routes");
+  
+#ifdef __linux__
+  fptn::common::system::command::run("ip route del 0.0.0.0/0 2>/dev/null");
+  fptn::common::system::command::run("ip -6 route del ::/0 2>/dev/null");
+#elif __APPLE__
+  fptn::common::system::command::run("route -n delete 0.0.0.0/0 2>/dev/null");
+  fptn::common::system::command::run("route -n delete ::/0 2>/dev/null");
+#elif _WIN32
+  fptn::common::system::command::run("route delete 0.0.0.0");
+  if (!tun_interface_name_.empty()) {
+    fptn::common::system::command::run(
+        fmt::format("netsh interface ipv6 delete route ::/0 \"{}\" store=active", 
+                    tun_interface_name_));
+  }
+#endif
+}
 }  // namespace fptn::routing

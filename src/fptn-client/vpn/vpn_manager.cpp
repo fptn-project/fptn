@@ -181,6 +181,11 @@ bool VpnManager::Stop() {
     config_.http_client->Stop();
   }
 
+  if (config_.route_manager) {
+    SPDLOG_INFO("Removing Kill Switch routes");
+    config_.route_manager->RemoveKillSwitch();
+  }
+
   {
     const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
@@ -369,6 +374,9 @@ void VpnManager::Supervise() {
       config_.route_manager->Clean();
       reconnecting_ = false;
       gave_up_ = true;
+      if (config_.on_reconnect_limit_reached) {
+        config_.on_reconnect_limit_reached();
+      }
       break;
     }
     ++full_restart_count;

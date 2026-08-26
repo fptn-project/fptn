@@ -211,6 +211,7 @@ SettingsModel::SettingsModel(const QMap<QString, QString>& languages,
 #endif
       client_autostart_(false),
       enable_ad_block_(true),
+      enable_kill_switch_(false),
       blacklist_domains_(FPTN_CLIENT_DEFAULT_BLACKLIST_DOMAINS),
       enable_split_tunnel_(true),
       split_tunnel_domains_(DefaultSplitTunnelDomains()) {
@@ -406,6 +407,10 @@ void SettingsModel::Load(bool dont_load_server) {
     enable_ad_block_ = service_obj["enable_ad_block"].toBool();
   }
 
+  if (service_obj.contains("enable_kill_switch")) {
+    enable_kill_switch_ = service_obj["enable_kill_switch"].toBool();
+  }
+
   if (service_obj.contains("blacklist_domains")) {
     blacklist_domains_ = service_obj["blacklist_domains"].toString();
   }
@@ -554,6 +559,7 @@ bool SettingsModel::Save() {
 #endif
 
   json_object["enable_ad_block"] = enable_ad_block_;
+  json_object["enable_kill_switch"] = enable_kill_switch_;
   json_object["blacklist_domains"] = blacklist_domains_;
   json_object["exclude_tunnel_networks"] = exclude_tunnel_networks_;
   json_object["include_tunnel_networks"] = include_tunnel_networks_;
@@ -917,4 +923,11 @@ void SettingsModel::PingServer(const QString& host, int port) {
       }
     }
   }
+}
+
+bool SettingsModel::EnableKillSwitch() const { return enable_kill_switch_; }
+
+void SettingsModel::SetEnableKillSwitch(bool enable) {
+  enable_kill_switch_ = enable;
+  Save();
 }

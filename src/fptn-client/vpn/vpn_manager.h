@@ -8,6 +8,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include <atomic>
 #include <condition_variable>
+#include <functional>
 #include <future>
 #include <memory>
 #include <mutex>
@@ -37,6 +38,7 @@ class VpnManager final {
     fptn::common::network::TunInterfaceSPtr virtual_net_interface;
     fptn::plugin::PluginList plugins;
     fptn::adblock::AdBlockerPtr ad_blocker;
+    std::function<void()> on_reconnect_limit_reached;
   };
 
  public:
@@ -51,7 +53,13 @@ class VpnManager final {
   bool IsReconnecting() const;
   int ReconnectAttempt() const;
   int MaxReconnectAttempts() const;
+  bool IsGaveUp() const { return gave_up_; }
+  void MarkConnected() { ever_connected_ = true; }
   [[nodiscard]] std::string GetInterfaceName() const;
+
+  fptn::routing::RouteManagerSPtr GetRouteManager() const {
+    return config_.route_manager;
+  }
 
  protected:
   void ProcessWebSocketPackets();

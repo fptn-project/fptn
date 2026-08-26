@@ -222,6 +222,8 @@ class SettingsModel : public QObject {
 
   bool EnableAdBlock() const;
   void SetEnableAdBlock(bool enable);
+  bool EnableKillSwitch() const;
+  void SetEnableKillSwitch(bool enable);
 
   QVector<QString> BlacklistDomains() const;
   void SetBlacklistDomains(const QVector<QString>& domains);
@@ -283,6 +285,7 @@ class SettingsModel : public QObject {
   QString connection_strategy_;
 
   bool enable_ad_block_;
+  bool enable_kill_switch_;
   QString blacklist_domains_;
   QString exclude_tunnel_networks_;
   QString include_tunnel_networks_;

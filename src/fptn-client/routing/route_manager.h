@@ -86,6 +86,8 @@ class RouteManager final {
 
   bool Apply(std::string tun_name);
   bool Clean();
+  void ApplyKillSwitch();
+  void RemoveKillSwitch();
 
   bool AddDnsRoutesIPv4(
       const std::vector<fptn::common::network::IPv4Address>& ips,
