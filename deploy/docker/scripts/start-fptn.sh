@@ -4,21 +4,19 @@ export OUT_NETWORK_INTERFACE=$(ip -o -4 route show to default | awk '{print $5}'
 echo "[FPTN] Using network interface: $OUT_NETWORK_INTERFACE"
 
 # Download the domain blacklist before starting the server.
-BLACKLIST_FILE=/etc/fptn/blacklist.txt
+BLACKLIST_FILE=/tmp/fptn-blacklist.txt
+BLACKLIST_ARG=""
+rm -f "${BLACKLIST_FILE}"
 if [ -n "${BLACKLIST_URL}" ]; then
     echo "[FPTN] Downloading domain blacklist from: ${BLACKLIST_URL}"
     if wget -4 -q --timeout=10 --tries=2 -O "${BLACKLIST_FILE}.tmp" "${BLACKLIST_URL}"; then
         mv "${BLACKLIST_FILE}.tmp" "${BLACKLIST_FILE}"
+        BLACKLIST_ARG="--domain-blacklist-file=${BLACKLIST_FILE}"
         echo "[FPTN] Domain blacklist saved to ${BLACKLIST_FILE}"
     else
         rm -f "${BLACKLIST_FILE}.tmp"
-        echo "[FPTN] WARNING: failed to download blacklist; using existing file if present"
+        echo "[FPTN] WARNING: failed to download blacklist; using built-in list only"
     fi
-fi
-
-BLACKLIST_ARG=""
-if [ -f "${BLACKLIST_FILE}" ]; then
-    BLACKLIST_ARG="--domain-blacklist-file=${BLACKLIST_FILE}"
 fi
 
 exec /usr/local/bin/fptn-server \

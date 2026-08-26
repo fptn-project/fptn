@@ -132,7 +132,7 @@ fptn::common::network::IPPacketPtr AdBlocker::ProcessOutgoingDns(
     return nullptr;
   }
   const auto domain = packet.GetDnsDomain();
-  if (!domain || !IsBlocked(fptn::common::utils::ToLowerCase(*domain))) {
+  if (!domain || !IsBlocked(*domain)) {
     return nullptr;
   }
 
