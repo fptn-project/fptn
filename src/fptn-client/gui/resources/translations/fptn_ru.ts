@@ -586,7 +586,7 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
         </message>
         <message>
             <source>Kill Switch enabled. Click to disconnect</source>
-            <translation>Kill Switch включён. Нажмите, чтобы отключиться</translation>
+            <translation>Kill Switch включён. Отключиться</translation>
         </message>
 		<message>
     		<source>Connection time: %1</source>
