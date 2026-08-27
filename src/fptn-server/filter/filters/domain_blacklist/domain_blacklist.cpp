@@ -9,11 +9,18 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+#include <filesystem>
+#include <fstream>
+#include <numeric>
 #include <shared_mutex>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
+
+#include "common/utils/utils.h"
+
+#include "filter/domain_list/domain_list.h"
 
 namespace fptn::filter {
 
@@ -26,12 +33,12 @@ namespace {
 
 constexpr std::chrono::hours kAddressTtl{1};
 
-// Strips inline comments and whitespace, lowercases and drops a trailing dot.
 std::string Normalize(const std::string& raw) {
   std::string out;
+  out.reserve(raw.size());
   for (const char c : raw) {
     if (c == '#') {
-      break;  // comment
+      break;
     }
     if (!std::isspace(static_cast<unsigned char>(c))) {
       out += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
@@ -42,13 +49,55 @@ std::string Normalize(const std::string& raw) {
   }
   return out;
 }
+
+std::vector<std::string> Collect(const std::filesystem::path& data_dir,
+    const std::vector<std::string>& urls,
+    const std::filesystem::path& file) {
+  std::vector<std::string> domains = fptn::common::utils::SplitCommaSeparated(
+      FPTN_SERVER_DEFAULT_BLACKLIST_DOMAINS);
+
+  const std::vector<std::string> downloaded =
+      domain_list::Load(data_dir / "blacklist", urls);
+  domains.insert(domains.end(), downloaded.begin(), downloaded.end());
+
+  if (file.empty()) {
+    return domains;
+  }
+  if (!std::filesystem::exists(file)) {
+    SPDLOG_WARN("Domain blacklist file not found: {}", file.string());
+    return domains;
+  }
+  std::ifstream in(file);
+  std::string line;
+  while (std::getline(in, line)) {
+    domains.push_back(std::move(line));
+  }
+  SPDLOG_INFO("Domain blacklist file loaded: {}", file.string());
+  return domains;
+}
 }  // namespace
 
+DomainBlacklist::DomainBlacklist(const std::filesystem::path& data_dir,
+    const std::vector<std::string>& urls,
+    const std::filesystem::path& file)
+    : DomainBlacklist(Collect(data_dir, urls, file)) {}
+
 DomainBlacklist::DomainBlacklist(const std::vector<std::string>& domains) {
+  const std::size_t total = std::accumulate(domains.begin(), domains.end(),
+      std::size_t{0},
+      [](std::size_t sum, const std::string& raw) { return sum + raw.size(); });
+  arena_.reserve(total);
+  domains_.reserve(domains.size());
+
   for (const auto& raw : domains) {
     const std::string domain = Normalize(raw);
-    if (!domain.empty()) {
-      domains_.insert(domain);
+    if (domain.empty()) {
+      continue;
+    }
+    const std::size_t offset = arena_.size();
+    arena_.append(domain);
+    if (!domains_.emplace(arena_.data() + offset, domain.size()).second) {
+      arena_.resize(offset);
     }
   }
   SPDLOG_INFO("Domain blacklist loaded: {} domains", domains_.size());
@@ -58,7 +107,7 @@ std::string_view DomainBlacklist::GetBlacklistedDomain(
     const std::string& domain) const {
   std::string_view suffix(domain);
   while (!suffix.empty()) {
-    const auto it = domains_.find(std::string(suffix));
+    const auto it = domains_.find(suffix);
     if (it != domains_.end()) {
       return *it;
     }
@@ -75,49 +124,69 @@ void DomainBlacklist::RememberIPv4Address(
     const IPv4Address& address, std::string_view domain) const {
   const std::unique_lock<std::shared_mutex> lock(mutex_);  // mutex
 
-  ipv4_addresses_[address.ToInt()] = {.domain = domain,
-      .expires_at = std::chrono::steady_clock::now() + kAddressTtl};
+  const auto now = std::chrono::steady_clock::now();
+  if (ipv4_addresses_.size() >= ipv4_prune_size_) {
+    std::erase_if(ipv4_addresses_, [now](const auto& entry) {
+      return entry.second.expires_at.load(std::memory_order_relaxed) <= now;
+    });
+    ipv4_prune_size_ = (ipv4_addresses_.size() * 2) + 1;
+  }
+  const auto [it, inserted] =
+      ipv4_addresses_.try_emplace(address.ToInt(), domain, now + kAddressTtl);
+  if (!inserted) {
+    it->second.domain = domain;
+    it->second.expires_at.store(now + kAddressTtl, std::memory_order_relaxed);
+  }
 }
 
 void DomainBlacklist::RememberIPv6Address(
     const IPv6Address& address, std::string_view domain) const {
   const std::unique_lock<std::shared_mutex> lock(mutex_);  // mutex
 
-  ipv6_addresses_[address.ToBytes()] = {.domain = domain,
-      .expires_at = std::chrono::steady_clock::now() + kAddressTtl};
+  const auto now = std::chrono::steady_clock::now();
+  if (ipv6_addresses_.size() >= ipv6_prune_size_) {
+    std::erase_if(ipv6_addresses_, [now](const auto& entry) {
+      return entry.second.expires_at.load(std::memory_order_relaxed) <= now;
+    });
+    ipv6_prune_size_ = (ipv6_addresses_.size() * 2) + 1;
+  }
+  const auto [it, inserted] =
+      ipv6_addresses_.try_emplace(address.ToBytes(), domain, now + kAddressTtl);
+  if (!inserted) {
+    it->second.domain = domain;
+    it->second.expires_at.store(now + kAddressTtl, std::memory_order_relaxed);
+  }
 }
 
 std::string_view DomainBlacklist::GetBlockedIPv4Domain(
     const IPv4Address& address) const {
-  const std::unique_lock<std::shared_mutex> lock(mutex_);  // mutex
+  const std::shared_lock<std::shared_mutex> lock(mutex_);  // mutex
 
   const auto it = ipv4_addresses_.find(address.ToInt());
   if (it == ipv4_addresses_.end()) {
     return {};
   }
   const auto now = std::chrono::steady_clock::now();
-  if (it->second.expires_at <= now) {
-    ipv4_addresses_.erase(it);
+  if (it->second.expires_at.load(std::memory_order_relaxed) <= now) {
     return {};
   }
-  it->second.expires_at = now + kAddressTtl;
+  it->second.expires_at.store(now + kAddressTtl, std::memory_order_relaxed);
   return it->second.domain;
 }
 
 std::string_view DomainBlacklist::GetBlockedIPv6Domain(
     const IPv6Address& address) const {
-  const std::unique_lock<std::shared_mutex> lock(mutex_);  // mutex
+  const std::shared_lock<std::shared_mutex> lock(mutex_);  // mutex
 
   const auto it = ipv6_addresses_.find(address.ToBytes());
   if (it == ipv6_addresses_.end()) {
     return {};
   }
   const auto now = std::chrono::steady_clock::now();
-  if (it->second.expires_at <= now) {
-    ipv6_addresses_.erase(it);
+  if (it->second.expires_at.load(std::memory_order_relaxed) <= now) {
     return {};
   }
-  it->second.expires_at = now + kAddressTtl;
+  it->second.expires_at.store(now + kAddressTtl, std::memory_order_relaxed);
   return it->second.domain;
 }
 

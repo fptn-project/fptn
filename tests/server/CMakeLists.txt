@@ -6,11 +6,17 @@ find_package(fmt REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(jwt-cpp REQUIRED)
 find_package(prometheus-cpp REQUIRED)
+find_package(httplib REQUIRED)
 
 if(WIN32)
   set(TUNTAP_LIB Wintun rpcrt4)
 else()
   set(TUNTAP_LIB tuntap++)
+endif()
+
+set(PLATFORM_SPECIFIC_LIBS "")
+if(APPLE)
+  set(PLATFORM_SPECIFIC_LIBS "-framework Security" "-framework CoreFoundation")
 endif()
 
 set(LIBS
@@ -23,9 +29,14 @@ set(LIBS
     jwt-cpp::jwt-cpp
     spdlog::spdlog
     fmt::fmt
+    httplib::httplib
     fptn-protocol-lib_static
     prometheus-cpp::prometheus-cpp
-    ${TUNTAP_LIB})
+    ${TUNTAP_LIB}
+    ${PLATFORM_SPECIFIC_LIBS})
+
+set(DOMAIN_LIST_SRC ${FPTN_SERVER_PATH}/filter/domain_list/domain_list.h
+                    ${FPTN_SERVER_PATH}/filter/domain_list/domain_list.cpp)
 
 include_directories(${FPTN_SERVER_PATH})
 
@@ -53,10 +64,18 @@ add_executable(
 target_link_libraries(BitTorrentTest PRIVATE ${LIBS})
 add_test(NAME BitTorrentTest COMMAND BitTorrentTest)
 
+# --- AdBlock test ---
+add_executable(
+  AdBlockTest filter/adblock/AdBlockTest.cpp ${FPTN_SERVER_PATH}/filter/filters/adblock/adblock.h
+              ${FPTN_SERVER_PATH}/filter/filters/adblock/adblock.cpp ${DOMAIN_LIST_SRC})
+target_link_libraries(AdBlockTest PRIVATE ${LIBS})
+add_test(NAME AdBlockTest COMMAND AdBlockTest)
+
 # --- DomainBlacklist test ---
 add_executable(
   DomainBlacklistTest filter/domain_blacklist/DomainBlacklistTest.cpp
                       ${FPTN_SERVER_PATH}/filter/filters/domain_blacklist/domain_blacklist.h
-                      ${FPTN_SERVER_PATH}/filter/filters/domain_blacklist/domain_blacklist.cpp)
+                      ${FPTN_SERVER_PATH}/filter/filters/domain_blacklist/domain_blacklist.cpp
+                      ${DOMAIN_LIST_SRC})
 target_link_libraries(DomainBlacklistTest PRIVATE ${LIBS})
 add_test(NAME DomainBlacklistTest COMMAND DomainBlacklistTest)

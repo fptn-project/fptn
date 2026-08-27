@@ -11,8 +11,6 @@ services:
       - SYS_RESOURCE
     sysctls:
       net.ipv4.ip_local_port_range: "6890 65535"
-      # These are per-network-namespace: setting them on the host does not
-      # reach the container. Requires tcp_bbr loaded on the host.
       net.ipv4.tcp_congestion_control: "bbr"
       net.ipv4.tcp_rmem: "4096 131072 33554432"
       net.ipv4.tcp_wmem: "4096 65536 33554432"
@@ -36,9 +34,13 @@ services:
       - ENABLE_DETECT_PROBING=${ENABLE_DETECT_PROBING}
       - DEFAULT_PROXY_DOMAIN=${DEFAULT_PROXY_DOMAIN}
       - ALLOWED_SNI_LIST=${ALLOWED_SNI_LIST}
-      - DISABLE_TORRENT_FILTER=${DISABLE_TORRENT_FILTER}
-      - DISABLE_SPAM_FILTER=${DISABLE_SPAM_FILTER}
-      - BLACKLIST_URL=${BLACKLIST_URL:-}
+      - ENABLE_DOMAIN_BLACKLIST_FILTER=${ENABLE_DOMAIN_BLACKLIST_FILTER:-true}
+      - DOMAIN_BLACKLIST_URLS=${DOMAIN_BLACKLIST_URLS:-}
+      - ENABLE_ADS_FILTER=${ENABLE_ADS_FILTER:-true}
+      - ADS_BLOCKLIST_URLS=${ADS_BLOCKLIST_URLS:-}
+      - DATA_DIR=${DATA_DIR:-/etc/fptn/data}
+      - ENABLE_TORRENT_FILTER=${ENABLE_TORRENT_FILTER}
+      - ENABLE_SPAM_FILTER=${ENABLE_SPAM_FILTER}
       - PROMETHEUS_SECRET_ACCESS_KEY=${PROMETHEUS_SECRET_ACCESS_KEY}
       - USE_REMOTE_SERVER_AUTH=${USE_REMOTE_SERVER_AUTH}
       - REMOTE_SERVER_AUTH_HOST=${REMOTE_SERVER_AUTH_HOST}
