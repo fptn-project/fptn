@@ -138,6 +138,17 @@ if (CLANG_TIDY_EXE)
         if (CLANG_TIDY_VERSION GREATER_EQUAL 20)
             message(STATUS "[CLANG-TIDY]  clang-tidy ${CLANG_TIDY_VERSION} accepted, enabling")
             set(CMAKE_CXX_CLANG_TIDY "${CLANG_TIDY_EXE};-extra-arg=-std=c++20")
+            if (APPLE)
+                execute_process(
+                        COMMAND xcrun clang -print-resource-dir
+                        OUTPUT_VARIABLE FPTN_CLANG_RESOURCE_DIR
+                        OUTPUT_STRIP_TRAILING_WHITESPACE)
+                get_filename_component(FPTN_CLANG_RESOURCE_MAJOR "${FPTN_CLANG_RESOURCE_DIR}" NAME)
+                if (FPTN_CLANG_RESOURCE_DIR AND FPTN_CLANG_RESOURCE_MAJOR STREQUAL CLANG_TIDY_VERSION)
+                    list(APPEND CMAKE_CXX_CLANG_TIDY
+                            "-extra-arg=-resource-dir=${FPTN_CLANG_RESOURCE_DIR}")
+                endif ()
+            endif ()
         else ()
             message(WARNING "[CLANG-TIDY]  clang-tidy version ${CLANG_TIDY_VERSION} is too old (<15), disabling")
         endif ()

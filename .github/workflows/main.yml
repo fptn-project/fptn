@@ -194,7 +194,7 @@ jobs:
           echo "Dev version: $DEV_VERSION"
       - name: Install dependencies
         run: |
-          conan install . --output-folder=build --build=missing -o with_gui_client=True --settings build_type=Release -s compiler.cppstd=17
+          conan install . --output-folder=build --build=missing -o with_gui_client=True --settings build_type=Release -s compiler.cppstd=17 -c tools.cmake.cmaketoolchain:extra_variables="{'QT_NO_APPLE_SDK_AND_XCODE_CHECK': 'ON'}"
       - name: Run cpplint
         run: |
           python3 cpplint.py --recursive --filter=-build/c++17,-whitespace/newline,-readability/braces --counting=total ./src/ ./tests/

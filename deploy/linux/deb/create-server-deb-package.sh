@@ -73,6 +73,21 @@ ENABLE_DETECT_PROBING=true
 #   This allows: example.com, test.org and ALL their subdomains
 ALLOWED_SNI_LIST=dashboard.cdnvideo.ru,gosuslugi.ru,sber.ru,id.sber.ru,tbank.ru,cdn.tbank.ru,alfabank.ru,mos.ru,vk.com,wildberries.ru,ozon.ru,2gis.ru,mts.ru,dzen.ru,vprok.ru,x5.ru,perekrestok.ru,yandex.ru,yandex.com,yandex.net,max.ru,google.com,cloudflare.com
 
+# Block ads and trackers
+# (accepted values: true or false; enabled unless set to false).
+# A TLS handshake whose SNI is a listed domain (or a subdomain of one) is
+# dropped, and so is every packet addressed to an IP such a domain resolves to.
+ENABLE_ADS_FILTER=true
+
+# Comma-separated URLs of the ad/tracker domain lists. Each one is cached in
+# DATA_DIR and downloaded again once the cached copy is older than three days.
+# Empty uses the built-in URLs.
+ADS_BLOCKLIST_URLS=
+
+# Directory for the files the server downloads at runtime (the ad/tracker
+# domain lists)
+DATA_DIR=/etc/fptn/data
+
 # Block BitTorrent traffic to prevent abuse
 # (accepted values: true or false; enabled unless set to false)
 ENABLE_TORRENT_FILTER=true
@@ -162,6 +177,9 @@ ExecStart=/usr/bin/$(basename "$SERVER_BIN") \
   --tun-interface-name=\${TUN_INTERFACE_NAME} \
   --mtu-size=\${MTU_SIZE} \
   --userfile=\${USERFILE} \
+  --enable-ads-filter=\${ENABLE_ADS_FILTER} \
+  --ads-blocklist-urls=\${ADS_BLOCKLIST_URLS} \
+  --data-dir=\${DATA_DIR} \
   --enable-torrent-filter=\${ENABLE_TORRENT_FILTER} \
   --enable-spam-filter=\${ENABLE_SPAM_FILTER} \
   --enable-domain-blacklist-filter=\${ENABLE_DOMAIN_BLACKLIST_FILTER} \
