@@ -1014,6 +1014,10 @@ bool TrayApp::startVpn(QString& err_msg) {
   const bool enable_split_tunnel = settings_->EnableSplitTunnel();
   const QString split_tunnel_mode = settings_->SplitTunnelMode();
   const auto split_tunnel_domains = settings_->SplitTunnelDomains();
+#if _WIN32
+  const bool enable_app_split_tunnel = settings_->EnableAppSplitTunnel();
+  const auto app_split_tunnel_apps = settings_->AppSplitTunnelApps();
+#endif
 
   /* route manager */
   std::vector<std::string> exclude_networks_std;
@@ -1108,12 +1112,33 @@ bool TrayApp::startVpn(QString& err_msg) {
               .ipv6_netmask = 126});
 
   // setup vpn client
+#if _WIN32
+  std::vector<std::wstring> app_split_tunnel_paths;
+  app_split_tunnel_paths.reserve(app_split_tunnel_apps.size());
+  for (const auto& app : app_split_tunnel_apps) {
+    if (!app.trimmed().isEmpty()) {
+      app_split_tunnel_paths.push_back(app.toStdWString());
+    }
+  }
+#endif
+
   auto vpn_client = std::make_shared<fptn::vpn::VpnManager>(
       fptn::vpn::VpnManager::Config{.http_client = std::move(http_client),
           .route_manager = route_manager,
           .virtual_net_interface = virtual_network_interface,
           .plugins = std::move(client_plugins),
-          .ad_blocker = std::move(ad_blocker)});
+          .ad_blocker = std::move(ad_blocker)
+#if _WIN32
+          ,
+          .enable_app_split_tunnel = enable_app_split_tunnel,
+          .app_split_excluded_paths = std::move(app_split_tunnel_paths),
+          .vpn_server_ip = server_ip,
+          .tunnel_ipv4 =
+              common::network::IPv4Address(FPTN_CLIENT_DEFAULT_ADDRESS_IP4),
+          .tunnel_ipv6 =
+              common::network::IPv6Address(FPTN_CLIENT_DEFAULT_ADDRESS_IP6)
+#endif
+      });
   {
     const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 

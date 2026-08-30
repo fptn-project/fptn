@@ -208,6 +208,7 @@ SettingsModel::SettingsModel(const QMap<QString, QString>& languages,
       ping_timer_(this),
 #if _WIN32
       enable_advanced_dns_management_(false),
+      enable_app_split_tunnel_(false),
 #endif
       client_autostart_(false),
       enable_ad_block_(true),
@@ -443,6 +444,27 @@ void SettingsModel::Load(bool dont_load_server) {
     split_tunnel_domains_ = service_obj["split_tunnel_domains"].toString();
   }
 
+#if _WIN32
+  if (service_obj.contains("enable_app_split_tunnel")) {
+    enable_app_split_tunnel_ =
+        service_obj["enable_app_split_tunnel"].toBool(false);
+  }
+  app_split_tunnel_apps_.clear();
+  if (service_obj.contains("app_split_tunnel_apps") &&
+      service_obj["app_split_tunnel_apps"].isArray()) {
+    const auto apps = service_obj["app_split_tunnel_apps"].toArray();
+    for (const auto& value : apps) {
+      if (!value.isString()) {
+        continue;
+      }
+      const QString path = value.toString().trimmed();
+      if (!path.isEmpty() && !app_split_tunnel_apps_.contains(path)) {
+        app_split_tunnel_apps_.push_back(path);
+      }
+    }
+  }
+#endif
+
   if (service_obj.contains("custom_dns")) {
     custom_dns_ = service_obj["custom_dns"].toString();
   }
@@ -560,6 +582,14 @@ bool SettingsModel::Save() {
   json_object["enable_split_tunnel"] = enable_split_tunnel_;
   json_object["split_tunnel_mode"] = split_tunnel_mode_;
   json_object["split_tunnel_domains"] = split_tunnel_domains_;
+#if _WIN32
+  json_object["enable_app_split_tunnel"] = enable_app_split_tunnel_;
+  QJsonArray app_split_apps;
+  for (const auto& app : app_split_tunnel_apps_) {
+    app_split_apps.append(app);
+  }
+  json_object["app_split_tunnel_apps"] = app_split_apps;
+#endif
   json_object["custom_dns"] = custom_dns_;
 
   const QJsonDocument document(json_object);
@@ -805,6 +835,30 @@ void SettingsModel::SetCustomDns(const QString& dns) {
   Save();
 }
 #if _WIN32
+bool SettingsModel::EnableAppSplitTunnel() const {
+  return enable_app_split_tunnel_;
+}
+
+void SettingsModel::SetEnableAppSplitTunnel(bool enable) {
+  enable_app_split_tunnel_ = enable;
+  Save();
+}
+
+QVector<QString> SettingsModel::AppSplitTunnelApps() const {
+  return app_split_tunnel_apps_;
+}
+
+void SettingsModel::SetAppSplitTunnelApps(const QVector<QString>& apps) {
+  app_split_tunnel_apps_.clear();
+  for (const auto& value : apps) {
+    const QString path = value.trimmed();
+    if (!path.isEmpty() && !app_split_tunnel_apps_.contains(path)) {
+      app_split_tunnel_apps_.push_back(path);
+    }
+  }
+  Save();
+}
+
 bool SettingsModel::EnableAdvancedDnsManagement() const {
   return enable_advanced_dns_management_;
 }

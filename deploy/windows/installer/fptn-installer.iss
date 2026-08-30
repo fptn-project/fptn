@@ -47,6 +47,9 @@ Name: "{app}\plugins";
 [Files]
 Source: "depends/qt/*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs uninsneveruninstall
 Source: "depends/wintun.dll"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs uninsneveruninstall
+Source: "depends/mullvad-split-tunnel.sys"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "depends/LICENSE-MPL-2.0.txt"; DestDir: "{app}\licenses"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "depends/APP_SPLIT_THIRD_PARTY_NOTICE.txt"; DestDir: "{app}\licenses"; Flags: ignoreversion
 Source: "depends/fptn-client.exe"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs uninsneveruninstall
 Source: "depends/fptn-client-cli.exe"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs uninsneveruninstall
 Source: "depends/vc_redist.exe"; DestDir: "{tmp}"; AfterInstall: InstallVCRedist(); Flags: ignoreversion recursesubdirs createallsubdirs
@@ -66,6 +69,8 @@ Filename: "{app}\FptnClient.bat"; Description: "{cm:LaunchProgram,{#APP_NAME}}";
 [UninstallRun]
 Filename: "taskkill"; Parameters: "/F /IM fptn-client.exe"; Flags: runhidden waituntilterminated
 Filename: "taskkill"; Parameters: "/F /IM fptn-client-cli.exe"; Flags: runhidden waituntilterminated
+Filename: "sc.exe"; Parameters: "stop FptnAppSplitTunnel"; Flags: runhidden waituntilterminated; RunOnceId: "StopFptnAppSplitTunnel"
+Filename: "sc.exe"; Parameters: "delete FptnAppSplitTunnel"; Flags: runhidden waituntilterminated; RunOnceId: "DeleteFptnAppSplitTunnel"
 
 [Icons]
 Name: "{group}\{#APP_NAME}"; Filename: "{app}\fptn-client.exe"

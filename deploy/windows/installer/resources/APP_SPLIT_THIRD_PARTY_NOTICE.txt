@@ -1,0 +1,27 @@
+FPTN Application Split Tunnel - third-party notice
+==================================================
+
+The optional Windows application split-tunneling backend uses the
+"Mullvad split tunnel driver for Windows" by Mullvad VPN AB.
+
+Driver project/source:
+https://github.com/mullvad/win-split-tunnel
+
+Prebuilt driver source repository:
+https://github.com/mullvad/mullvadvpn-app-binaries/tree/main/x86_64-pc-windows-msvc/split-tunnel
+
+License option used for redistribution: Mozilla Public License 2.0 (MPL-2.0).
+The corresponding license text is installed as LICENSE-MPL-2.0.txt.
+The driver binary is distributed unmodified; FPTN's user-mode integration is
+separate code in src/fptn-client/utils/windows/app_split_tunnel.*.
+
+IMPORTANT / EXPERIMENTAL
+------------------------
+Application split tunneling is disabled by default. As of July 2026 there is
+an open Mullvad issue reporting nonpaged-pool/IRP growth with version 1.3.0.0
+of mullvad-split-tunnel.sys under very network-heavy excluded applications:
+https://github.com/mullvad/mullvadvpn-app/issues/10738
+
+Do not enable this experimental feature on production-critical systems until
+you have tested the driver version bundled with your build. If the backend
+cannot start, FPTN continues with ordinary VPN routing instead.

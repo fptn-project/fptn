@@ -247,6 +247,11 @@ class SettingsModel : public QObject {
 #if _WIN32
   bool EnableAdvancedDnsManagement() const;
   void SetEnableAdvancedDnsManagement(bool enable);
+
+  bool EnableAppSplitTunnel() const;
+  void SetEnableAppSplitTunnel(bool enable);
+  QVector<QString> AppSplitTunnelApps() const;
+  void SetAppSplitTunnelApps(const QVector<QString>& apps);
 #endif
 
  protected:
@@ -276,6 +281,8 @@ class SettingsModel : public QObject {
 
 #if _WIN32
   bool enable_advanced_dns_management_;
+  bool enable_app_split_tunnel_;
+  QVector<QString> app_split_tunnel_apps_;
 #endif
   bool client_autostart_;
 

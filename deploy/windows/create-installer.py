@@ -30,6 +30,18 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 DEPENDS_WINTUN_DLL_PATH = DEPENDS_DIR / "wintun.dll"
 DEPENDS_VC_REDIST_PATH = DEPENDS_DIR / "vc_redist.exe"
+DEPENDS_APP_SPLIT_DRIVER_PATH = DEPENDS_DIR / "mullvad-split-tunnel.sys"
+DEPENDS_APP_SPLIT_LICENSE_PATH = DEPENDS_DIR / "LICENSE-MPL-2.0.txt"
+DEPENDS_APP_SPLIT_NOTICE_PATH = DEPENDS_DIR / "APP_SPLIT_THIRD_PARTY_NOTICE.txt"
+
+DEFAULT_APP_SPLIT_DRIVER_URL = (
+    "https://raw.githubusercontent.com/mullvad/mullvadvpn-app-binaries/"
+    "main/x86_64-pc-windows-msvc/split-tunnel/mullvad-split-tunnel.sys"
+)
+APP_SPLIT_LICENSE_URL = (
+    "https://raw.githubusercontent.com/mullvad/win-split-tunnel/"
+    "master/LICENSE-MPL.txt"
+)
 
 APP_FPTN_CLIENT = DEPENDS_DIR / "fptn-client.exe"
 APP_FPTN_CLIENT_CLI = DEPENDS_DIR / "fptn-client-cli.exe"
@@ -87,12 +99,20 @@ def run_command(command: str) -> str:
 
 
 def get_conan_path() -> pathlib.Path:
+    # Respect Conan 2's documented CONAN_HOME override first. This also avoids
+    # issues with tools that cannot handle non-ASCII Windows user profiles.
+    conan_home = os.environ.get("CONAN_HOME")
+    if conan_home:
+        path = pathlib.Path(conan_home)
+        if path.exists() and path.is_dir():
+            return path
+
     home_path = pathlib.Path.home()
     conan_paths = [home_path / ".conan2", home_path / ".conan"]
     for path in conan_paths:
         if path.exists() and path.is_dir():
             return path
-    raise FileNotFoundError("Conan path could not be detected in the home directory.")
+    raise FileNotFoundError("Conan path could not be detected.")
 
 
 def copy_qt_libraries(frameworks_path: pathlib.Path):
@@ -181,6 +201,35 @@ if __name__ == "__main__":
         download_file("https://aka.ms/vs/17/release/vc_redist.x64.exe", DEPENDS_VC_REDIST_PATH)
     else:
         raise EnvironmentError("Unsuported system!")
+
+    # Download the optional signed application split-tunnel driver and its
+    # MPL-2.0 license. The runtime feature is disabled by default and will
+    # gracefully fall back to normal VPN routing if the driver cannot start.
+    app_split_driver_url = os.environ.get(
+        "FPTN_APP_SPLIT_DRIVER_URL", DEFAULT_APP_SPLIT_DRIVER_URL
+    )
+    try:
+        download_file(app_split_driver_url, DEPENDS_APP_SPLIT_DRIVER_PATH)
+        download_file(APP_SPLIT_LICENSE_URL, DEPENDS_APP_SPLIT_LICENSE_PATH)
+        with open(DEPENDS_APP_SPLIT_DRIVER_PATH, "rb") as driver_file:
+            if driver_file.read(2) != b"MZ":
+                raise ValueError("Downloaded application split-tunnel driver is not a PE file")
+    except Exception as err:
+        # App split tunneling is optional. Do not break the whole Windows
+        # installer when GitHub is unavailable; runtime will fall back to the
+        # ordinary VPN and log that the driver is missing. Remove partial
+        # artifacts so we never redistribute the driver without its license.
+        print(f"Warning: application split-tunnel driver was not prepared: {err}")
+        for optional_file in (
+            DEPENDS_APP_SPLIT_DRIVER_PATH,
+            DEPENDS_APP_SPLIT_LICENSE_PATH,
+        ):
+            try:
+                optional_file.unlink(missing_ok=True)
+            except Exception:
+                pass
+    app_split_notice = INSTALLER_DIR / "resources" / "APP_SPLIT_THIRD_PARTY_NOTICE.txt"
+    shutil.copy(app_split_notice, DEPENDS_APP_SPLIT_NOTICE_PATH)
 
     # copy wintun dll
     shutil.copy(args.wintun_dll, DEPENDS_WINTUN_DLL_PATH)

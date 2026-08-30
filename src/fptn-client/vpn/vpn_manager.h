@@ -23,6 +23,9 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "adblock/adblock.h"
 #include "http/client.h"
 #include "plugins/split/tunneling.h"
+#if _WIN32
+#include "utils/windows/app_split_tunnel.h"
+#endif
 
 namespace fptn::vpn {
 
@@ -37,6 +40,13 @@ class VpnManager final {
     fptn::common::network::TunInterfaceSPtr virtual_net_interface;
     fptn::plugin::PluginList plugins;
     fptn::adblock::AdBlockerPtr ad_blocker;
+#if _WIN32
+    bool enable_app_split_tunnel = false;
+    std::vector<std::wstring> app_split_excluded_paths;
+    IPv4Address vpn_server_ip;
+    IPv4Address tunnel_ipv4;
+    IPv6Address tunnel_ipv6;
+#endif
   };
 
  public:
@@ -82,6 +92,10 @@ class VpnManager final {
   std::atomic<std::uint64_t> to_tun_dropped_{0};
 
   Config config_;
+
+#if _WIN32
+  std::unique_ptr<fptn::utils::windows::AppSplitTunnel> app_split_tunnel_;
+#endif
 
   std::thread thread_;
   std::thread supervisor_thread_;

@@ -5,7 +5,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 if(APPLE OR UNIX)
   set(TUNTAP_LIB tuntap++)
 else()
-  set(TUNTAP_LIB Wintun rpcrt4 iphlpapi Kernel32.lib)
+  set(TUNTAP_LIB Wintun rpcrt4 iphlpapi Kernel32.lib fwpuclnt.lib Advapi32.lib Ws2_32.lib)
 endif()
 
 find_package(OpenSSL REQUIRED)
@@ -75,7 +75,9 @@ add_executable(
   "${SPLIT_TUNNEL_GENERATED}"
   utils/speed_estimator/speed_estimator.cpp
   utils/speed_estimator/speed_estimator.h
-  utils/speed_estimator/server_info.h)
+  utils/speed_estimator/server_info.h
+  utils/windows/app_split_tunnel.h
+  utils/windows/app_split_tunnel.cpp)
 
 target_link_libraries(
   "${PROJECT_NAME}-cli"
@@ -188,6 +190,8 @@ WarningsAsErrors: ''
     "${ADBLOCK_GENERATED}"
     "${SPLIT_TUNNEL_GENERATED}"
     utils/windows/vpn_conflict.h
+    utils/windows/app_split_tunnel.h
+    utils/windows/app_split_tunnel.cpp
     utils/macos/admin.h
     utils/speed_estimator/speed_estimator.cpp
     utils/speed_estimator/speed_estimator.h

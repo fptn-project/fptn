@@ -15,10 +15,13 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include <utility>
 
+#include <QAbstractItemView>            // NOLINT(build/include_order)
 #include <QApplication>                 // NOLINT(build/include_order)
+#include <QDir>                         // NOLINT(build/include_order)
 #include <QFileDialog>                  // NOLINT(build/include_order)
 #include <QGridLayout>                  // NOLINT(build/include_order)
 #include <QHeaderView>                  // NOLINT(build/include_order)
+#include <QHBoxLayout>                  // NOLINT(build/include_order)
 #include <QLabel>                       // NOLINT(build/include_order)
 #include <QLineEdit>                    // NOLINT(build/include_order)
 #include <QMessageBox>                  // NOLINT(build/include_order)
@@ -592,6 +595,143 @@ void SettingsWidget::SetupUi() {
   split_tunnel_domains_label_->setVisible(split_enabled);
   split_tunnel_domains_info_label_->setVisible(split_enabled);
   split_tunnel_domains_text_edit_->setVisible(split_enabled);
+
+#if _WIN32
+  // Application-based split tunneling is separate from the existing
+  // domain/IP split tunnel. The current Windows backend supports one real
+  // process-aware policy: selected executables bypass FPTN.
+  enable_app_split_tunnel_label_ =
+      new QLabel(QObject::tr("Application split tunnel (Experimental)"), this);
+  enable_app_split_tunnel_info_label_ = new QLabel(
+      QObject::tr(
+          "Selected Windows applications bypass FPTN and use the normal "
+          "network interface. Child processes are excluded too. Reconnect "
+          "the VPN after changing this setting. DNS may still use the VPN "
+          "unless the application uses its own DoH/DoT. Experimental: the "
+          "backend uses the Mullvad Windows split-tunnel driver."),
+      this);
+  enable_app_split_tunnel_info_label_->setWordWrap(true);
+  enable_app_split_tunnel_info_label_->setAlignment(
+      Qt::AlignLeft | Qt::AlignTop);
+  enable_app_split_tunnel_info_label_->setStyleSheet(kInfoLabelStyle);
+
+  auto* app_split_enable_container = new QWidget(this);
+  auto* app_split_enable_layout = new QVBoxLayout(app_split_enable_container);
+  app_split_enable_layout->setContentsMargins(0, 0, 0, 0);
+  app_split_enable_layout->addWidget(
+      enable_app_split_tunnel_label_, 0, Qt::AlignLeft | Qt::AlignTop);
+  app_split_enable_layout->addWidget(
+      enable_app_split_tunnel_info_label_, 0, Qt::AlignLeft | Qt::AlignTop);
+
+  enable_app_split_tunnel_checkbox_ = new QCheckBox(" ", this);
+  enable_app_split_tunnel_checkbox_->setChecked(
+      settings_->EnableAppSplitTunnel());
+
+  routing_grid_layout_->addWidget(app_split_enable_container, current_row, 0,
+      Qt::AlignLeft | Qt::AlignTop);
+  routing_grid_layout_->addWidget(enable_app_split_tunnel_checkbox_,
+      current_row, 1, Qt::AlignLeft | Qt::AlignTop);
+  current_row++;
+
+  app_split_tunnel_apps_label_ =
+      new QLabel(QObject::tr("Applications bypassing VPN"), this);
+  app_split_tunnel_apps_info_label_ = new QLabel(
+      QObject::tr(
+          "Add the main .exe file of each application. For launchers, add "
+          "the launcher and/or the real child executable when needed."),
+      this);
+  app_split_tunnel_apps_info_label_->setWordWrap(true);
+  app_split_tunnel_apps_info_label_->setAlignment(
+      Qt::AlignLeft | Qt::AlignTop);
+  app_split_tunnel_apps_info_label_->setStyleSheet(kInfoLabelStyle);
+
+  auto* app_split_apps_label_container = new QWidget(this);
+  auto* app_split_apps_label_layout =
+      new QVBoxLayout(app_split_apps_label_container);
+  app_split_apps_label_layout->setContentsMargins(0, 0, 0, 0);
+  app_split_apps_label_layout->addWidget(
+      app_split_tunnel_apps_label_, 0, Qt::AlignLeft | Qt::AlignTop);
+  app_split_apps_label_layout->addWidget(
+      app_split_tunnel_apps_info_label_, 0, Qt::AlignLeft | Qt::AlignTop);
+
+  auto* app_split_apps_container = new QWidget(this);
+  auto* app_split_apps_layout = new QVBoxLayout(app_split_apps_container);
+  app_split_apps_layout->setContentsMargins(0, 0, 0, 0);
+  app_split_tunnel_apps_list_ = new QListWidget(app_split_apps_container);
+  app_split_tunnel_apps_list_->setMinimumHeight(110);
+  app_split_tunnel_apps_list_->setSelectionMode(
+      QAbstractItemView::ExtendedSelection);
+  for (const auto& app : settings_->AppSplitTunnelApps()) {
+    app_split_tunnel_apps_list_->addItem(app);
+  }
+  app_split_apps_layout->addWidget(app_split_tunnel_apps_list_);
+
+  auto* app_split_buttons = new QHBoxLayout();
+  app_split_tunnel_add_button_ =
+      new QPushButton(QObject::tr("Add application..."), this);
+  app_split_tunnel_remove_button_ =
+      new QPushButton(QObject::tr("Remove selected"), this);
+  app_split_buttons->addWidget(app_split_tunnel_add_button_);
+  app_split_buttons->addWidget(app_split_tunnel_remove_button_);
+  app_split_buttons->addStretch(1);
+  app_split_apps_layout->addLayout(app_split_buttons);
+
+  auto persist_app_split_list = [this]() {
+    QVector<QString> apps;
+    apps.reserve(app_split_tunnel_apps_list_->count());
+    for (int i = 0; i < app_split_tunnel_apps_list_->count(); ++i) {
+      apps.push_back(app_split_tunnel_apps_list_->item(i)->text());
+    }
+    settings_->SetAppSplitTunnelApps(apps);
+  };
+
+  connect(app_split_tunnel_add_button_, &QPushButton::clicked, this,
+      [this, persist_app_split_list]() {
+        const QString path = QFileDialog::getOpenFileName(this,
+            QObject::tr("Select application to bypass FPTN"), QString(),
+            QObject::tr("Windows applications (*.exe);;All files (*.*)"));
+        if (path.isEmpty()) {
+          return;
+        }
+        const QString normalized = QDir::toNativeSeparators(path);
+        const auto matches = app_split_tunnel_apps_list_->findItems(
+            normalized, Qt::MatchFixedString);
+        if (matches.isEmpty()) {
+          app_split_tunnel_apps_list_->addItem(normalized);
+          persist_app_split_list();
+        }
+      });
+
+  connect(app_split_tunnel_remove_button_, &QPushButton::clicked, this,
+      [this, persist_app_split_list]() {
+        const auto selected = app_split_tunnel_apps_list_->selectedItems();
+        for (auto* item : selected) {
+          delete app_split_tunnel_apps_list_->takeItem(
+              app_split_tunnel_apps_list_->row(item));
+        }
+        persist_app_split_list();
+      });
+
+  auto set_app_split_controls_visible = [this](bool visible) {
+    app_split_tunnel_apps_label_->setVisible(visible);
+    app_split_tunnel_apps_info_label_->setVisible(visible);
+    app_split_tunnel_apps_list_->parentWidget()->setVisible(visible);
+  };
+
+  connect(enable_app_split_tunnel_checkbox_, &QCheckBox::toggled, this,
+      [this, set_app_split_controls_visible](bool checked) {
+        set_app_split_controls_visible(checked);
+        settings_->SetEnableAppSplitTunnel(checked);
+      });
+
+  routing_grid_layout_->addWidget(app_split_apps_label_container, current_row,
+      0, Qt::AlignLeft | Qt::AlignTop);
+  routing_grid_layout_->addWidget(
+      app_split_apps_container, current_row, 1, Qt::AlignTop);
+  current_row++;
+
+  set_app_split_controls_visible(settings_->EnableAppSplitTunnel());
+#endif
 
   const QColor chevron_color = palette().color(QPalette::WindowText);
 
