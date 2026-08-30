@@ -38,7 +38,20 @@ VpnManager::VpnManager(Config config)
       gave_up_(false),
       reconnecting_(false),
       reconnect_attempt_(0),
-      config_(std::move(config)) {}  // NOLINT
+      config_(std::move(config)) {  // NOLINT
+#if _WIN32
+  if (config_.enable_app_split_tunnel &&
+      !config_.app_split_excluded_paths.empty()) {
+    app_split_tunnel_ =
+        std::make_unique<fptn::utils::windows::AppSplitTunnel>(
+            fptn::utils::windows::AppSplitTunnel::Config{
+                .excluded_app_paths = config_.app_split_excluded_paths,
+                .vpn_server_ip = config_.vpn_server_ip,
+                .tunnel_ipv4 = config_.tunnel_ipv4,
+                .tunnel_ipv6 = config_.tunnel_ipv6});
+  }
+#endif
+}
 
 VpnManager::~VpnManager() { Stop(); }
 
@@ -116,6 +129,14 @@ bool VpnManager::Start() {
     config_.route_manager->Apply(config_.virtual_net_interface->Name());
   }
 
+#if _WIN32
+  if (app_split_tunnel_ && !app_split_tunnel_->Start()) {
+    SPDLOG_WARN(
+        "Application split tunnel could not be enabled; continuing with the "
+        "normal VPN tunnel");
+  }
+#endif
+
   config_.http_client->Start();
 
   // Start worker
@@ -170,6 +191,13 @@ bool VpnManager::Stop() {
   pending_tasks_.clear();
 
   SPDLOG_INFO("Stopping VPN client...");
+
+#if _WIN32
+  if (app_split_tunnel_) {
+    SPDLOG_INFO("Stopping application split tunnel");
+    app_split_tunnel_->Stop();
+  }
+#endif
 
   if (config_.virtual_net_interface) {
     SPDLOG_INFO("Stopping virtual network interface");
@@ -366,6 +394,11 @@ void VpnManager::Supervise() {
     if (full_restart_count >= kMaxFullRestarts_) {
       SPDLOG_ERROR("VPN reconnection failed after {} full restarts. Giving up.",
           kMaxFullRestarts_);
+#if _WIN32
+      if (app_split_tunnel_) {
+        app_split_tunnel_->Stop();
+      }
+#endif
       config_.route_manager->Clean();
       reconnecting_ = false;
       gave_up_ = true;
@@ -386,6 +419,11 @@ void VpnManager::Supervise() {
 
     // Unlocked: the route manager guards itself, and holding mutex_ across
     // seconds of netsh/powershell freezes both packet paths.
+#if _WIN32
+    if (app_split_tunnel_) {
+      app_split_tunnel_->Stop();
+    }
+#endif
     config_.route_manager->Clean();
 
     {
@@ -398,6 +436,13 @@ void VpnManager::Supervise() {
     }
 
     config_.route_manager->Apply(tun_name);
+
+#if _WIN32
+    if (app_split_tunnel_ && !app_split_tunnel_->Start()) {
+      SPDLOG_WARN(
+          "Application split tunnel could not be restored after reconnect");
+    }
+#endif
 
     {
       const std::unique_lock<std::mutex> lock(mutex_);  // mutex
