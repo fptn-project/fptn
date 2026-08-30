@@ -136,6 +136,17 @@ class SettingsWidget : public QDialog {
   QLabel* split_tunnel_domains_info_label_ = nullptr;
   QTextEdit* split_tunnel_domains_text_edit_ = nullptr;
 
+#if _WIN32
+  QLabel* enable_app_split_tunnel_label_ = nullptr;
+  QLabel* enable_app_split_tunnel_info_label_ = nullptr;
+  QCheckBox* enable_app_split_tunnel_checkbox_ = nullptr;
+  QLabel* app_split_tunnel_apps_label_ = nullptr;
+  QLabel* app_split_tunnel_apps_info_label_ = nullptr;
+  QListWidget* app_split_tunnel_apps_list_ = nullptr;
+  QPushButton* app_split_tunnel_add_button_ = nullptr;
+  QPushButton* app_split_tunnel_remove_button_ = nullptr;
+#endif
+
   QPushButton* load_new_token_button_ = nullptr;
 
   QPushButton* exit_button_ = nullptr;
