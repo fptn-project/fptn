@@ -9,9 +9,30 @@ start_unbound() {
 
     CONFIG_FILE="/etc/unbound/unbound.conf"
     ROOT_HINTS="/etc/unbound/root.hints"
+    ROOT_KEY="/etc/unbound/root.key"
+
+    if wget -4 -q --timeout=10 --tries=2 -O "$ROOT_HINTS.tmp" https://www.internic.net/domain/named.root; then
+        mv "$ROOT_HINTS.tmp" "$ROOT_HINTS"
+    else
+        rm -f "$ROOT_HINTS.tmp"
+        [ -s "$ROOT_HINTS" ] || cp /usr/share/dns/root.hints "$ROOT_HINTS"
+    fi
+
+    unbound-anchor -a "$ROOT_KEY" >/dev/null 2>&1 || true
+    chown unbound:unbound "$ROOT_KEY" >/dev/null 2>&1 || true
+    if [ -s "$ROOT_KEY" ]; then
+        DNSSEC_CONF="auto-trust-anchor-file: \"$ROOT_KEY\""
+        DNSSEC_STATE="yes"
+    else
+        DNSSEC_CONF=""
+        DNSSEC_STATE="no (root key unavailable)"
+    fi
+
     echo "Using DNS settings:"
     echo "  IPv4: yes"
     echo "  IPv6: $DO_IP6"
+    echo "  Mode: recursive (root servers)"
+    echo "  DNSSEC: $DNSSEC_STATE"
 
     if [ "${DNS_IPV6_ENABLE:-false}" = "true" ]; then
         cat > "$CONFIG_FILE" << EOF
@@ -27,23 +48,23 @@ server:
     access-control: 0.0.0.0/0 allow
     access-control: ::0/0 allow
 
-    root-hints: "/etc/unbound/root.hints"
+    root-hints: "$ROOT_HINTS"
+    $DNSSEC_CONF
+
+    edns-buffer-size: 1232
+    qname-minimisation: yes
+    harden-glue: yes
+    harden-dnssec-stripped: yes
+    harden-below-nxdomain: yes
 
     cache-max-ttl: 86400
     cache-min-ttl: 3600
+    serve-expired: yes
+    serve-expired-ttl: 3600
 
     hide-identity: yes
     hide-version: yes
-
-forward-zone:
-    name: "."
-    forward-addr: ${DNS_IPV4_PRIMARY:-8.8.8.8}
-    forward-addr: ${DNS_IPV4_SECONDARY:-8.8.4.4}
-    forward-addr: 1.1.1.1
-    forward-addr: 1.0.0.1
-    forward-addr: 9.9.9.9
-    forward-addr: ${DNS_IPV6_PRIMARY:-2001:4860:4860::8888}
-    forward-addr: ${DNS_IPV6_SECONDARY:-2001:4860:4860::8844}
+    use-syslog: no
 EOF
     else
         cat > "$CONFIG_FILE" << EOF
@@ -57,36 +78,32 @@ server:
 
     access-control: 0.0.0.0/0 allow
 
-    root-hints: "/etc/unbound/root.hints"
+    root-hints: "$ROOT_HINTS"
+    $DNSSEC_CONF
+
+    edns-buffer-size: 1232
+    qname-minimisation: yes
+    harden-glue: yes
+    harden-dnssec-stripped: yes
+    harden-below-nxdomain: yes
 
     cache-max-ttl: 86400
     cache-min-ttl: 3600
+    serve-expired: yes
+    serve-expired-ttl: 3600
 
     hide-identity: yes
     hide-version: yes
+    use-syslog: no
     prefer-ip4: yes
     prefer-ip6: no
 
     private-address: ::/0
     do-not-query-localhost: no
     unwanted-reply-threshold: 0
-
-forward-zone:
-    name: "."
-    forward-addr: ${DNS_IPV4_PRIMARY:-8.8.8.8}
-    forward-addr: ${DNS_IPV4_SECONDARY:-8.8.4.4}
-    forward-addr: 1.1.1.1
-    forward-addr: 1.0.0.1
-    forward-addr: 9.9.9.9
 EOF
     fi
 
-    if wget -4 -q --timeout=10 --tries=2 -O "$ROOT_HINTS.tmp" https://www.internic.net/domain/named.root; then
-        mv "$ROOT_HINTS.tmp" "$ROOT_HINTS"
-    else
-        rm -f "$ROOT_HINTS.tmp"
-        [ -f "$ROOT_HINTS" ] || cp /usr/share/dns/root.hints "$ROOT_HINTS"
-    fi
     exec unbound -d -c "$CONFIG_FILE"
 }
 
