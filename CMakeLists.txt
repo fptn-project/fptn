@@ -39,6 +39,10 @@ if (NOT FPTN_BUILD_ONLY_FPTN_LIB)
   add_compile_definitions(FPTN_WITH_LIBIDN2)
 endif()
 
+if (FPTN_OPENWRT)
+  add_compile_definitions(FPTN_OPENWRT)
+endif()
+
 # Global project definitions
 add_compile_definitions(FPTN_VERSION=\"${FPTN_VERSION}\")
 add_compile_definitions(FPTN_DEFAULT_MTU_SIZE=1420)
@@ -173,6 +177,27 @@ if (NOT FPTN_BUILD_ONLY_FPTN_LIB)
                     bash -c
                     "${CMAKE_CURRENT_SOURCE_DIR}/deploy/linux/deb/create-client-gui-deb-package.sh ${CMAKE_BINARY_DIR}/src/fptn-client/fptn-client-gui ${CMAKE_CURRENT_SOURCE_DIR}/deploy/linux/deb/assets/FptnClient512x512.png ${FPTN_VERSION} ${CMAKE_CURRENT_SOURCE_DIR}/deploy/sni"
                     COMMENT "Building .deb package"
+                    VERBATIM)
+        endif ()
+        if (FPTN_OPENWRT_ARCH) # openwrt
+            if (NOT FPTN_OPENWRT_VERSION)
+                set(FPTN_OPENWRT_VERSION "unknown")
+            endif ()
+            add_custom_target(
+                    build-openwrt-apk
+                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                    COMMAND
+                    bash -c
+                    "${CMAKE_CURRENT_SOURCE_DIR}/deploy/openwrt/data/apk/create-client-apk-package.sh ${CMAKE_BINARY_DIR}/src/fptn-client/fptn-client-cli ${FPTN_VERSION} ${FPTN_OPENWRT_ARCH} ${CMAKE_STRIP} ${FPTN_OPENWRT_VERSION}"
+                    COMMENT "Building .apk package"
+                    VERBATIM)
+            add_custom_target(
+                    build-openwrt-ipk
+                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                    COMMAND
+                    bash -c
+                    "${CMAKE_CURRENT_SOURCE_DIR}/deploy/openwrt/data/ipk/create-client-ipk-package.sh ${CMAKE_BINARY_DIR}/src/fptn-client/fptn-client-cli ${FPTN_VERSION} ${FPTN_OPENWRT_ARCH} ${CMAKE_STRIP} ${FPTN_OPENWRT_VERSION}"
+                    COMMENT "Building .ipk package"
                     VERBATIM)
         endif ()
     elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin") # MacOS

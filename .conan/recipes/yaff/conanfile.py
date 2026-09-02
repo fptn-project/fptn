@@ -48,6 +48,12 @@ class YaffConan(ConanFile):
             "#include <string_view>",
             "#include <ostream>\n#include <string_view>",
         )
+        replace_in_file(
+            self,
+            os.path.join(self.source_folder, "src", "compilation", "error.h"),
+            "#include <string>",
+            "#include <cstdint>\n#include <string>",
+        )
 
     def generate(self):
         tc = CMakeToolchain(self)

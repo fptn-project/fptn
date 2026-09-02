@@ -668,11 +668,93 @@ sequenceDiagram
 
 
 
+<details>
+  <summary><strong>Установка FPTN на роутер с OpenWrt</strong></summary>
+
+В пакет для роутера входят клиент, сервис автозапуска и страница в веб-интерфейсе. Через VPN идет вся сеть целиком, на телефоны и ноутбуки ставить ничего не нужно.
+
+Поддерживаются две ветки OpenWrt. Они отличаются пакетным менеджером, поэтому отличается и файл:
+
+| Ветка | Пакетный менеджер | Файл |
+|---|---|---|
+| 25.12.x | apk | `.apk` |
+| 24.10.x | opkg | `.ipk` |
+
+Значение имеет не конкретная модель, а архитектура пакетов: один пакет подходит всем устройствам с такой же архитектурой.
+
+| Архитектура пакетов | Цели OpenWrt | Примеры устройств |
+|---|---|---|
+| `aarch64_generic` | armsr/armv8, rockchip/armv8 | виртуальные машины, NanoPi R2S / R4S / R5S |
+| `aarch64_cortex-a53` | mediatek/filogic, qualcommax/ipq807x | Xiaomi AX3000T, Cudy TR3000, Xiaomi AX3600 / AX9000 |
+| `arm_cortex-a7_neon-vfpv4` | ipq40xx | GL.iNet GL-A1300 Slate Plus, GL-B1300, ZyXEL NBG6617 |
+| `x86_64` | x86/64 | мини-ПК, виртуальные машины, Proxmox |
+
+Спросите у роутера, что ему нужно:
+
+```bash
+apk --print-arch
+```
+
+На 24.10 вместо этого `opkg print-architecture`.
+
+И ветка, и архитектура есть в имени файла, поэтому возьмите подходящий из [релизов](https://github.com/batchar2/fptn/releases) — например, `fptn-client-0.4.4-openwrt-25.12.x-aarch64_generic.apk`. Как собрать пакет самому, описано в разделе *Сборка под OpenWrt*.
+
+Перенесите пакет на роутер и установите. На 25.12:
+
+```bash
+scp fptn-client-*.apk root@192.168.1.1:/tmp/
+```
+
+```bash
+apk add --allow-untrusted /tmp/fptn-client-*.apk
+```
+
+На 24.10:
+
+```bash
+scp fptn-client-*.ipk root@192.168.1.1:/tmp/
+```
+
+```bash
+opkg update && opkg install /tmp/fptn-client-*.ipk
+```
+
+Во время установки роутеру нужен работающий интернет: `kmod-tun` и `ip-full` тянутся из репозитория OpenWrt.
+
+Остальное установка настраивает сама: создает зону файрвола, которая заворачивает трафик локальной сети в туннель, включает автозапуск сервиса и перезапускает `rpcd`, чтобы появилась страница в веб-интерфейсе.
+
+Откройте в веб-интерфейсе роутера раздел `VPN` → `FPTN`, вставьте токен доступа из [@fptn_bot](https://t.me/fptn_bot), поставьте галку `Enabled` и нажмите `Save & Apply` — сервис запустится сразу. То же самое из консоли:
+
+```bash
+uci set fptn.config.access_token='<токен>'; uci set fptn.config.enabled='1'; uci commit fptn; /etc/init.d/fptn restart
+```
+
+Если вы администрируете роутер удаленно, впишите свой публичный адрес в `Routing` → `Exclude tunnel networks` (например, `203.0.113.45/32`) **до** подключения. Иначе туннель заберет себе маршрут по умолчанию, ответы вашей сессии уйдут в него, и доступ к роутеру пропадет.
+
+Кнопка `Diagnostics` на странице FPTN проверяет туннель, маршруты, зону файрвола и DNS и показывает, что именно сломано. Полная картина — в системном журнале:
+
+```bash
+logread -e fptn -f
+```
+
+Удаление пакета останавливает клиент и снимает его с автозапуска:
+
+```bash
+apk del fptn-client
+```
+
+На 24.10 то же самое делает `opkg remove fptn-client`.
+
+</details>
+
+
+
+
 
 
 
 <details>
-  <summary>Сборка проекта из исходников</summary>
+  <summary><strong>Сборка под Linux, Windows и macOS</strong></summary>
 
 1. Установите требуемые зависимости
 - Для [Windows](deploy/windows/README.md)
@@ -747,8 +829,105 @@ ctest
 
 </details>
 
+
+
+
 <details>
-  <summary>Использование CLion IDE для разработки</summary>
+  <summary><strong>Сборка под OpenWrt</strong></summary>
+
+Клиент для роутера кросс-компилируется в докере: в образе лежит OpenWrt SDK, сборка собирает CLI-клиент и упаковывает его вместе с procd-сервисом и страницей LuCI в один пакет. На хосте, кроме самого докера, ничего ставить не нужно. Установка и работа с готовым пакетом описаны в разделе *Установка FPTN на роутер с OpenWrt*.
+
+Докерфайлы разложены по каталогам `deploy/openwrt/target-<архитектура>/<ветка OpenWrt>`. Каталоги 25.12.5 дают `.apk`, каталоги 24.10.7 — `.ipk`:
+
+| Архитектура пакетов | Каталог | Устройства |
+|---|---|---|
+| `aarch64_generic` | `target-armsr-armv8` | виртуальные машины, NanoPi R2S / R4S / R5S |
+| `aarch64_cortex-a53` | `target-mediatek-filogic` | Xiaomi AX3000T, Cudy TR3000, Xiaomi AX3600 / AX9000 |
+| `arm_cortex-a7_neon-vfpv4` | `target-ipq40xx` | GL.iNet GL-A1300 Slate Plus, GL-B1300, ZyXEL NBG6617 |
+| `x86_64` | `target-x86-64` | мини-ПК, виртуальные машины, Proxmox |
+
+Выполните блок, соответствующий вашему устройству и вашей ветке OpenWrt, — он собирает образ и кладет пакет в текущий каталог.
+
+**OpenWrt 25.12.x, `.apk`**
+
+`aarch64_generic`:
+
+```bash
+docker build -t openwrt-armv8-25.12.5 -f ./deploy/openwrt/target-armsr-armv8/25.12.5/Dockerfile .
+docker run --rm -v "$PWD:/dst" openwrt-armv8-25.12.5 cp -av /out/. /dst/
+```
+
+`aarch64_cortex-a53`:
+
+```bash
+docker build -t openwrt-filogic-25.12.5 -f ./deploy/openwrt/target-mediatek-filogic/25.12.5/Dockerfile .
+docker run --rm -v "$PWD:/dst" openwrt-filogic-25.12.5 cp -av /out/. /dst/
+```
+
+`arm_cortex-a7_neon-vfpv4`:
+
+```bash
+docker build -t openwrt-ipq40xx-25.12.5 -f ./deploy/openwrt/target-ipq40xx/25.12.5/Dockerfile .
+docker run --rm -v "$PWD:/dst" openwrt-ipq40xx-25.12.5 cp -av /out/. /dst/
+```
+
+`x86_64`:
+
+```bash
+docker build -t openwrt-x86-64-25.12.5 -f ./deploy/openwrt/target-x86-64/25.12.5/Dockerfile .
+docker run --rm -v "$PWD:/dst" openwrt-x86-64-25.12.5 cp -av /out/. /dst/
+```
+
+**OpenWrt 24.10.x, `.ipk`**
+
+`aarch64_generic`:
+
+```bash
+docker build -t openwrt-armv8-24.10.7 -f ./deploy/openwrt/target-armsr-armv8/24.10.7/Dockerfile .
+docker run --rm -v "$PWD:/dst" openwrt-armv8-24.10.7 cp -av /out/. /dst/
+```
+
+`aarch64_cortex-a53`:
+
+```bash
+docker build -t openwrt-filogic-24.10.7 -f ./deploy/openwrt/target-mediatek-filogic/24.10.7/Dockerfile .
+docker run --rm -v "$PWD:/dst" openwrt-filogic-24.10.7 cp -av /out/. /dst/
+```
+
+`arm_cortex-a7_neon-vfpv4`:
+
+```bash
+docker build -t openwrt-ipq40xx-24.10.7 -f ./deploy/openwrt/target-ipq40xx/24.10.7/Dockerfile .
+docker run --rm -v "$PWD:/dst" openwrt-ipq40xx-24.10.7 cp -av /out/. /dst/
+```
+
+`x86_64`:
+
+```bash
+docker build -t openwrt-x86-64-24.10.7 -f ./deploy/openwrt/target-x86-64/24.10.7/Dockerfile .
+docker run --rm -v "$PWD:/dst" openwrt-x86-64-24.10.7 cp -av /out/. /dst/
+```
+
+У каждой комбинации свой тег образа, поэтому сборки не затирают друг друга.
+
+Образы SDK существуют только под `linux/amd64`, поэтому на Apple Silicon сборка идет через эмуляцию. Первый запуск занимает около часа: зависимости собираются из исходников, дальше они кешируются в слоях образа.
+
+Без указания версии пакет получает номер `0.0.0`. Для релизной сборки передайте ее явно:
+
+```bash
+docker build --build-arg PKG_VERSION=0.4.4 -t openwrt-armv8-25.12.5 -f ./deploy/openwrt/target-armsr-armv8/25.12.5/Dockerfile .
+```
+
+Все, что попадает в пакет, лежит в `deploy/openwrt/data`: UCI-конфиг, procd-сервис, страница LuCI и скрипты упаковки для обоих форматов. Для другой архитектуры скопируйте один из каталогов `target-*` и поправьте тег базового образа, `TOOLCHAIN_DIR`, `CROSS_PREFIX`, `CONAN_ARCH` и `PKG_ARCH`. Имя каталога тулчейна можно посмотреть в самом образе SDK:
+
+```bash
+docker run --rm openwrt/sdk:mediatek-filogic-25.12.5 ls /builder/staging_dir
+```
+
+</details>
+
+<details>
+  <summary><strong>Использование CLion IDE для разработки</strong></summary>
 
 Выполните следующую команду в корневой папке проекта:
 

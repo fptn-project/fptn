@@ -68,7 +68,7 @@ inline bool run(
     boost::process::v1::child child(command, boost::process::v1::std_out > pipe,
         ::boost::process::v1::windows::hide);
 #elif defined(__linux__) || defined(__APPLE__)
-    boost::process::v1::child child(boost::process::v1::search_path("bash"),
+    boost::process::v1::child child(boost::process::v1::search_path("sh"),
         "-c", command, boost::process::v1::std_out > pipe);
 #endif
     std::string line;

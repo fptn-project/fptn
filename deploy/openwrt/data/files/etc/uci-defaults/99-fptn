@@ -1,0 +1,23 @@
+#!/bin/sh
+
+if ! uci -q get firewall.fptn >/dev/null; then
+	uci set firewall.fptn=zone
+	uci set firewall.fptn.name='fptn'
+	uci set firewall.fptn.input='REJECT'
+	uci set firewall.fptn.output='ACCEPT'
+	uci set firewall.fptn.forward='REJECT'
+	uci set firewall.fptn.masq='1'
+	uci set firewall.fptn.mtu_fix='1'
+	uci add_list firewall.fptn.device='tun0'
+
+	uci add firewall forwarding >/dev/null
+	uci set firewall.@forwarding[-1].src='lan'
+	uci set firewall.@forwarding[-1].dest='fptn'
+
+	uci commit firewall
+	/etc/init.d/firewall reload >/dev/null 2>&1
+fi
+
+rm -f /tmp/luci-indexcache* /tmp/luci-modulecache/* 2>/dev/null
+
+exit 0

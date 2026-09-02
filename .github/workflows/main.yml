@@ -230,7 +230,6 @@ jobs:
           path: |
             *.pkg
           if-no-files-found: warn
-
   build_windows_AMD64:
     runs-on: Windows11_AMD64
     steps:
@@ -312,6 +311,57 @@ jobs:
             *.zip
           if-no-files-found: warn
 
+  build_openwrt:
+    runs-on: Docker_AMD64
+    strategy:
+      matrix:
+        target: [armsr-armv8, mediatek-filogic, ipq40xx, x86-64]
+        version: ['25.12.5', '24.10.7']
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+          fetch-depth: 0
+      - name: Set env
+        shell: powershell
+        if: github.event_name == 'release'
+        run: |
+          $releaseVersion = "${{ github.ref_name }}"
+          echo "RELEASE_VERSION=$releaseVersion" >> $env:GITHUB_ENV
+          echo "FPTN_VERSION=$releaseVersion" >> $env:GITHUB_ENV
+      - name: Set dev version
+        shell: powershell
+        if: github.event_name != 'release'
+        run: |
+          echo "FPTN_VERSION=0.0.0" >> $env:GITHUB_ENV
+          Write-Output "Dev version: 0.0.0"
+      - name: Build OpenWrt package
+        shell: powershell
+        run: |
+          docker build `
+            --build-arg PKG_VERSION="$env:FPTN_VERSION" `
+            -t "fptn-openwrt-${{ matrix.target }}-${{ matrix.version }}" `
+            -f "./deploy/openwrt/target-${{ matrix.target }}/${{ matrix.version }}/Dockerfile" .
+      - name: Extract package
+        shell: powershell
+        run: |
+          docker run --rm -v "$($PWD.Path):/dst" "fptn-openwrt-${{ matrix.target }}-${{ matrix.version }}" cp -av /out/. /dst/
+      - name: Upload package RELEASE
+        if: github.event_name == 'release'
+        uses: AButler/upload-release-assets@v3.0
+        with:
+          files: "fptn-client-*.apk,fptn-client-*.ipk"
+          repo-token: ${{ secrets.CI_TOKEN }}
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenWrt-${{ matrix.target }}-${{ matrix.version }}
+          path: |
+            *.apk
+            *.ipk
+          if-no-files-found: warn
+
   create_multiarch_manifest:
     needs: [build_ubuntu_x86_64, build_ubuntu_arm64]
     runs-on: ubuntu-latest
@@ -349,7 +399,7 @@ jobs:
 
   deploy_website:
     if: github.event_name == 'release' || github.ref == 'refs/heads/master'
-    needs: [build_ubuntu_x86_64, build_ubuntu_arm64, build_macos_arm64, build_windows_AMD64]
+    needs: [build_ubuntu_x86_64, build_ubuntu_arm64, build_macos_arm64, build_windows_AMD64, build_openwrt]
     runs-on: ubuntu-latest
     permissions:
       contents: read

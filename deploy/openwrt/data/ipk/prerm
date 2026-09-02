@@ -1,0 +1,8 @@
+#!/bin/sh
+
+[ -n "$IPKG_INSTROOT" ] && exit 0
+
+/etc/init.d/fptn stop
+/etc/init.d/fptn disable
+
+exit 0

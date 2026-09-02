@@ -36,12 +36,14 @@ class FPTN(ConanFile):
         "setup": [True, False],
         "with_gui_client": [True, False],
         "build_only_fptn_lib": [True, False],
+        "openwrt": [True, False],
     }
     default_options = {
         # --- program ---
         "setup": False,
         "with_gui_client": False,
         "build_only_fptn_lib": False,
+        "openwrt": False,
         # -- depends --
         "*:fPIC": True,
         "*:shared": False,
@@ -145,6 +147,8 @@ class FPTN(ConanFile):
             tc.variables["FPTN_BUILD_WITH_GUI_CLIENT"] = "True"
         if self.options.build_only_fptn_lib:
             tc.variables["FPTN_BUILD_ONLY_FPTN_LIB"] = "True"
+        if self.options.openwrt:
+            tc.variables["FPTN_OPENWRT"] = "True"
         if self._use_mimalloc():
             tc.variables["FPTN_WITH_MIMALLOC"] = "True"
 
