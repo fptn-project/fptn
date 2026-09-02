@@ -25,11 +25,28 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 namespace fptn::common::system::command {
 
+#ifdef _WIN32
+inline std::wstring ToWide(const std::string& command) {
+  if (command.empty()) {
+    return {};
+  }
+  const int length = MultiByteToWideChar(CP_UTF8, 0, command.data(),
+      static_cast<int>(command.size()), nullptr, 0);
+  if (length <= 0) {
+    return {};
+  }
+  std::wstring result(static_cast<std::size_t>(length), L'\0');
+  MultiByteToWideChar(CP_UTF8, 0, command.data(),
+      static_cast<int>(command.size()), result.data(), length);
+  return result;
+}
+#endif
+
 inline bool run(const std::string& command) {
   try {
     SPDLOG_INFO("Running: {}", command);
 #ifdef _WIN32
-    boost::process::v1::child child(command,
+    boost::process::v1::child child(ToWide(command),
         boost::process::v1::std_out > stdout,
         boost::process::v1::std_err > stderr,
         ::boost::process::v1::windows::hide);
@@ -65,7 +82,8 @@ inline bool run(
   try {
     boost::process::v1::ipstream pipe;
 #ifdef _WIN32
-    boost::process::v1::child child(command, boost::process::v1::std_out > pipe,
+    boost::process::v1::child child(
+        ToWide(command), boost::process::v1::std_out > pipe,
         ::boost::process::v1::windows::hide);
 #elif defined(__linux__) || defined(__APPLE__)
     boost::process::v1::child child(boost::process::v1::search_path("bash"),

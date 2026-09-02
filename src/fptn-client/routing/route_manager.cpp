@@ -34,6 +34,26 @@ void ResetWindowsInterfaceNumbers() {
   interface_numbers.clear();
 }
 
+std::string EscapeForPowerShell(const std::string& value) {
+  std::string escaped;
+  for (const char symbol : value) {
+    if (symbol == '\'') {
+      escaped += '\'';
+    }
+    escaped += symbol;
+  }
+  return escaped;
+}
+
+std::string TrimLine(const std::string& line) {
+  const std::size_t begin = line.find_first_not_of(" \t\r\n");
+  if (begin == std::string::npos) {
+    return {};
+  }
+  const std::size_t end = line.find_last_not_of(" \t\r\n");
+  return line.substr(begin, end - begin + 1);
+}
+
 std::string GetWindowsInterfaceNumber(const std::string& interface_name) {
   if (interface_name.empty()) {
     return {};
@@ -47,35 +67,78 @@ std::string GetWindowsInterfaceNumber(const std::string& interface_name) {
     }
   }
 
-  std::vector<std::string> output;
-  fptn::common::system::command::run(
-      "netsh interface ipv4 show interfaces", output);
+  const std::string command =
+      R"(powershell -NoProfile -NonInteractive -Command ")"
+      R"($ErrorActionPreference='SilentlyContinue'; )"
+      R"(try { [Console]::OutputEncoding=[Text.UTF8Encoding]::new($false) } )"
+      R"(catch {}; (Get-NetIPInterface -InterfaceAlias ')" +
+      EscapeForPowerShell(interface_name) +
+      R"(' | Select-Object -First 1).ifIndex")";
 
+  std::vector<std::string> output;
+  fptn::common::system::command::run(command, output);
   for (const auto& line : output) {
-    std::istringstream iss(line);
-    std::string index;
-    std::string metric;
-    std::string mtu;
-    std::string state;
-    if (!(iss >> index >> metric >> mtu >> state)) {
+    const std::string index = TrimLine(line);
+    if (index.empty() ||
+        index.find_first_not_of("0123456789") != std::string::npos) {
       continue;
     }
-    if (index.find_first_not_of("0123456789") != std::string::npos) {
-      continue;
-    }
-    std::string name;
-    std::getline(iss, name);
-    const std::size_t begin = name.find_first_not_of(" \t");
-    const std::size_t end = name.find_last_not_of(" \t\r");
-    if (begin == std::string::npos) {
-      continue;
-    }
-    if (name.substr(begin, end - begin + 1) == interface_name) {
-      const std::scoped_lock lock(interface_number_mutex);
-      interface_numbers[interface_name] = index;
-      return index;
-    }
+    const std::scoped_lock lock(interface_number_mutex);
+    interface_numbers[interface_name] = index;
+    return index;
   }
+  SPDLOG_WARN("Interface index was not found for '{}'", interface_name);
+  return {};
+}
+
+std::pair<std::string, std::string> GetWindowsDefaultRoute(
+    bool ipv6, const std::string& exclude_interface) {
+  const std::string family = ipv6 ? "IPv6" : "IPv4";
+  const std::string prefix = ipv6 ? "::/0" : "0.0.0.0/0";
+  const std::string command =
+      R"(powershell -NoProfile -NonInteractive -Command ")"
+      R"($ErrorActionPreference='SilentlyContinue'; )"
+      R"(try { [Console]::OutputEncoding=[Text.UTF8Encoding]::new($false) } )"
+      R"(catch {}; $r = Get-NetRoute -AddressFamily )" +
+      family + " -DestinationPrefix '" + prefix + "'"
+      " | Where-Object {$_.InterfaceAlias -ne '" +
+      EscapeForPowerShell(exclude_interface) +
+      "' -and $_.NextHop -ne '0.0.0.0' -and $_.NextHop -ne '::'}"
+      " | Sort-Object {$_.RouteMetric + (Get-NetIPInterface -InterfaceIndex "
+      "$_.ifIndex -AddressFamily " +
+      family +
+      ").InterfaceMetric}"
+      " | Select-Object -First 1;" +
+      R"( if ($r) { '{0}|{1}|{2}' -f $r.NextHop,$r.ifIndex,$r.InterfaceAlias }")";
+
+  std::vector<std::string> output;
+  fptn::common::system::command::run(command, output);
+  for (const auto& line : output) {
+    const std::size_t gateway_end = line.find('|');
+    if (gateway_end == std::string::npos) {
+      continue;
+    }
+    const std::size_t index_end = line.find('|', gateway_end + 1);
+    if (index_end == std::string::npos) {
+      continue;
+    }
+    const std::string gateway = line.substr(0, gateway_end);
+    const std::string index =
+        line.substr(gateway_end + 1, index_end - gateway_end - 1);
+    const std::string alias = TrimLine(line.substr(index_end + 1));
+    if (gateway.empty() || alias.empty() || index.empty() ||
+        index.find_first_not_of("0123456789") != std::string::npos) {
+      continue;
+    }
+    {
+      const std::scoped_lock lock(interface_number_mutex);
+      interface_numbers[alias] = index;
+    }
+    SPDLOG_INFO("Default {} route: gateway={} ifIndex={} interface='{}'",
+        family, gateway, index, alias);
+    return {gateway, alias};
+  }
+  SPDLOG_WARN("Default {} route was not found", family);
   return {};
 }
 
@@ -205,14 +268,17 @@ bool AddIPv6RouteToSystem(const std::string& destination,
         fmt::format("route add -inet6 {} {}", destination, gateway_ip);
 #elif _WIN32
     auto [ip, prefix] = ParseIPv6CIDR(destination);
-    std::string interface_name = out_interface;
-    if (interface_name.empty()) {
+    if (out_interface.empty()) {
       SPDLOG_ERROR("Interface name required for IPv6 route on Windows");
       return false;
     }
+    const std::string interface_number =
+        GetWindowsInterfaceNumber(out_interface);
+    const std::string interface_param =
+        interface_number.empty() ? out_interface : interface_number;
     const std::string command = fmt::format(
         "netsh interface ipv6 add route {}/{} \"{}\" {} store=active", ip,
-        prefix, interface_name, gateway_ip);
+        prefix, interface_param, gateway_ip);
 #else
     return false;
 #endif
@@ -277,14 +343,17 @@ std::string BuildRemoveIPv6RouteCommand(const std::string& destination,
     return fmt::format("route delete -inet6 {} {}", destination, gateway_ip);
 #elif _WIN32
     auto [ip, prefix] = ParseIPv6CIDR(destination);
-    std::string interface_name = out_interface;
-    if (interface_name.empty()) {
+    if (out_interface.empty()) {
       SPDLOG_ERROR("Interface name required for IPv6 route removal on Windows");
       return {};
     }
+    const std::string interface_number =
+        GetWindowsInterfaceNumber(out_interface);
+    const std::string interface_param =
+        interface_number.empty() ? out_interface : interface_number;
     return fmt::format(
         "netsh interface ipv6 delete route {}/{} \"{}\" store=active", ip,
-        prefix, interface_name);
+        prefix, interface_param);
 #else
     return {};
 #endif
@@ -346,21 +415,21 @@ bool RouteManager::Apply(std::string tun_name) {
 #endif
   if (!config_.out_interface_name.empty()) {
     detected_out_interface_name_ = config_.out_interface_name;
-  } else if (const auto interface_name = GetDefaultNetworkInterfaceName();
-             !interface_name.empty()) {
-    detected_out_interface_name_ = interface_name;
+  } else if (auto name = GetDefaultNetworkInterfaceName(tun_interface_name_);
+             !name.empty()) {
+    detected_out_interface_name_ = name;
   }
   if (!config_.gateway_ipv4.IsEmpty()) {
     detected_gateway_ipv4_ = config_.gateway_ipv4;
-  } else if (const auto gateway_ipv4 = GetDefaultGatewayIPAddress();
-             !gateway_ipv4.IsEmpty()) {
-    detected_gateway_ipv4_ = gateway_ipv4;
+  } else if (auto gw4 = GetDefaultGatewayIPAddress(tun_interface_name_);
+             !gw4.IsEmpty()) {
+    detected_gateway_ipv4_ = gw4;
   }
   if (!config_.gateway_ipv6.IsEmpty()) {
     detected_gateway_ipv6_ = config_.gateway_ipv6;
-  } else if (const auto gateway_ipv6 = GetDefaultGatewayIPv6Address();
-             !gateway_ipv6.IsEmpty()) {
-    detected_gateway_ipv6_ = gateway_ipv6;
+  } else if (auto gw6 = GetDefaultGatewayIPv6Address(tun_interface_name_);
+             !gw6.IsEmpty()) {
+    detected_gateway_ipv6_ = gw6;
   }
 
   const bool has_custom_dns = config_.custom_dns_ipv4.IsValid();
@@ -580,7 +649,9 @@ pass out on {tunInterfaceName} proto tcp from any to any port 53
       win_interface_number.empty() ? "" : " if " + win_interface_number;
   const std::string backup_dns_cmd = R"PSHELL(powershell -Command "
     if (-not (Test-Path \"$env:TEMP\\fptn_orig_dns.txt\")) {
-      $interface = ')PSHELL" + detected_out_interface_name_ +
+      $interface = ')PSHELL" +
+                                     EscapeForPowerShell(
+                                         detected_out_interface_name_) +
                                      R"PSHELL(';
       if (-not $interface) { $interface = ''; }
       if ($interface) {
@@ -615,7 +686,9 @@ pass out on {tunInterfaceName} proto tcp from any to any port 53
                                         R"PSHELL(';
     $dns6 = ')PSHELL" + config_.dns_server_ipv6.ToString() +
                                         R"PSHELL(';
-    $interface = ')PSHELL" + detected_out_interface_name_ +
+    $interface = ')PSHELL" +
+                                        EscapeForPowerShell(
+                                            detected_out_interface_name_) +
                                         R"PSHELL(';
     if (-not $interface) { $interface = ''; }
     if ($interface) {
@@ -718,7 +791,7 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
       } else if (!config_.out_interface_name.empty()) {
         interface_name = config_.out_interface_name;
       } else {
-        interface_name = GetDefaultNetworkInterfaceName();
+        interface_name = GetDefaultNetworkInterfaceName(tun_interface_name_);
       }
     } else {
       interface_name = tun_interface_name_;
@@ -737,7 +810,7 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
       } else if (!config_.out_interface_name.empty()) {
         interface_name = config_.out_interface_name;
       } else {
-        interface_name = GetDefaultNetworkInterfaceName();
+        interface_name = GetDefaultNetworkInterfaceName(tun_interface_name_);
       }
     } else {
       interface_name = tun_interface_name_;
@@ -942,10 +1015,13 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
     current_interface_name = config_.out_interface_name;
   }
   if (current_interface_name.empty()) {
-    current_interface_name = GetDefaultNetworkInterfaceName();
+    current_interface_name =
+        GetDefaultNetworkInterfaceName(tun_interface_name_);
   }
   const std::string restore_dns_cmd = R"PSHELL(powershell -Command "
-    $interface = ')PSHELL" + current_interface_name +
+    $interface = ')PSHELL" +
+                                      EscapeForPowerShell(
+                                          current_interface_name) +
                                       R"PSHELL(';
     if ($interface) {
         if (Test-Path \"$env:TEMP\\fptn_orig_dns.txt\") {
@@ -1091,6 +1167,7 @@ bool RouteManager::ApplyDnsRoutesIPv4(
     const RoutingPolicy policy) {
   std::string interface_name;
   std::string gateway_ip;
+  std::string tun_name;
 
   {
     const std::unique_lock<std::mutex> lock(mutex_);  // mutex
@@ -1098,6 +1175,7 @@ bool RouteManager::ApplyDnsRoutesIPv4(
     if (!running_) {
       return false;
     }
+    tun_name = tun_interface_name_;
     if (policy == RoutingPolicy::kExcludeFromVpn) {
       if (!detected_out_interface_name_.empty()) {
         interface_name = detected_out_interface_name_;
@@ -1113,7 +1191,7 @@ bool RouteManager::ApplyDnsRoutesIPv4(
     }
   }
   if (interface_name.empty()) {
-    interface_name = fptn::routing::GetDefaultNetworkInterfaceName();
+    interface_name = fptn::routing::GetDefaultNetworkInterfaceName(tun_name);
   }
 
   if (interface_name.empty()) {
@@ -1184,6 +1262,7 @@ bool RouteManager::ApplyDnsRoutesIPv6(
     const RoutingPolicy policy) {
   std::string interface_name;
   std::string gateway_ip;
+  std::string tun_name;
 
   {
     const std::unique_lock<std::mutex> lock(mutex_);  // mutex
@@ -1191,6 +1270,7 @@ bool RouteManager::ApplyDnsRoutesIPv6(
     if (!running_) {
       return false;
     }
+    tun_name = tun_interface_name_;
     if (policy == RoutingPolicy::kExcludeFromVpn) {
       if (!detected_out_interface_name_.empty()) {
         interface_name = detected_out_interface_name_;
@@ -1206,7 +1286,7 @@ bool RouteManager::ApplyDnsRoutesIPv6(
     }
   }
   if (interface_name.empty()) {
-    interface_name = fptn::routing::GetDefaultNetworkInterfaceName();
+    interface_name = fptn::routing::GetDefaultNetworkInterfaceName(tun_name);
   }
 
   if (interface_name.empty()) {
@@ -1417,7 +1497,14 @@ fptn::common::network::IPv4Address ResolveDomain(const std::string& domain) {
   return fptn::common::network::IPv4Address(domain);
 }
 
-fptn::common::network::IPv4Address GetDefaultGatewayIPAddress() {
+fptn::common::network::IPv4Address GetDefaultGatewayIPAddress(
+    const std::string& exclude_interface) {
+#ifdef _WIN32
+  const auto [gateway, alias] =
+      GetWindowsDefaultRoute(false, exclude_interface);
+  return fptn::common::network::IPv4Address::Create(gateway);
+#else
+  (void)exclude_interface;
   try {
 #ifdef __linux__
     const std::string command =
@@ -1430,9 +1517,6 @@ fptn::common::network::IPv4Address GetDefaultGatewayIPAddress() {
         "for ip in 8.8.8.8 8.8.4.4 77.88.8.8; do r=$(route get $ip 2>/dev/null "
         "| grep gateway | awk '{print $2}'); [ -n \"$r\" ] && echo \"$r\" && "
         "break; done";
-#elif _WIN32
-    const std::string command =
-        R"(cmd.exe /c FOR /f "tokens=3" %i in ('route print ^| find "0.0.0.0"') do @echo %i)";
 #else
 #error "Unsupported system!"
 #endif
@@ -1457,9 +1541,16 @@ fptn::common::network::IPv4Address GetDefaultGatewayIPAddress() {
         ex.what());
   }
   return {};
+#endif
 }
 
-fptn::common::network::IPv6Address GetDefaultGatewayIPv6Address() {
+fptn::common::network::IPv6Address GetDefaultGatewayIPv6Address(
+    const std::string& exclude_interface) {
+#ifdef _WIN32
+  const auto [gateway, alias] = GetWindowsDefaultRoute(true, exclude_interface);
+  return fptn::common::network::IPv6Address::Create(gateway);
+#else
+  (void)exclude_interface;
   try {
 #ifdef __linux__
     const std::string command =
@@ -1467,9 +1558,6 @@ fptn::common::network::IPv6Address GetDefaultGatewayIPv6Address() {
 #elif __APPLE__
     const std::string command =
         "route get -inet6 default | grep gateway | awk '{print $2}'";
-#elif _WIN32
-    const std::string command =
-        R"(powershell -Command "(Get-NetRoute -DestinationPrefix '::/0' | Sort-Object RouteMetric | Select-Object -First 1).NextHop")";
 #else
     return {};
 #endif
@@ -1493,10 +1581,17 @@ fptn::common::network::IPv6Address GetDefaultGatewayIPv6Address() {
     SPDLOG_ERROR("Error getting IPv6 gateway: {}", ex.what());
   }
   return {};
+#endif
 }
 
-std::string GetDefaultNetworkInterfaceName() {
-  std::string result;
+std::string GetDefaultNetworkInterfaceName(
+    const std::string& exclude_interface) {
+#ifdef _WIN32
+  const auto [gateway, alias] =
+      GetWindowsDefaultRoute(false, exclude_interface);
+  return alias;
+#else
+  (void)exclude_interface;
   try {
 #ifdef __linux__
     const std::string command =
@@ -1509,25 +1604,25 @@ std::string GetDefaultNetworkInterfaceName() {
         "for ip in 8.8.8.8 8.8.4.4 77.88.8.8; do r=$(route get $ip 2>/dev/null "
         "| grep interface | awk '{print $2}'); [ -n \"$r\" ] && echo \"$r\" && "
         "break; done";
-#elif _WIN32
-    const std::string command =
-        R"(powershell -Command "(Get-NetRoute -DestinationPrefix '0.0.0.0/0' | Where-Object {$_.NextHop -ne '0.0.0.0'} | Select-Object -First 1).InterfaceAlias")";
+#else
+#error "Unsupported system!"
 #endif
     std::vector<std::string> cmd_stdout;
     fptn::common::system::command::run(command, cmd_stdout);
-    if (cmd_stdout.empty()) {
-      SPDLOG_WARN("Warning: Default gateway IP address not found.");
-      return {};
-    }
     for (const auto& line : cmd_stdout) {
-      result = line;
+      std::string result = line;
       result.erase(result.find_last_not_of(" \n\r\t") + 1);
       result.erase(0, result.find_first_not_of(" \n\r\t"));
+      if (!result.empty()) {
+        return result;
+      }
     }
+    SPDLOG_WARN("Warning: Default network interface not found.");
   } catch (const std::exception& ex) {
-    SPDLOG_ERROR("Error: Failed to retrieve the default gateway IP address. {}",
+    SPDLOG_ERROR("Error: Failed to retrieve the default network interface. {}",
         ex.what());
   }
-  return result;
+  return {};
+#endif
 }
 }  // namespace fptn::routing

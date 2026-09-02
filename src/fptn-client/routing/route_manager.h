@@ -20,11 +20,14 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "common/network/ip_address.h"
 
 namespace fptn::routing {
-std::string GetDefaultNetworkInterfaceName();
-fptn::common::network::IPv4Address GetDefaultGatewayIPAddress();
+std::string GetDefaultNetworkInterfaceName(
+    const std::string& exclude_interface);
+fptn::common::network::IPv4Address GetDefaultGatewayIPAddress(
+    const std::string& exclude_interface);
 fptn::common::network::IPv4Address ResolveDomain(const std::string& domain);
 
-fptn::common::network::IPv6Address GetDefaultGatewayIPv6Address();
+fptn::common::network::IPv6Address GetDefaultGatewayIPv6Address(
+    const std::string& exclude_interface);
 
 #ifdef __linux__
 void HealStaleResolvConf();
