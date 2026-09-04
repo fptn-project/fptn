@@ -800,12 +800,14 @@ bool TrayApp::startVpn(QString& err_msg) {
   const std::string tun_interface_name = "tun0";
 
   /* check gateway address */
-  const auto gateway_ip = (settings_->GatewayIp() == "auto"
-                               ? fptn::routing::GetDefaultGatewayIPAddress()
-                               : fptn::common::network::IPv4Address(
-                                     settings_->GatewayIp().toStdString()));
+  const auto gateway_ip =
+      (settings_->GatewayIp() == "auto"
+              ? fptn::routing::GetDefaultGatewayIPAddress(tun_interface_name)
+              : fptn::common::network::IPv4Address(
+                    settings_->GatewayIp().toStdString()));
 
-  const auto gateway_ipv6 = fptn::routing::GetDefaultGatewayIPv6Address();
+  const auto gateway_ipv6 =
+      fptn::routing::GetDefaultGatewayIPv6Address(tun_interface_name);
 
   if (gateway_ip.IsEmpty()) {
     err_msg = QObject::tr(

@@ -334,11 +334,11 @@ int main(int argc, char* argv[]) {
     /* check gateway address */
     const auto using_gateway_ip =
         gateway_ip.IsEmpty()
-            ? fptn::routing::GetDefaultGatewayIPAddress()
+            ? fptn::routing::GetDefaultGatewayIPAddress(tun_interface_name)
             : fptn::common::network::IPv4Address::Create(gateway_ip);
     const auto using_gateway_ipv6 =
         gateway_ipv6.IsEmpty()
-            ? fptn::routing::GetDefaultGatewayIPv6Address()
+            ? fptn::routing::GetDefaultGatewayIPv6Address(tun_interface_name)
             : fptn::common::network::IPv6Address::Create(gateway_ipv6);
     if (using_gateway_ip.IsEmpty()) {
       SPDLOG_ERROR(
