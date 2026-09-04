@@ -27,11 +27,79 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #endif
 
 #include <spdlog/async.h>                     // NOLINT(build/include_order)
+#include <spdlog/pattern_formatter.h>         // NOLINT(build/include_order)
 #include <spdlog/sinks/rotating_file_sink.h>  // NOLINT(build/include_order)
 #include <spdlog/sinks/stdout_color_sinks.h>  // NOLINT(build/include_order)
 #include <spdlog/spdlog.h>                    // NOLINT(build/include_order)
 
 namespace fptn::logger {
+
+constexpr char kLogPattern[] = "[%Y-%m-%d %H:%M:%S] [%^%l%$] [%s:%#] %v";
+
+inline std::string MaskIPv4Addresses(const std::string& text) {
+  const auto is_digit = [](char c) { return c >= '0' && c <= '9'; };
+
+  std::string result;
+  result.reserve(text.size());
+
+  std::size_t i = 0;
+  while (i < text.size()) {
+    std::size_t pos = i;
+    std::size_t last_octet = i;
+    int octets = 0;
+
+    while (octets < 4 && pos < text.size() && is_digit(text[pos])) {
+      last_octet = pos;
+      std::size_t digits = 0;
+      while (pos < text.size() && is_digit(text[pos]) && digits < 3) {
+        ++pos;
+        ++digits;
+      }
+      ++octets;
+      if (octets < 4) {
+        if (pos < text.size() && text[pos] == '.') {
+          ++pos;
+        } else {
+          break;
+        }
+      }
+    }
+
+    if (octets == 4) {
+      result += "***.***.***.";
+      result.append(text, last_octet, pos - last_octet);
+      i = pos;
+    } else {
+      result += text[i];
+      ++i;
+    }
+  }
+  return result;
+}
+
+class MaskingFormatter : public spdlog::formatter {
+ public:
+  MaskingFormatter()
+      : inner_(std::make_unique<spdlog::pattern_formatter>(kLogPattern)) {}
+
+  void format(const spdlog::details::log_msg& msg,
+      spdlog::memory_buf_t& dest) override {
+    spdlog::memory_buf_t buffer;
+    inner_->format(msg, buffer);
+
+    const std::string masked =
+        MaskIPv4Addresses(std::string(buffer.data(), buffer.size()));
+    dest.append(masked.data(), masked.data() + masked.size());
+  }
+
+  std::unique_ptr<spdlog::formatter> clone() const override {
+    return std::make_unique<MaskingFormatter>();
+  }
+
+ private:
+  std::unique_ptr<spdlog::pattern_formatter> inner_;
+};
+
 inline bool init(const std::string& app_name) {
   // Set locale
 #ifdef _WIN32
@@ -88,14 +156,14 @@ inline bool init(const std::string& app_name) {
     constexpr std::size_t kLogQueueSize = 32768;
     spdlog::init_thread_pool(kLogQueueSize, 1);
     auto logger = std::make_shared<spdlog::async_logger>(app_name,
-        spdlog::sinks_init_list{console_sink, file_sink},
-        spdlog::thread_pool(), spdlog::async_overflow_policy::overrun_oldest);
+        spdlog::sinks_init_list{console_sink, file_sink}, spdlog::thread_pool(),
+        spdlog::async_overflow_policy::overrun_oldest);
     spdlog::flush_every(std::chrono::seconds(3));
 #endif
 
     spdlog::set_default_logger(logger);
     spdlog::set_level(spdlog::level::info);
-    spdlog::set_pattern("[%Y-%m-%d %H:%M:%S] [%^%l%$] [%s:%#] %v");
+    spdlog::set_formatter(std::make_unique<MaskingFormatter>());
 
 #if TARGET_OS_IPHONE || TARGET_IPHONE_SIMULATOR
     SPDLOG_INFO("Logger initialized for iOS - console output only");

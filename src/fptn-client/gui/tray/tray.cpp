@@ -781,7 +781,7 @@ void TrayApp::OpenWebBrowser(const std::string& url) {
   QDesktopServices::openUrl(QString::fromStdString(url));
 #elif __linux__
   const std::string command = fmt::format(
-      R"(bash -c "xhost +SI:localuser:root && (xdg-open \"{0}\" || sensible-browser \"{0}\" || x-www-browser \"{0}\" || gnome-open \"{0}\" ) "  )",
+      R"(sh -c "xhost +SI:localuser:root && (xdg-open \"{0}\" || sensible-browser \"{0}\" || x-www-browser \"{0}\" || gnome-open \"{0}\" ) "  )",
       url);
   fptn::common::system::command::run(command);
 #elif _WIN32

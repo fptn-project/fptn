@@ -237,6 +237,7 @@ void VpnManager::HandleOnPacketsFromVirtualNetworkInterface(
       if (!packet) {
         continue;
       }
+#ifndef FPTN_OPENWRT
       if (config_.ad_blocker && packet->IsDns()) {
         if (auto response = config_.ad_blocker->ProcessOutgoingDns(*packet)) {
           if (config_.virtual_net_interface) {
@@ -245,6 +246,7 @@ void VpnManager::HandleOnPacketsFromVirtualNetworkInterface(
           continue;
         }
       }
+#endif
       if (config_.http_client->Send(std::move(packet))) {
         ++to_server_sent_;
       } else {
@@ -331,15 +333,7 @@ void VpnManager::ProcessWebSocketPackets() {
 
 void VpnManager::Supervise() {
   int full_restart_count = 0;
-  auto last_stats = std::chrono::steady_clock::now();
   while (running_) {
-    const auto now = std::chrono::steady_clock::now();
-    if (now - last_stats > std::chrono::seconds(10)) {
-      last_stats = now;
-      SPDLOG_INFO("Packets: to server {} (dropped {}), to tun {} (dropped {})",
-          to_server_sent_.load(), to_server_dropped_.load(),
-          to_tun_sent_.load(), to_tun_dropped_.load());
-    }
     {
       std::unique_lock<std::mutex> lock(reconnect_mutex_);
       reconnect_cv_.wait_for(lock, std::chrono::milliseconds(500),

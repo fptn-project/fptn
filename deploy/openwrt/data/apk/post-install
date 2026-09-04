@@ -1,0 +1,18 @@
+#!/bin/sh
+
+[ -n "$IPKG_INSTROOT" ] && exit 0
+
+if [ -f /etc/config/fptn.apk-new ]; then
+	mv -f /etc/config/fptn.apk-new /etc/config/fptn
+fi
+
+if [ -f /etc/uci-defaults/99-fptn ]; then
+	( . /etc/uci-defaults/99-fptn ) && rm -f /etc/uci-defaults/99-fptn
+fi
+
+/etc/init.d/fptn enable
+
+rm -f /tmp/luci-indexcache* /tmp/luci-modulecache/* 2>/dev/null
+/etc/init.d/rpcd restart >/dev/null 2>&1
+
+exit 0

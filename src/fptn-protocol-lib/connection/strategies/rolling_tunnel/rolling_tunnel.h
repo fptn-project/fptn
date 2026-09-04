@@ -299,6 +299,8 @@ class RollingTunnel : public BaseStrategyConnection {
     try {
       auto channel = co_await CreateNewConnection(lifetime_seconds);
       if (channel && IsStarted()) {
+        const auto replacement_id = channel->connection_id;
+
         // The replacement is ready, so the connection it was created for
         // leaves the pool now instead of lingering until its own deadline.
         std::shared_ptr<Channel> retired;
@@ -321,6 +323,8 @@ class RollingTunnel : public BaseStrategyConnection {
         }
 
         if (retired && retired->client) {
+          SPDLOG_INFO("Connection #{} lifetime ended, replaced by #{}",
+              retired->connection_id, replacement_id);
           boost::asio::co_spawn(
               GetIOContext(),
               [retired]() -> boost::asio::awaitable<void> {

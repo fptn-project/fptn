@@ -191,6 +191,7 @@ std::pair<std::string, int> ParseIPv6CIDR(const std::string& network) {
 }
 #elif __linux__
 
+#ifndef FPTN_OPENWRT
 std::vector<std::string> GetLinuxDnsServers(const std::string& interface) {
   std::vector<std::string> dns_servers;
 
@@ -212,6 +213,7 @@ std::vector<std::string> GetLinuxDnsServers(const std::string& interface) {
   }
   return dns_servers;
 }
+#endif
 #endif
 
 bool AddIPv4RouteToSystem(const std::string& destination,
@@ -372,8 +374,9 @@ std::string BuildRemoveIPv6RouteCommand(const std::string& destination,
 namespace fptn::routing {
 #ifdef __linux__
 void HealStaleResolvConf() {
+#ifndef FPTN_OPENWRT
   const std::string command =
-      R"(bash -c "test -e /etc/resolv.conf.fptn-backup || exit 0; )"
+      R"(sh -c "test -e /etc/resolv.conf.fptn-backup || exit 0; )"
       R"(chattr -i /etc/resolv.conf 2>/dev/null; )"
       R"(cp -f /etc/resolv.conf.fptn-backup /etc/resolv.conf; )"
       R"(rm -f /etc/resolv.conf.fptn-backup; )"
@@ -383,6 +386,7 @@ void HealStaleResolvConf() {
   } catch (const std::exception& e) {
     SPDLOG_ERROR("Failed to heal /etc/resolv.conf: {}", e.what());
   }
+#endif
 }
 #endif
 
@@ -448,6 +452,7 @@ bool RouteManager::Apply(std::string tun_name) {
   SPDLOG_INFO(
       "IPTABLES DNS SERVER:            {}", config_.dns_server_ipv4.ToString());
 #ifdef __linux__
+#ifndef FPTN_OPENWRT
   original_dns_servers_ = GetLinuxDnsServers(detected_out_interface_name_);
   for (const auto& dns : original_dns_servers_) {
     SPDLOG_INFO("Saved dns: {}", dns);
@@ -455,13 +460,18 @@ bool RouteManager::Apply(std::string tun_name) {
   const std::string resolvectl_dns4 =
       has_custom_dns ? (custom_dns + " " + config_.dns_server_ipv4.ToString())
                      : config_.dns_server_ipv4.ToString();
-  std::vector<std::string> commands = {fmt::format("systemctl start sysctl"),
+#endif
+  std::vector<std::string> commands = {
+#ifndef FPTN_OPENWRT
+      fmt::format("systemctl start sysctl"),
+#endif
       fmt::format("sysctl -w net.ipv4.ip_forward=1"),
       fmt::format("sysctl -w net.ipv6.conf.default.disable_ipv6=0"),
       fmt::format("sysctl -w net.ipv6.conf.all.disable_ipv6=0"),
       fmt::format("sysctl -w net.ipv6.conf.lo.disable_ipv6=0"),
       fmt::format("sysctl -w net.ipv6.conf.all.forward=1"),
       fmt::format("sysctl -p"),
+#ifndef FPTN_OPENWRT
       // iptables
       fmt::format("iptables -t nat -A POSTROUTING -o {} -m comment --comment "
                   "fptn -j MASQUERADE",
@@ -478,6 +488,7 @@ bool RouteManager::Apply(std::string tun_name) {
       fmt::format(
           "iptables -A INPUT -i {} -s {} -m comment --comment fptn -j ACCEPT",
           detected_out_interface_name_, config_.vpn_server_ip.ToString()),
+#endif
       // IPv4 default & DNS route
       fmt::format(
           "ip route replace default dev {} scope link", tun_interface_name_),
@@ -492,6 +503,7 @@ bool RouteManager::Apply(std::string tun_name) {
       fmt::format("ip route add {} via {} dev {}",
           config_.vpn_server_ip.ToString(), detected_gateway_ipv4_.ToString(),
           detected_out_interface_name_),
+#ifndef FPTN_OPENWRT
       // Allow DNS responses from TUN (sport 53, not dport 53)
       fmt::format("iptables -A OUTPUT -o {} -p udp --sport 53 -m comment "
                   "--comment fptn -j ACCEPT",
@@ -550,22 +562,25 @@ bool RouteManager::Apply(std::string tun_name) {
       fmt::format("resolvectl default-route {} true", tun_interface_name_),
       fmt::format("resolvectl domain {} ~.", tun_interface_name_),
       fmt::format(
-          R"(bash -c "test -e /etc/resolv.conf.fptn-backup || cp -f /etc/resolv.conf /etc/resolv.conf.fptn-backup")"),
-      fmt::format(R"(bash -c "chattr -i /etc/resolv.conf")"),
+          R"(sh -c "test -e /etc/resolv.conf.fptn-backup || cp -f /etc/resolv.conf /etc/resolv.conf.fptn-backup")"),
+      fmt::format(R"(sh -c "chattr -i /etc/resolv.conf")"),
       fmt::format(
-          R"(bash -c "grep -q '^nameserver {}$' /etc/resolv.conf || sed -i '1i nameserver {}' /etc/resolv.conf")",
+          R"(sh -c "grep -q '^nameserver {}$' /etc/resolv.conf || sed -i '1i nameserver {}' /etc/resolv.conf")",
           config_.dns_server_ipv6.ToString(),
           config_.dns_server_ipv6.ToString()),
       fmt::format(
-          R"(bash -c "grep -q '^nameserver {}$' /etc/resolv.conf || sed -i '1i nameserver {}' /etc/resolv.conf")",
+          R"(sh -c "grep -q '^nameserver {}$' /etc/resolv.conf || sed -i '1i nameserver {}' /etc/resolv.conf")",
           config_.dns_server_ipv4.ToString(),
           config_.dns_server_ipv4.ToString()),
-      fmt::format(R"(bash -c "chattr +i /etc/resolv.conf")"),
-      fmt::format("resolvectl flush-caches")};
+      fmt::format(R"(sh -c "chattr +i /etc/resolv.conf")"),
+      fmt::format("resolvectl flush-caches")
+#endif
+  };
 
   if (has_custom_dns) {
     commands.push_back(
         fmt::format("ip route add {} dev {}", custom_dns, tun_interface_name_));
+#ifndef FPTN_OPENWRT
     commands.push_back(
         fmt::format("iptables -A OUTPUT -d {} -p udp --dport 53 -m comment "
                     "--comment fptn -j ACCEPT",
@@ -575,8 +590,9 @@ bool RouteManager::Apply(std::string tun_name) {
                     "--comment fptn -j ACCEPT",
             custom_dns));
     commands.push_back(fmt::format(
-        R"(bash -c "chattr -i /etc/resolv.conf; grep -q '^nameserver {}$' /etc/resolv.conf || sed -i '1i nameserver {}' /etc/resolv.conf; chattr +i /etc/resolv.conf")",
+        R"(sh -c "chattr -i /etc/resolv.conf; grep -q '^nameserver {}$' /etc/resolv.conf || sed -i '1i nameserver {}' /etc/resolv.conf; chattr +i /etc/resolv.conf")",
         custom_dns, custom_dns));
+#endif
   }
 
 #elif __APPLE__
@@ -587,12 +603,12 @@ bool RouteManager::Apply(std::string tun_name) {
                            config_.dns_server_ipv4.ToString());
   std::vector<std::string> commands = {
       fmt::format(
-          R"(bash -c "networksetup -listallnetworkservices | grep -v '^An asterisk' | grep -v '^\* ' | xargs -I {{}} networksetup -setdnsservers '{{}}' empty")",
+          R"(sh -c "networksetup -listallnetworkservices | grep -v '^An asterisk' | grep -v '^\* ' | xargs -I {{}} networksetup -setdnsservers '{{}}' empty")",
           config_.dns_server_ipv4.ToString()),  // clean DNS
       fmt::format("sysctl -w net.inet.ip.forwarding=1"),
       fmt::format("sysctl -w net.inet6.ip6.forwarding=1"),
       fmt::format(
-          R"(bash -c "printf 'nat on {findOutInterfaceName} from {tunInterfaceName}:network to any -> ({findOutInterfaceName})
+          R"(sh -c "printf 'nat on {findOutInterfaceName} from {tunInterfaceName}:network to any -> ({findOutInterfaceName})
 nat on {findOutInterfaceName} inet6 from {tunInterfaceName}:network to any -> ({findOutInterfaceName})
 pass out on {findOutInterfaceName} proto tcp from any to {vpnServerIP}
 pass in on {findOutInterfaceName} proto tcp from {vpnServerIP} to any
@@ -634,7 +650,7 @@ pass out on {tunInterfaceName} proto tcp from any to any port 53
       // DNS
       fmt::format("dscacheutil -flushcache"),
       fmt::format(
-          R"(bash -c "networksetup -listallnetworkservices | grep -v '^An asterisk' | grep -v '^\* ' | xargs -I {{}} networksetup -setdnsservers '{{}}' {}")",
+          R"(sh -c "networksetup -listallnetworkservices | grep -v '^An asterisk' | grep -v '^\* ' | xargs -I {{}} networksetup -setdnsservers '{{}}' {}")",
           mac_dns_servers)};
 
   if (has_custom_dns) {
@@ -854,6 +870,7 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
 
 #ifdef __linux__
   std::vector<std::string> commands = {
+#ifndef FPTN_OPENWRT
       fmt::format("iptables -t nat -D POSTROUTING -o {} -m comment --comment "
                   "fptn -j MASQUERADE",
           detected_out_interface_name_),
@@ -869,6 +886,7 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
       fmt::format(
           "iptables -D INPUT -i {} -s {} -m comment --comment fptn -j ACCEPT",
           detected_out_interface_name_, config_.vpn_server_ip.ToString()),
+#endif
       // restore default gateway
       fmt::format("ip route replace default via {} dev {}",
           detected_gateway_ipv4_.ToString(), detected_out_interface_name_),
@@ -879,8 +897,9 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
       // Delete DNS server route
       fmt::format("ip route del {} dev {}", config_.dns_server_ipv4.ToString(),
           tun_interface_name_),
+#ifndef FPTN_OPENWRT
       fmt::format(
-          R"(bash -c "chattr -i /etc/resolv.conf; sed -i '/^nameserver {}$/d' /etc/resolv.conf; sed -i '/^nameserver {}$/d' /etc/resolv.conf; rm -f /etc/resolv.conf.fptn-backup")",
+          R"(sh -c "chattr -i /etc/resolv.conf; sed -i '/^nameserver {}$/d' /etc/resolv.conf; sed -i '/^nameserver {}$/d' /etc/resolv.conf; rm -f /etc/resolv.conf.fptn-backup")",
           config_.dns_server_ipv4.ToString(),
           config_.dns_server_ipv6.ToString()),
       // Delete DNS to specific DNS server IP rules
@@ -929,11 +948,14 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
           tun_interface_name_),
       fmt::format("ip6tables -D OUTPUT -o {} -p tcp --sport 53 -m comment "
                   "--comment fptn -j ACCEPT",
-          tun_interface_name_)};
+          tun_interface_name_)
+#endif
+  };
 
   if (has_custom_dns) {
     commands.push_back(
         fmt::format("ip route del {} dev {}", custom_dns, tun_interface_name_));
+#ifndef FPTN_OPENWRT
     commands.push_back(
         fmt::format("iptables -D OUTPUT -d {} -p udp --dport 53 -m comment "
                     "--comment fptn -j ACCEPT",
@@ -943,8 +965,9 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
                     "--comment fptn -j ACCEPT",
             custom_dns));
     commands.push_back(fmt::format(
-        R"(bash -c "chattr -i /etc/resolv.conf; sed -i '/^nameserver {}$/d' /etc/resolv.conf")",
+        R"(sh -c "chattr -i /etc/resolv.conf; sed -i '/^nameserver {}$/d' /etc/resolv.conf")",
         custom_dns));
+#endif
   }
 
   if (!detected_gateway_ipv6_.IsEmpty()) {
@@ -956,6 +979,7 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
         detected_gateway_ipv6_.ToString(), detected_out_interface_name_));
   }
 
+#ifndef FPTN_OPENWRT
   // Restore DNS
   if (!original_dns_servers_.empty()) {
     std::string all_dns;
@@ -979,11 +1003,12 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
     SPDLOG_INFO("Reverting DNS to DHCP for {}", detected_out_interface_name_);
   }
   commands.emplace_back("resolvectl flush-caches");
+#endif
 
 #elif __APPLE__
   std::vector<std::string> commands = {
       fmt::format(
-          R"(bash -c "networksetup -listallnetworkservices | grep -v '^An asterisk' | grep -v '^\* ' | xargs -I {{}} networksetup -setdnsservers '{{}}' empty")"),  // clean DNS
+          R"(sh -c "networksetup -listallnetworkservices | grep -v '^An asterisk' | grep -v '^\* ' | xargs -I {{}} networksetup -setdnsservers '{{}}' empty")"),  // clean DNS
       fmt::format("pfctl -F all -f /etc/pf.conf"),
       // del routes
       fmt::format("route delete -host {} -interface {}",
@@ -1002,7 +1027,7 @@ bool RouteManager::Clean() {  // NOLINT(bugprone-exception-escape)
           detected_gateway_ipv4_.ToString()),
       // DNS
       fmt::format(
-          R"(bash -c "networksetup -listallnetworkservices | grep -v '^An asterisk' | grep -v '^\* ' | xargs -I {{}} networksetup -setdnsservers '{{}}' empty")")  // clean DNS
+          R"(sh -c "networksetup -listallnetworkservices | grep -v '^An asterisk' | grep -v '^\* ' | xargs -I {{}} networksetup -setdnsservers '{{}}' empty")")  // clean DNS
   };
 
   if (has_custom_dns) {
@@ -1511,7 +1536,9 @@ fptn::common::network::IPv4Address GetDefaultGatewayIPAddress(
         "for ip in 8.8.8.8 8.8.4.4 77.88.8.8; do r=$(ip route get $ip "
         "2>/dev/null | awk '{print $3; exit}'); [ -n \"$r\" ] && echo \"$r\" "
         "&& "
-        "break; done";
+        "break; done; "
+        "[ -z \"$r\" ] && ip -4 route show default 2>/dev/null "
+        "| awk '{print $3; exit}'";
 #elif __APPLE__
     const std::string command =
         "for ip in 8.8.8.8 8.8.4.4 77.88.8.8; do r=$(route get $ip 2>/dev/null "

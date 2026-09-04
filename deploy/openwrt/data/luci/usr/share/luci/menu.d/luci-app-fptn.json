@@ -1,0 +1,14 @@
+{
+	"admin/vpn/fptn": {
+		"title": "FPTN",
+		"order": 30,
+		"action": {
+			"type": "view",
+			"path": "fptn/main"
+		},
+		"depends": {
+			"acl": [ "luci-app-fptn" ],
+			"uci": { "fptn": true }
+		}
+	}
+}

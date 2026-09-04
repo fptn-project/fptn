@@ -1,4 +1,7 @@
+fptn-client-cli
 src/fptn-client/adblock/blocklist.gz
+*.apk
+*.ipk
 .env
 .cache/
 .vsconan/
@@ -23,6 +26,7 @@ linux-build22/
 linux-build24/
 CMakeUserPresets.json
 .env
+.claude/
 
 # Prerequisites
 *.d
@@ -84,3 +88,11 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# OpenWrt package files (kept despite the *.d rule above)
+!deploy/openwrt/data/files/etc/init.d/
+!deploy/openwrt/data/files/etc/init.d/*
+!deploy/openwrt/data/luci/usr/share/luci/menu.d/
+!deploy/openwrt/data/luci/usr/share/luci/menu.d/*
+!deploy/openwrt/data/luci/usr/share/rpcd/acl.d/
+!deploy/openwrt/data/luci/usr/share/rpcd/acl.d/*
