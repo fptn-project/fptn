@@ -69,6 +69,11 @@ add_executable(TlsHandshakeParsingTest network/TlsHandshakeParsingTest.cpp)
 target_link_libraries(TlsHandshakeParsingTest PRIVATE ${LIBS} Boost::process)
 add_test(NAME TlsHandshakeParsingTest COMMAND TlsHandshakeParsingTest)
 
+# --- ServerHello restamp test ---
+add_executable(TlsServerHelloRestampTest network/TlsServerHelloRestampTest.cpp)
+target_link_libraries(TlsServerHelloRestampTest PRIVATE ${LIBS})
+add_test(NAME TlsServerHelloRestampTest COMMAND TlsServerHelloRestampTest)
+
 # --- Client Stop race condition test ---
 add_executable(ClientStopRaceTest network/ClientStopRaceTest.cpp)
 target_link_libraries(ClientStopRaceTest PRIVATE GTest::gtest GTest::gtest_main)

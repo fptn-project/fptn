@@ -31,6 +31,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <boost/beast.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
+#include <openssl/rand.h>   // NOLINT(build/include_order)
 #include <spdlog/spdlog.h>  // NOLINT(build/include_order)
 
 #include "common/api/handle.h"
@@ -175,6 +176,14 @@ std::string ParseRequestStr(
     return request[param_name];
   }
   return default_value;
+}
+
+std::vector<std::uint8_t> RandomBytes(std::size_t size) {
+  std::vector<std::uint8_t> bytes(size);
+  if (::RAND_bytes(bytes.data(), static_cast<int>(size)) != 1) {
+    return {};
+  }
+  return bytes;
 }
 
 boost::asio::awaitable<std::size_t> PeekWithTimeout(
@@ -713,6 +722,9 @@ boost::asio::awaitable<bool> Session::PerformFakeHandshake(
       SPDLOG_WARN("Could not restamp session id for {} (client_id={})", sni,
           client_id_);
     }
+    constexpr std::size_t kTlsRandomLen = 32;
+    common::network::SetTlsServerRandom(answer, RandomBytes(kTlsRandomLen));
+    common::network::SetTlsServerKeyShare(answer, RandomBytes(kTlsRandomLen));
 
     const std::size_t bytes_wrote = co_await boost::asio::async_write(
         tcp_socket, boost::asio::buffer(answer), boost::asio::use_awaitable);
@@ -763,6 +775,9 @@ boost::asio::awaitable<bool> Session::PerformFakeHandshake2(
       SPDLOG_WARN("Could not restamp session id for {} (client_id={})", sni,
           client_id_);
     }
+    constexpr std::size_t kTlsRandomLen = 32;
+    common::network::SetTlsServerRandom(answer, RandomBytes(kTlsRandomLen));
+    common::network::SetTlsServerKeyShare(answer, RandomBytes(kTlsRandomLen));
 
     const std::size_t handshake_answer_size =
         co_await boost::asio::async_write(
@@ -932,11 +947,16 @@ boost::asio::awaitable<void> Session::ProxyWithFallback(
   if (co_await HandleProxy(sni, 443)) {
     co_return;
   }
-  if (sni != default_proxy_domain_ &&
-      boost::beast::get_lowest_layer(ws_).socket().is_open()) {
+  for (const auto& domain : allowed_sni_list_) {
+    if (domain == sni || handshake_cache_manager_->IsDead(domain) ||
+        !boost::beast::get_lowest_layer(ws_).socket().is_open()) {
+      continue;
+    }
     SPDLOG_WARN("Proxy to {} failed, falling back to {} (client_id={})", sni,
-        default_proxy_domain_, client_id_);
-    co_await HandleProxy(default_proxy_domain_, 443);
+        domain, client_id_);
+    if (co_await HandleProxy(domain, 443)) {
+      co_return;
+    }
   }
   co_return;
 }
