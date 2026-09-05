@@ -25,7 +25,7 @@ class HandshakeCacheManager final {
   // A cached ServerHello is replayed verbatim, so every client served from one
   // entry sees the same ServerHello.random. The TTL bounds how long that
   // repetition is observable; refetching costs one TLS handshake per SNI.
-  explicit HandshakeCacheManager(std::string default_domain,
+  explicit HandshakeCacheManager(std::vector<std::string> decoy_domains,
       std::chrono::seconds cache_ttl = std::chrono::seconds(3600));
 
   boost::asio::awaitable<HandshakeResponse> GetHandshake(const std::string& sni,
@@ -34,21 +34,34 @@ class HandshakeCacheManager final {
       const std::chrono::seconds& target_timeout,
       const std::chrono::seconds& fallback_timeout);
 
+  boost::asio::awaitable<void> Warmup(const std::chrono::seconds& timeout);
+
   HandshakeResponse CheckCache(const std::string& cache_key);
 
- private:
+  bool IsDead(const std::string& domain);
+
+ protected:
   struct CacheEntry {
     HandshakeResponse data;
     std::chrono::steady_clock::time_point timestamp;
   };
 
+  boost::asio::awaitable<HandshakeResponse> Fetch(const std::string& domain,
+      const std::vector<std::uint8_t>& client_hello,
+      const std::chrono::seconds& timeout);
+
+  void MarkDead(const std::string& domain);
+
+ private:
   mutable std::mutex mutex_;
 
   std::chrono::seconds cache_ttl_;
 
-  const std::string default_domain_;
+  const std::vector<std::string> decoy_domains_;
 
   std::unordered_map<std::string, CacheEntry> cache_;
+
+  std::unordered_map<std::string, std::chrono::steady_clock::time_point> dead_;
 };
 
 using HandshakeCacheManagerSPtr = std::shared_ptr<HandshakeCacheManager>;

@@ -532,6 +532,60 @@ inline bool SetTlsSessionId(
   return true;
 }
 
+inline bool SetTlsServerRandom(
+    std::vector<std::uint8_t>& data, const std::vector<std::uint8_t>& random) {
+  // TLS record(5) + HS type(1) + HS length(3) + legacy_version(2)
+  constexpr std::size_t kRandomOffset = 11;
+  constexpr std::size_t kRandomLen = 32;
+  constexpr std::uint8_t kServerHello = 0x02;
+
+  if (random.size() != kRandomLen ||
+      data.size() < kRandomOffset + kRandomLen || data[5] != kServerHello) {
+    return false;
+  }
+  std::memcpy(data.data() + kRandomOffset, random.data(), kRandomLen);
+  return true;
+}
+
+inline bool SetTlsServerKeyShare(
+    std::vector<std::uint8_t>& data, const std::vector<std::uint8_t>& key) {
+  constexpr std::uint16_t kKeyShareExtension = 0x0033;
+  constexpr std::uint16_t kX25519Group = 0x001d;
+  constexpr std::size_t kX25519KeyLen = 32;
+  constexpr std::uint8_t kServerHello = 0x02;
+  // TLS record(5) + HS type(1) + HS length(3) + legacy_version(2) + random(32)
+  std::size_t pos = 43;
+
+  if (key.size() != kX25519KeyLen || pos >= data.size() ||
+      data[5] != kServerHello) {
+    return false;
+  }
+  pos += 1 + data[pos];
+  pos += 3;
+  if (pos + 2 > data.size()) {
+    return false;
+  }
+  const std::size_t ext_end =
+      std::min(pos + 2 + ReadU16Be(&data[pos]), data.size());
+  pos += 2;
+
+  while (pos + 4 <= ext_end) {
+    const std::uint16_t type = ReadU16Be(&data[pos]);
+    const std::uint16_t len = ReadU16Be(&data[pos + 2]);
+    pos += 4;
+    if (pos + len > ext_end) {
+      return false;
+    }
+    if (type == kKeyShareExtension && len == 4 + kX25519KeyLen &&
+        ReadU16Be(&data[pos]) == kX25519Group) {
+      std::memcpy(data.data() + pos + 4, key.data(), kX25519KeyLen);
+      return true;
+    }
+    pos += len;
+  }
+  return false;
+}
+
 inline std::vector<std::uint8_t> GetTlsSessionId(
     const std::uint8_t* data, std::size_t len) noexcept {
   // TLS record(5) + HS type(1) + HS length(3) + legacy_version(2) + random(32)

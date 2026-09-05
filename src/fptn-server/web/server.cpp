@@ -54,8 +54,10 @@ Server::Server(std::uint16_t port,
   using std::placeholders::_1;
   using std::placeholders::_2;
 
-  handshake_cache_manager_ =
-      std::make_shared<HandshakeCacheManager>(default_proxy_domain_);
+  handshake_cache_manager_ = std::make_shared<HandshakeCacheManager>(
+      allowed_sni_list_.empty()
+          ? std::vector<std::string>{default_proxy_domain_}
+          : allowed_sni_list_);
 
   listener_ = std::make_shared<Listener>(port_,
       // proxy settings
@@ -93,6 +95,16 @@ Server::~Server() { Stop(); }
 bool Server::Start() {
   running_ = true;
   try {
+    {
+      boost::asio::io_context warmup_ioc;
+      boost::asio::co_spawn(
+          warmup_ioc,
+          [this]() -> boost::asio::awaitable<void> {
+            co_await handshake_cache_manager_->Warmup(std::chrono::seconds(3));
+          },
+          boost::asio::detached);
+      warmup_ioc.run();
+    }
     // run listener
     boost::asio::co_spawn(
         ioc_,

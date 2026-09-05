@@ -6,6 +6,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include "web/handshake/handshake_cache_manager.h"
 
+#include <algorithm>
 #include <array>
 #include <iostream>
 #include <memory>
@@ -17,15 +18,44 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <boost/asio/experimental/awaitable_operators.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/beast.hpp>
+#include <camouflage/tls/builder.hpp>
 #include <spdlog/spdlog.h>  // NOLINT(build/include_order)
 
 #include "common/network/ip_utils.h"
 #include "common/network/resolv.h"
 #include "common/network/utils.h"
 
-#include "fptn-protocol-lib/https/utils/tls/tls.h"
-
 namespace {
+
+constexpr auto kDeadDomainTtl = std::chrono::seconds(60);
+
+std::vector<std::uint8_t> GenerateChromeClientHello(const std::string& sni) {
+  const auto handshake =
+      camouflage::tls::Builder::Create()
+          .GoogleChrome(
+              camouflage::tls::google_chrome::Version::kV_149_0_7827_103)
+          .SetSNI(sni)
+          .Generate();
+  if (!handshake.has_value()) {
+    return {};
+  }
+  return {handshake->handshake_packet,
+      handshake->handshake_packet + handshake->handshake_packet_size};
+}
+
+bool IsTls13Flight(const fptn::web::HandshakeResponse& flight) {
+  // TLS record(5) + HS type(1) + HS length(3)
+  constexpr std::size_t kServerHelloBodyOffset = 9;
+  const std::vector<std::uint8_t>& data = *flight;
+  if (data.size() < kServerHelloBodyOffset || data[5] != 0x02) {
+    return false;
+  }
+  const std::uint32_t body_len = (static_cast<std::uint32_t>(data[6]) << 16) |
+                                 (static_cast<std::uint32_t>(data[7]) << 8) |
+                                 data[8];
+  return fptn::common::network::detail::IsTls13ServerHello(
+      data, kServerHelloBodyOffset, body_len);
+}
 
 // Forwards the client's own ClientHello to the decoy and returns its answer.
 //
@@ -65,7 +95,10 @@ boost::asio::awaitable<fptn::web::HandshakeResponse> FetchForwardedHandshake(
       std::array<std::uint8_t, 8192> buf{};
       using boost::asio::experimental::awaitable_operators::operator||;
       while (data.size() < kMaxTotalSize) {
-        boost::asio::steady_timer quiet(executor, kQuietPeriod);
+        boost::asio::steady_timer quiet(executor,
+            data.empty()
+                ? std::chrono::duration_cast<std::chrono::milliseconds>(timeout)
+                : kQuietPeriod);
         boost::system::error_code read_ec;
         const auto race = co_await(  // NOLINT(whitespace/parens)
             target_socket.async_read_some(boost::asio::buffer(buf),
@@ -85,8 +118,10 @@ boost::asio::awaitable<fptn::web::HandshakeResponse> FetchForwardedHandshake(
       if (fptn::common::network::IsRecordAlignedServerFlight(data)) {
         *full_response = std::move(data);
       } else {
-        SPDLOG_WARN("Decoy {} answered {} bytes that do not form whole TLS "
-                    "records", sni, data.size());
+        SPDLOG_WARN(
+            "Decoy {} answered {} bytes that do not form whole TLS "
+            "records",
+            sni, data.size());
       }
     };
 
@@ -118,9 +153,9 @@ boost::asio::awaitable<fptn::web::HandshakeResponse> FetchForwardedHandshake(
 namespace fptn::web {
 
 HandshakeCacheManager::HandshakeCacheManager(
-    std::string default_domain, std::chrono::seconds cache_ttl)
+    std::vector<std::string> decoy_domains, std::chrono::seconds cache_ttl)
     : cache_ttl_(cache_ttl),
-      default_domain_(std::move(default_domain)) {}  // NOLINT
+      decoy_domains_(std::move(decoy_domains)) {}  // NOLINT
 
 HandshakeResponse HandshakeCacheManager::CheckCache(
     const std::string& cache_key) {
@@ -138,6 +173,72 @@ HandshakeResponse HandshakeCacheManager::CheckCache(
   return nullptr;
 }
 
+bool HandshakeCacheManager::IsDead(const std::string& domain) {
+  const std::unique_lock<std::mutex> lock(mutex_);  // mutex
+
+  const auto it = dead_.find(domain);
+  if (it == dead_.end()) {
+    return false;
+  }
+  if (std::chrono::steady_clock::now() - it->second < kDeadDomainTtl) {
+    return true;
+  }
+  dead_.erase(it);
+  return false;
+}
+
+void HandshakeCacheManager::MarkDead(const std::string& domain) {
+  if (std::ranges::find(decoy_domains_, domain) == decoy_domains_.end()) {
+    return;
+  }
+
+  const std::unique_lock<std::mutex> lock(mutex_);  // mutex
+
+  dead_[domain] = std::chrono::steady_clock::now();
+}
+
+boost::asio::awaitable<HandshakeResponse> HandshakeCacheManager::Fetch(
+    const std::string& domain,
+    const std::vector<std::uint8_t>& client_hello,
+    const std::chrono::seconds& timeout) {
+  const HandshakeResponse response =
+      co_await FetchForwardedHandshake(domain, client_hello, timeout);
+  if (!response || response->empty()) {
+    MarkDead(domain);
+    co_return nullptr;
+  }
+  if (!IsTls13Flight(response)) {
+    SPDLOG_WARN("Decoy {} negotiated TLS 1.2, unusable", domain);
+    MarkDead(domain);
+    co_return nullptr;
+  }
+
+  const std::unique_lock<std::mutex> lock(mutex_);  // mutex
+  cache_[domain] = CacheEntry{
+      .data = response, .timestamp = std::chrono::steady_clock::now()};
+  co_return response;
+}
+
+boost::asio::awaitable<void> HandshakeCacheManager::Warmup(
+    const std::chrono::seconds& timeout) {
+  const auto executor = co_await boost::asio::this_coro::executor;
+  for (const auto& domain : decoy_domains_) {
+    boost::asio::co_spawn(
+        executor,
+        [this, &domain, timeout]() -> boost::asio::awaitable<void> {
+          try {
+            const auto response = co_await Fetch(
+                domain, GenerateChromeClientHello(domain), timeout);
+            SPDLOG_INFO(
+                "Decoy handshake {}: {}", domain, response ? "ready" : "dead");
+          } catch (const std::exception& e) {
+            SPDLOG_ERROR("Decoy handshake {} failed: {}", domain, e.what());
+          }
+        },
+        boost::asio::detached);
+  }
+}
+
 boost::asio::awaitable<HandshakeResponse> HandshakeCacheManager::GetHandshake(
     const std::string& sni,
     const std::uint8_t* buffer_ptr,
@@ -148,55 +249,30 @@ boost::asio::awaitable<HandshakeResponse> HandshakeCacheManager::GetHandshake(
 
   const auto cached_response = CheckCache(sni);
   if (cached_response && !cached_response->empty()) {
-    SPDLOG_INFO("Cache hit for SNI: {} (TLS fingerprint size: {})", sni,
-        cached_response->size());
     co_return cached_response;
   }
-
-  HandshakeResponse response =
-      co_await FetchForwardedHandshake(sni, client_hello, target_timeout);
-  if (!response) {
-    SPDLOG_WARN(
-        "Failed to fetch handshake from original SNI: {}, trying default "
-        "domain: {}",
-        sni, default_domain_);
-
-    // RET
-    const auto default_cached_response = CheckCache(default_domain_);
-    if (default_cached_response && !default_cached_response->empty()) {
-      SPDLOG_INFO("Returning cached handshake for SNI: {} (using cache)",
-          default_domain_);
-      co_return default_cached_response;
-    }
-
-    // Get new
-    // Generate fresh ClientHello with correct SNI for fallback domain.
-    // Do NOT forward client_handshake_data here — it contains the fake SNI
-    // which causes the fallback server to send only a partial ServerHello.
-    response = co_await FetchForwardedHandshake(default_domain_,
-        fptn::protocol::https::utils::GenerateDecoyTlsHandshake(
-            default_domain_),
-        fallback_timeout);
-    if (response && !response->empty()) {
-      const std::unique_lock<std::mutex> lock(mutex_);  // mutex
-      cache_[default_domain_] = CacheEntry{
-          .data = response, .timestamp = std::chrono::steady_clock::now()};
-      SPDLOG_INFO("Successfully fetched handshake from default domain: {}",
-          default_domain_);
+  if (!IsDead(sni)) {
+    const auto response = co_await Fetch(sni, client_hello, target_timeout);
+    if (response) {
+      co_return response;
     }
   }
 
-  if (response && !response->empty()) {
-    const std::unique_lock<std::mutex> lock(mutex_);  // mutex
-    cache_[sni] = CacheEntry{
-        .data = response, .timestamp = std::chrono::steady_clock::now()};
-    SPDLOG_INFO(
-        "Cached handshake response for SNI: {}, "
-        "size: {} bytes",
-        sni, response->size());
-    co_return response;
+  for (const auto& domain : decoy_domains_) {
+    if (domain == sni || IsDead(domain)) {
+      continue;
+    }
+    const auto cached_fallback = CheckCache(domain);
+    if (cached_fallback && !cached_fallback->empty()) {
+      co_return cached_fallback;
+    }
+    const auto response =
+        co_await Fetch(domain, client_hello, fallback_timeout);
+    if (response) {
+      co_return response;
+    }
   }
-  SPDLOG_WARN("Failed to fetch handshake from real server for SNI: {}", sni);
+  SPDLOG_WARN("No decoy answered for SNI: {}", sni);
   co_return HandshakeResponse();
 }
 
