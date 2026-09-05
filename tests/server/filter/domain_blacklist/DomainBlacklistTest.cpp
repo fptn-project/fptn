@@ -349,13 +349,11 @@ TEST(DomainBlacklistTest, MatchesWholeLabelsOnly) {
 TEST(DomainBlacklistTest, LeavesUnlistedDomainsOfTheSameZoneAlone) {
   const DomainBlacklist filter({"vk.ru", "mail.ru", "ya.ru"});
 
-  // a listed neighbour of the same zone is resolved first
   ASSERT_NE(filter.Apply(MakeDnsResponse("vk.ru", kTypeA, {1, 2, 3, 4}),
                 Direction::kToClient),
       nullptr);
 
-  auto out = filter.Apply(
-      MakeDnsResponse("nn.ru", kTypeA, {195, 19, 220, 12}),
+  auto out = filter.Apply(MakeDnsResponse("nn.ru", kTypeA, {195, 19, 220, 12}),
       Direction::kToClient);
   ASSERT_NE(out, nullptr);
 
@@ -386,8 +384,6 @@ TEST(DomainBlacklistTest, LeavesSubdomainOfUnlistedDomainAlone) {
       nullptr);
 }
 
-// Known trade-off of the address backstop: the block is by IP, so an unlisted
-// domain hosted on the same address as a listed one is dropped as well.
 TEST(DomainBlacklistTest, DropsTrafficToAddressSharedWithBlacklistedDomain) {
   const DomainBlacklist filter({"vk.ru"});
 
@@ -402,13 +398,11 @@ TEST(DomainBlacklistTest, DropsTrafficToAddressSharedWithBlacklistedDomain) {
       nullptr);
 }
 
-// A single-label entry in the blacklist file takes the whole zone down.
 TEST(DomainBlacklistTest, BareTldEntryBlocksTheWholeZone) {
   const DomainBlacklist filter({"ru"});
 
-  ASSERT_NE(
-      filter.Apply(MakeDnsResponse("nn.ru", kTypeA, {195, 19, 220, 12}),
-          Direction::kToClient),
+  ASSERT_NE(filter.Apply(MakeDnsResponse("nn.ru", kTypeA, {195, 19, 220, 12}),
+                Direction::kToClient),
       nullptr);
 
   EXPECT_EQ(
@@ -446,7 +440,6 @@ TEST(DomainBlacklistTest, RemembersEveryAnswerAddress) {
 TEST(DomainBlacklistTest, BlocksClientTrafficToResolvedIPv4) {
   const DomainBlacklist filter({"ads.example.com"});
 
-  // the resolved address is remembered from the DNS response
   ASSERT_NE(
       filter.Apply(MakeDnsResponse("ads.example.com", kTypeA, {1, 2, 3, 4}),
           Direction::kToClient),
@@ -561,8 +554,6 @@ TEST(DomainBlacklistTest, BlocksIcmpToAddressLearnedFromDns) {
       nullptr);
 }
 
-// A readable SNI wins over the address backstop: a clean domain sharing the
-// address with a blacklisted one still gets its handshake through.
 TEST(DomainBlacklistTest, KeepsAllowedSniOnBlacklistedAddress) {
   const DomainBlacklist filter({"vk.ru"});
 
@@ -574,7 +565,8 @@ TEST(DomainBlacklistTest, KeepsAllowedSniOnBlacklistedAddress) {
       nullptr);
   EXPECT_NE(
       filter.Apply(MakeHandshakeTo("1.2.3.4", "nn.ru"), Direction::kFromClient),
-      nullptr);
+      nullptr)
+      << "A handshake is decided by its SNI, the address is not looked at";
 }
 
 TEST(DomainBlacklistTest, KeepsPlainTcpToBlacklistedAddress) {
@@ -632,5 +624,5 @@ TEST(DomainBlacklistTest, KeepsHandshakeWithoutSni) {
   EXPECT_NE(
       filter.Apply(MakeHandshakeTo("1.2.3.4", ""), Direction::kFromClient),
       nullptr)
-      << "TLS is decided by SNI only, the address backstop is not applied";
+      << "TLS is decided by SNI, a handshake without one is not blocked";
 }

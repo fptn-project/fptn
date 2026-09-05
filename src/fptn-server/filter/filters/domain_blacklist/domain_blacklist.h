@@ -6,8 +6,10 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #pragma once
 
+#include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
 #include <shared_mutex>
 #include <string>
@@ -24,13 +26,17 @@ namespace fptn::filter {
  * @class DomainBlacklist
  * @brief Blocks blacklisted domains by their TLS SNI and by the IPs they are
  * seen on, learned from DNS answers and from blocked handshakes.
- *
- * @note This filter is applied on both paths and shared across their thread
- * pools, so its mutable state is guarded by a read-write mutex.
  */
 class DomainBlacklist final : public BaseFilter {
  public:
+  DomainBlacklist(const std::filesystem::path& data_dir,
+      const std::vector<std::string>& urls,
+      const std::filesystem::path& file);
+
   explicit DomainBlacklist(const std::vector<std::string>& domains);
+
+  DomainBlacklist(const DomainBlacklist&) = delete;
+  DomainBlacklist& operator=(const DomainBlacklist&) = delete;
 
   IPPacketPtr Apply(IPPacketPtr packet, Direction direction) const override;
 
@@ -65,16 +71,22 @@ class DomainBlacklist final : public BaseFilter {
   };
 
   struct Entry {
+    Entry(std::string_view domain, std::chrono::steady_clock::time_point at)
+        : domain(domain), expires_at(at) {}
+
     std::string_view domain;
-    std::chrono::steady_clock::time_point expires_at;
+    std::atomic<std::chrono::steady_clock::time_point> expires_at;
   };
 
  private:
-  std::unordered_set<std::string> domains_;
+  std::string arena_;
+  std::unordered_set<std::string_view> domains_;
 
   mutable std::shared_mutex mutex_;
   mutable std::unordered_map<std::uint32_t, Entry> ipv4_addresses_;
   mutable std::unordered_map<IPv6Bytes, Entry, IPv6BytesHash> ipv6_addresses_;
+  mutable std::size_t ipv4_prune_size_ = 0;
+  mutable std::size_t ipv6_prune_size_ = 0;
 };
 
 }  // namespace fptn::filter

@@ -58,6 +58,12 @@ set(FPTN_DEFAULT_BLACKLIST_DOMAINS
 add_compile_definitions(FPTN_CLIENT_DEFAULT_BLACKLIST_DOMAINS=\"${FPTN_DEFAULT_BLACKLIST_DOMAINS}\")
 # server
 add_compile_definitions(FPTN_SERVER_DEFAULT_BLACKLIST_DOMAINS=\"${FPTN_DEFAULT_BLACKLIST_DOMAINS}\")
+set(FPTN_SERVER_DEFAULT_DOMAIN_BLACKLIST_URLS
+    "https://raw.githubusercontent.com/fptn-project/fptn/refs/heads/master/deploy/domain_blacklist/russia.txt")
+add_compile_definitions(FPTN_SERVER_DEFAULT_DOMAIN_BLACKLIST_URLS=\"${FPTN_SERVER_DEFAULT_DOMAIN_BLACKLIST_URLS}\")
+set(FPTN_SERVER_DEFAULT_ADS_BLOCKLIST_URLS
+    "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/ultimate-onlydomains.txt,https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts")
+add_compile_definitions(FPTN_SERVER_DEFAULT_ADS_BLOCKLIST_URLS=\"${FPTN_SERVER_DEFAULT_ADS_BLOCKLIST_URLS}\")
 add_compile_definitions(FPTN_SERVER_DEFAULT_ADDRESS_IP6=\"fc00:1::1\")
 add_compile_definitions(FPTN_SERVER_DEFAULT_NET_ADDRESS_IP6=\"fc00:1::\")
 add_compile_definitions(FPTN_SERVER_DEFAULT_ADDRESS_IP4=\"172.20.0.1\")

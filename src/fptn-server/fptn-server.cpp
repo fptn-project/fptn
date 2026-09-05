@@ -21,11 +21,13 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "common/utils/utils.h"
 
 #include "config/server_config.h"
+#include "filter/filters/adblock/adblock.h"
 #include "filter/filters/antiscan/antiscan.h"
 #include "filter/filters/antispam/antispam.h"
 #include "filter/filters/bittorrent/bittorrent.h"
 #include "filter/filters/domain_blacklist/domain_blacklist.h"
 #include "filter/manager.h"
+#include "fptn-protocol-lib/time/time_provider.h"
 #include "nat/table.h"
 #include "network/virtual_interface.h"
 #include "routing/route_manager.h"
@@ -33,8 +35,6 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "user/user_manager.h"
 #include "vpn/manager.h"
 #include "web/server.h"
-
-#include "fptn-protocol-lib/time/time_provider.h"
 
 namespace {
 
@@ -124,11 +124,11 @@ int main(int argc, char* argv[]) {
 
     /* init from-client packet filter */
     auto from_client_filter_manager = std::make_shared<fptn::filter::Manager>();
-    if (config->DisableTorrentFilter()) {  // block bittorrent traffic
+    if (config->EnableTorrentFilter()) {  // block bittorrent traffic
       from_client_filter_manager->Add(
           std::make_shared<fptn::filter::BitTorrent>());
     }
-    if (config->DisableSpamFilter()) {
+    if (config->EnableSpamFilter()) {
       from_client_filter_manager->Add(
           std::make_shared<fptn::filter::AntiSpam>());
     }
@@ -143,34 +143,21 @@ int main(int argc, char* argv[]) {
 
     /* init to-client packet filter (domain blacklist) */
     auto to_client_filter_manager = std::make_shared<fptn::filter::Manager>();
-    const std::string blacklist_file = config->DomainBlacklistFile();
-    std::vector<std::string> domains = fptn::common::utils::SplitCommaSeparated(
-        FPTN_SERVER_DEFAULT_BLACKLIST_DOMAINS);
-    std::string blacklist_source = "built-in";
-    if (!blacklist_file.empty()) {
-      if (std::filesystem::exists(blacklist_file)) {
-        std::ifstream in(blacklist_file);
-        std::string line;
-        while (std::getline(in, line)) {
-          domains.push_back(line);
-        }
-        blacklist_source = fmt::format("built-in + {}", blacklist_file);
-        SPDLOG_INFO("Domain blacklist file loaded: {}", blacklist_file);
-      } else {
-        blacklist_source =
-            fmt::format("built-in (file not found: {})", blacklist_file);
-        SPDLOG_WARN("Domain blacklist file not found: {}", blacklist_file);
-      }
+    if (config->EnableDomainBlacklistFilter()) {
+      auto domain_blacklist = std::make_shared<fptn::filter::DomainBlacklist>(
+          config->DataDir(), config->DomainBlacklistUrls(),
+          config->DomainBlacklistFile());
+      // one filter in both directions: filled on the to-client path,
+      // read on the from-client path
+      to_client_filter_manager->Add(domain_blacklist);
+      from_client_filter_manager->Add(std::move(domain_blacklist));
     }
 
-    auto domain_blacklist =
-        std::make_shared<fptn::filter::DomainBlacklist>(domains);
-    const std::string domain_blacklist_status = fmt::format(
-        "{} ({} domains)", blacklist_source, domain_blacklist->Size());
-    // one filter in both directions: filled on the to-client path,
-    // read on the from-client path
-    to_client_filter_manager->Add(domain_blacklist);
-    from_client_filter_manager->Add(std::move(domain_blacklist));
+    /* ads filter */
+    if (config->EnableAdsFilter()) {
+      from_client_filter_manager->Add(std::make_shared<fptn::filter::AdBlock>(
+          config->DataDir(), config->AdsBlocklistUrls()));
+    }
 
     SPDLOG_INFO(
         "\n--- Starting server---\n"
@@ -183,6 +170,7 @@ int main(int argc, char* argv[]) {
         "DEFAULT_PROXY_DOMAIN: {}\n"
         "ALLOWED_SNI_LIST:     {}\n"
         "DOMAIN BLACKLIST:     {}\n"
+        "ADS FILTER:           {}\n"
         "TORRENT FILTER:       {}\n"
         "SPAM FILTER:          {}\n"
         "MAX_ACTIVE_SESSIONS_PER_USER: {}\n",
@@ -197,8 +185,10 @@ int main(int argc, char* argv[]) {
         config->DefaultProxyDomain(),
         fmt::format("[{}]", fmt::join(config->AllowedSniList(), ", ")),
         // Packet filters
-        domain_blacklist_status, config->DisableTorrentFilter() ? "YES" : "NO",
-        config->DisableSpamFilter() ? "YES" : "NO",
+        config->EnableDomainBlacklistFilter() ? "YES" : "NO",
+        config->EnableAdsFilter() ? "YES" : "NO",
+        config->EnableTorrentFilter() ? "YES" : "NO",
+        config->EnableSpamFilter() ? "YES" : "NO",
         // max session
         config->MaxActiveSessionsPerUser());
 

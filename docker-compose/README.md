@@ -80,9 +80,13 @@ services:
       - ENABLE_DETECT_PROBING=${ENABLE_DETECT_PROBING}
       - DEFAULT_PROXY_DOMAIN=${DEFAULT_PROXY_DOMAIN}
       - ALLOWED_SNI_LIST=${ALLOWED_SNI_LIST}
-      - DISABLE_TORRENT_FILTER=${DISABLE_TORRENT_FILTER}
-      - DISABLE_SPAM_FILTER=${DISABLE_SPAM_FILTER}
-      - BLACKLIST_URL=${BLACKLIST_URL:-}
+      - ENABLE_DOMAIN_BLACKLIST_FILTER=${ENABLE_DOMAIN_BLACKLIST_FILTER:-true}
+      - DOMAIN_BLACKLIST_URLS=${DOMAIN_BLACKLIST_URLS:-}
+      - ENABLE_ADS_FILTER=${ENABLE_ADS_FILTER:-true}
+      - ADS_BLOCKLIST_URLS=${ADS_BLOCKLIST_URLS:-}
+      - DATA_DIR=${DATA_DIR:-/etc/fptn/data}
+      - ENABLE_TORRENT_FILTER=${ENABLE_TORRENT_FILTER}
+      - ENABLE_SPAM_FILTER=${ENABLE_SPAM_FILTER}
       - PROMETHEUS_SECRET_ACCESS_KEY=${PROMETHEUS_SECRET_ACCESS_KEY}
       - USE_REMOTE_SERVER_AUTH=${USE_REMOTE_SERVER_AUTH}
       - REMOTE_SERVER_AUTH_HOST=${REMOTE_SERVER_AUTH_HOST}
@@ -156,9 +160,24 @@ DEFAULT_PROXY_DOMAIN=rutube.ru
 # ALLOWED_SNI_LIST=vprok.ru,vk.com,perekrestok.ru,x5.ru,yandex.ru,yandex.com,max.ru,alfabank.ru,ozone.ru,rutube.ru
 ALLOWED_SNI_LIST=
 
+# Block ads and trackers
+# (accepted values: true or false; enabled unless set to false).
+# A TLS handshake whose SNI is a listed domain (or a subdomain of one) is
+# dropped.
+ENABLE_ADS_FILTER=true
+
+# Comma-separated URLs of the ad/tracker domain lists. Each one is cached in
+# DATA_DIR and downloaded again once the cached copy is older than an hour.
+# Empty downloads nothing, and the filter starts with no domains at all.
+ADS_BLOCKLIST_URLS=https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/ultimate-onlydomains.txt,https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+
+# Directory for the files the server downloads at runtime (the ad/tracker
+# domain lists). It lives on the mounted volume, so the cache survives restarts.
+DATA_DIR=/etc/fptn/data
+
 # Block BitTorrent traffic to prevent abuse
 # (accepted values: true or false; enabled unless set to false)
-DISABLE_TORRENT_FILTER=true
+ENABLE_TORRENT_FILTER=true
 
 # Block the client traffic that gets this server blacklisted
 # (accepted values: true or false; enabled unless set to false). It drops:
@@ -169,12 +188,18 @@ DISABLE_TORRENT_FILTER=true
 #   - amplification reflectors: UDP 1900, 11211
 # NOTE: the mail part also stops desktop mail clients (Thunderbird, Outlook)
 # of your legitimate users from sending mail through the tunnel.
-DISABLE_SPAM_FILTER=true
+ENABLE_SPAM_FILTER=true
 
-# URL of the domain blacklist, downloaded on every container start.
-# Traffic to the addresses a listed domain or any of its subdomains resolves
-# to is dropped. Set it to empty to use only the built-in list.
-BLACKLIST_URL=https://raw.githubusercontent.com/fptn-project/fptn/refs/heads/master/deploy/domain_blacklist/russia.txt
+# Block the blacklisted domains: a TLS handshake whose SNI is a listed domain
+# (or a subdomain of one) is dropped, and so are the QUIC and ICMP packets
+# addressed to an IP such a domain resolves to
+# (accepted values: true or false; enabled unless set to false).
+ENABLE_DOMAIN_BLACKLIST_FILTER=true
+
+# Comma-separated URLs of the domain lists to block. Each one is cached in
+# DATA_DIR/blacklist and downloaded again once the cached copy is older than
+# an hour. Empty downloads nothing, only the built-in domains are blocked.
+DOMAIN_BLACKLIST_URLS=https://raw.githubusercontent.com/fptn-project/fptn/refs/heads/master/deploy/domain_blacklist/russia.txt
 
 # Set the USE_REMOTE_SERVER_AUTH variable to true if you need to
 # redirect requests to a master FPTN server for authorization.

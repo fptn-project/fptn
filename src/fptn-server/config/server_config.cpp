@@ -129,6 +129,24 @@ ServerConfig::ServerConfig(int argc, char* argv[])
         return v.empty() ? "/etc/fptn/users.list" : v;
       });
   // Packet filters
+  args_.add_argument("--enable-domain-blacklist-filter")
+      .help(
+          "Block the blacklisted domains: a TLS handshake whose SNI is a "
+          "listed domain (or a subdomain of one) is dropped, and so are the "
+          "QUIC and ICMP packets addressed to an IP such a domain resolves "
+          "to. Enabled by default, set to 'false' to let this traffic "
+          "through.")
+      .default_value("true")
+      .action([](const std::string& v) -> std::string {
+        return v.empty() ? "true" : v;
+      });
+  args_.add_argument("--domain-blacklist-urls")
+      .help(
+          "Comma-separated URLs of the domain lists to block, one domain per "
+          "line ('#' starts a comment). Every list is cached in --data-dir and "
+          "downloaded again once it is older than an hour. The lists extend "
+          "the built-in one. Empty downloads nothing.")
+      .default_value(FPTN_SERVER_DEFAULT_DOMAIN_BLACKLIST_URLS);
   args_.add_argument("--domain-blacklist-file")
       .help(
           "Path to a file with domains to block, one per line ('#' starts a "
@@ -136,7 +154,32 @@ ServerConfig::ServerConfig(int argc, char* argv[])
           "subdomains resolves to is dropped. The list extends the built-in "
           "one. Empty (default) uses only the built-in list.")
       .default_value("");
-  args_.add_argument("--disable-torrent-filter")
+  args_.add_argument("--enable-ads-filter")
+      .help(
+          "Block ads and trackers using the domain lists downloaded from "
+          "--ads-blocklist-urls. A TLS handshake whose SNI is a listed domain "
+          "(or a subdomain of one) is dropped. Enabled by default, set to "
+          "'false' to let this traffic through.")
+      .default_value("true")
+      .action([](const std::string& v) -> std::string {
+        return v.empty() ? "true" : v;
+      });
+  args_.add_argument("--ads-blocklist-urls")
+      .help(
+          "Comma-separated URLs of the ad/tracker domain lists (the hosts "
+          "format and a bare domain per line are both accepted). Every list is "
+          "cached in --data-dir and downloaded again once it is older than an "
+          "hour. Empty downloads nothing.")
+      .default_value(FPTN_SERVER_DEFAULT_ADS_BLOCKLIST_URLS);
+  args_.add_argument("--data-dir")
+      .help(
+          "Directory for the files the server downloads at runtime, such as "
+          "the ad/tracker domain lists (default: /etc/fptn/data)")
+      .default_value("/etc/fptn/data")
+      .action([](const std::string& v) -> std::string {
+        return v.empty() ? "/etc/fptn/data" : v;
+      });
+  args_.add_argument("--enable-torrent-filter")
       .help(
           "Block BitTorrent traffic. Enabled by default, set to 'false' to let "
           "BitTorrent packets through.")
@@ -144,7 +187,7 @@ ServerConfig::ServerConfig(int argc, char* argv[])
       .action([](const std::string& v) -> std::string {
         return v.empty() ? "true" : v;
       });
-  args_.add_argument("--disable-spam-filter")
+  args_.add_argument("--enable-spam-filter")
       .help(
           "Block the client traffic that gets this server blacklisted: "
           "outgoing mail (the SMTP ports, any TCP stream that starts with an "
@@ -279,12 +322,35 @@ std::string ServerConfig::UserFile() const {
   return args_.get<std::string>("--userfile");
 }
 
-bool ServerConfig::DisableTorrentFilter() const {
-  return ParseBoolean(args_.get<std::string>("--disable-torrent-filter"));
+bool ServerConfig::EnableAdsFilter() const {
+  return ParseBoolean(args_.get<std::string>("--enable-ads-filter"));
 }
 
-bool ServerConfig::DisableSpamFilter() const {
-  return ParseBoolean(args_.get<std::string>("--disable-spam-filter"));
+std::vector<std::string> ServerConfig::AdsBlocklistUrls() const {
+  return fptn::common::utils::SplitCommaSeparated(
+      args_.get<std::string>("--ads-blocklist-urls"));
+}
+
+std::string ServerConfig::DataDir() const {
+  return args_.get<std::string>("--data-dir");
+}
+
+bool ServerConfig::EnableTorrentFilter() const {
+  return ParseBoolean(args_.get<std::string>("--enable-torrent-filter"));
+}
+
+bool ServerConfig::EnableSpamFilter() const {
+  return ParseBoolean(args_.get<std::string>("--enable-spam-filter"));
+}
+
+bool ServerConfig::EnableDomainBlacklistFilter() const {
+  return ParseBoolean(
+      args_.get<std::string>("--enable-domain-blacklist-filter"));
+}
+
+std::vector<std::string> ServerConfig::DomainBlacklistUrls() const {
+  return fptn::common::utils::SplitCommaSeparated(
+      args_.get<std::string>("--domain-blacklist-urls"));
 }
 
 std::string ServerConfig::DomainBlacklistFile() const {

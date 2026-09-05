@@ -26,10 +26,16 @@ find_package(fmt REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(jwt-cpp REQUIRED)
 find_package(prometheus-cpp REQUIRED)
+find_package(httplib REQUIRED)
 
 
 # Include Boost directory
 include_directories(${Boost_INCLUDE_DIRS})
+
+set(PLATFORM_SPECIFIC_LIBS "")
+if(APPLE)
+  set(PLATFORM_SPECIFIC_LIBS "-framework Security" "-framework CoreFoundation")
+endif()
 
 add_executable(
   "${PROJECT_NAME}"
@@ -68,6 +74,10 @@ add_executable(
   filter/filters/bittorrent/bittorrent.cpp
   filter/filters/domain_blacklist/domain_blacklist.h
   filter/filters/domain_blacklist/domain_blacklist.cpp
+  filter/filters/adblock/adblock.h
+  filter/filters/adblock/adblock.cpp
+  filter/domain_list/domain_list.h
+  filter/domain_list/domain_list.cpp
   vpn/manager.h
   vpn/manager.cpp
   statistic/metrics.h
@@ -89,9 +99,11 @@ target_link_libraries(
           OpenSSL::Crypto
           argparse::argparse
           nlohmann_json::nlohmann_json
+          httplib::httplib
           jwt-cpp::jwt-cpp
           spdlog::spdlog
           fmt::fmt
           tuntap++
           fptn-protocol-lib_static
-          prometheus-cpp::prometheus-cpp)
+          prometheus-cpp::prometheus-cpp
+          ${PLATFORM_SPECIFIC_LIBS})

@@ -80,7 +80,7 @@ ALLOWED_SNI_LIST=
 
 # Block BitTorrent traffic to prevent abuse
 # (accepted values: true or false; enabled unless set to false)
-DISABLE_TORRENT_FILTER=true
+ENABLE_TORRENT_FILTER=true
 
 # Block the client traffic that gets this server blacklisted
 # (accepted values: true or false; enabled unless set to false). It drops:
@@ -91,13 +91,38 @@ DISABLE_TORRENT_FILTER=true
 #   - amplification reflectors: UDP 1900, 11211
 # NOTE: the mail part also stops desktop mail clients (Thunderbird, Outlook)
 # of your legitimate users from sending mail through the tunnel.
-DISABLE_SPAM_FILTER=true
+ENABLE_SPAM_FILTER=true
+
+# Block the blacklisted domains: a TLS handshake whose SNI is a listed domain
+# (or a subdomain of one) is dropped, and so are the QUIC and ICMP packets
+# addressed to an IP such a domain resolves to
+# (accepted values: true or false; enabled unless set to false).
+ENABLE_DOMAIN_BLACKLIST_FILTER=true
+
+# Comma-separated URLs of the domain lists to block. Each one is cached in
+# DATA_DIR/blacklist and downloaded again once the cached copy is older than
+# an hour. Empty downloads nothing, only the built-in domains are blocked.
+DOMAIN_BLACKLIST_URLS=https://raw.githubusercontent.com/fptn-project/fptn/refs/heads/master/deploy/domain_blacklist/russia.txt
 
 # Optional: path to a file with extra domains to block, one per line
 # ('#' starts a comment). Traffic to the addresses these domains and their
 # subdomains resolve to is dropped. The file extends the built-in list.
 # Empty (default) uses only the built-in list.
 DOMAIN_BLACKLIST_FILE=
+
+# Block ads and trackers
+# (accepted values: true or false; enabled unless set to false).
+# A TLS handshake whose SNI is a listed domain (or a subdomain of one) is
+# dropped.
+ENABLE_ADS_FILTER=true
+
+# Comma-separated URLs of the ad/tracker domain lists. Each one is cached in
+# DATA_DIR and downloaded again once the cached copy is older than an hour.
+# Empty downloads nothing, and the filter starts with no domains at all.
+ADS_BLOCKLIST_URLS=https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/ultimate-onlydomains.txt,https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+
+# Directory for the files the server downloads at runtime (the domain lists)
+DATA_DIR=/etc/fptn/data
 
 # Set the USE_REMOTE_SERVER_AUTH variable to true if you need to
 # redirect requests to a master FPTN server for authorization.
@@ -143,9 +168,14 @@ ExecStart=/usr/bin/$(basename "$SERVER_BIN") \
   --tun-interface-name=\${TUN_INTERFACE_NAME} \
   --mtu-size=\${MTU_SIZE} \
   --userfile=\${USERFILE} \
-  --disable-torrent-filter=\${DISABLE_TORRENT_FILTER} \
-  --disable-spam-filter=\${DISABLE_SPAM_FILTER} \
+  --enable-torrent-filter=\${ENABLE_TORRENT_FILTER} \
+  --enable-spam-filter=\${ENABLE_SPAM_FILTER} \
+  --enable-domain-blacklist-filter=\${ENABLE_DOMAIN_BLACKLIST_FILTER} \
+  --domain-blacklist-urls=\${DOMAIN_BLACKLIST_URLS} \
   --domain-blacklist-file=\${DOMAIN_BLACKLIST_FILE} \
+  --enable-ads-filter=\${ENABLE_ADS_FILTER} \
+  --ads-blocklist-urls=\${ADS_BLOCKLIST_URLS} \
+  --data-dir=\${DATA_DIR} \
   --prometheus-access-key=\${PROMETHEUS_SECRET_ACCESS_KEY} \
   --use-remote-server-auth=\${USE_REMOTE_SERVER_AUTH} \
   --remote-server-auth-host=\${REMOTE_SERVER_AUTH_HOST} \
