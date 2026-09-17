@@ -104,12 +104,12 @@ reported. It buys two things.
 restart otherwise means forty logins to learn what the previous run already
 knew.
 
-**The pool is raced in a useful order.** The race probes eight at a time and
+**The pool is raced in a useful order.** The race probes sixteen at a time and
 stops at the first answer, so the order of the first wave decides how long a
 start takes. Servers the last run found fast go first, ones it never measured
 after them, and ones that did not answer last. A dead node holds a worker slot
-for the whole timeout, and eight of them at the front cost the start six
-seconds before the second wave begins.
+for the whole timeout, and a first wave made entirely of them costs the start
+six seconds before the second one begins.
 
 The file is written after the server is chosen, after every switch, and after
 every sweep - the measurements are worth keeping whether or not they lead to a
@@ -172,7 +172,7 @@ and dnsmasq are left alone, and the routing table belongs to whoever created it.
 |---|---|---|
 | `--status-listen` | — | Serve a local HTTP API with the server list and their latency, e.g. `127.0.0.1:9091` |
 | `--status-secret` | — | Token: requests must carry `Authorization: Bearer <token>`. Empty means no check, and then the endpoint may only be bound to the loopback |
-| `--probe-interval` | `180` | Re-measure the whole pool every N seconds. `0` disables it |
+| `--probe-interval` | `180` | Re-measure the whole pool every N seconds. The first sweep runs at startup, not N seconds into it. `0` disables it |
 | `--switch-tolerance` | `500` | How much faster another server must be, in milliseconds, before the tunnel moves to it on its own. `0` leaves only the "stopped answering" case |
 
 The client knows which servers a token carries and how long each takes to
@@ -215,8 +215,14 @@ picking a server at startup, plus the checks of the current node from
 `--max-ping`. That is, a server that was down at launch and has recovered since
 keeps counting as dead. The sweep is on by default for that reason.
 
-A sweep probes every server, at most eight at a time, so one dead node does not
-hold up the rest. The probe is the same TLS connection the tunnel opens, with
+The first sweep runs as soon as the pool is known rather than an interval
+later, so the status API answers with the whole pool instead of the single
+server the startup race happened to measure. Before that it took a whole
+interval - three minutes by default - for a large pool to stop reading as
+untested.
+
+A sweep probes every server, at most sixteen at a time, so one dead node does
+not hold up the rest. The probe is the same TLS connection the tunnel opens, with
 the same obfuscation and SNI, followed by a request for the DNS record - a few
 dozen bytes. It used to download a 100 KB test file, which turned a pool of
 thirty-five servers into 3.5 MB per sweep for a number the handshake already
