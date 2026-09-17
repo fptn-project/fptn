@@ -348,8 +348,11 @@ constexpr std::uint32_t kDeadLatencyRank = 100000;
 
 // How long a single probe is given to answer. Past this the server counts as
 // dead for that round, so it also sets how long a sweep can stall on a node
-// that accepts the connection and then says nothing.
-constexpr int kProbeTimeoutSec = 5;
+// that accepts the connection and then says nothing. Five seconds was more
+// than a live server ever needs - the pools we measure answer in half of one -
+// and on a public pool most of a sweep is spent waiting out the dead nodes at
+// the full timeout.
+constexpr int kProbeTimeoutSec = 3;
 
 // How often the whole pool is re-measured, and how much better another server
 // must be before the tunnel moves to it. sing-box sweeps every three minutes
@@ -359,6 +362,12 @@ constexpr int kProbeTimeoutSec = 5;
 // to leave a server that has gone bad, not to chase the fastest one.
 constexpr std::chrono::seconds kDefaultProbeInterval{180};
 constexpr int kDefaultSwitchToleranceMs = 500;
+
+// How long to wait before trying again when the pool is not loaded yet. The
+// first sweep now runs at startup, and it can land before the server list has
+// arrived; waiting the whole interval for that would put the registry back
+// where it was.
+constexpr std::chrono::seconds kEmptyPoolRetry{5};
 
 // A floor under how often the tunnel may move on latency alone. Without it a
 // pool with two servers a few hundred milliseconds apart would swap on every
@@ -464,11 +473,24 @@ class PoolMonitor final {
   PoolMonitor& operator=(const PoolMonitor&) = delete;
 
  private:
+  // The sweep runs before the first wait, not after it. Waiting first left the
+  // registry with the single measurement taken while picking a server, so for
+  // a whole interval - three minutes by default - a pool of forty servers
+  // reported one latency and everything reading the status API showed the rest
+  // as untested. Measured on a 25-server pool with the interval at 60s: the
+  // map filled at 126s after a restart; with the sweep first it starts filling
+  // as soon as the pool is known.
   void Run() {
-    while (Wait(interval_)) {
-      Sweep();
-      if (Running() && on_sweep_) {
-        on_sweep_();
+    for (;;) {
+      const bool has_pool = !registry_->Servers().empty();
+      if (has_pool) {
+        Sweep();
+        if (Running() && on_sweep_) {
+          on_sweep_();
+        }
+      }
+      if (!Wait(has_pool ? interval_ : kEmptyPoolRetry)) {
+        return;
       }
     }
   }

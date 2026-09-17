@@ -32,8 +32,11 @@ using ProbeCallback = std::function<void(const ServerInfo& server,
     const std::string& error)>;
 
 // How many servers are probed at once. Every server used to get its own
-// thread, which is noticeable on a router with a large pool.
-constexpr std::size_t kMaxProbeConcurrency = 8;
+// thread, which is noticeable on a router with a large pool. Eight left a
+// forty-server pool sweeping in five waves, and a wave costs the probe timeout
+// whenever it holds a dead node; sixteen threads asleep on a socket are
+// cheaper on a router than the minutes that cost the panel.
+constexpr std::size_t kMaxProbeConcurrency = 16;
 
 // Downloads a 100 KB test file: the number says something about throughput,
 // not only about the round trip. Kept for the places that want that.
