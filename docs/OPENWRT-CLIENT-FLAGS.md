@@ -72,7 +72,7 @@ added at all when false. True means `true`, the string `"true"`, `"1"`, `"yes"`,
 | flag | default | what it does |
 |---|---|---|
 | `--access-token` | — | Access token (`fptn://` or the compressed `fptnb:`). **Required.** The flag repeats: several tokens form one shared server pool |
-| `--preferred-server` | — | Name of the server to connect to without a race. Case-insensitive. When names collide between tokens, qualify it as `Service/Name` |
+| `--preferred-server` | — | Name of the server to connect to without a race. Case-insensitive. When names collide between tokens, qualify it as `Service/Name`. Several names may be listed comma-separated (`eu-1, eu-2`): they are tried in the order written, the first to answer wins, and if none answers the pool is raced instead |
 | `--exclude-servers` | — | Regular expression: servers whose name matches are left out of the pool, e.g. `Russia\|Vietnam`. Both the bare name and `Service/Name` are tested, so a whole service can be dropped |
 | `--max-ping` | `5000` (`0` disables) | Latency limit in milliseconds. A server above it is not picked, and the one in use is replaced if it stays above |
 | `--state-file` | a path in `/tmp` keyed by the SOCKS port | Where to remember the server in use and the latency of the pool, so a restart logs in to the server that worked instead of racing the pool again. `-` turns it off |
@@ -84,12 +84,15 @@ it provides spare servers under a different account.
 
 How a server is chosen:
 
-1. if `--preferred-server` is set, it is used;
+1. if `--preferred-server` is set, its names are tried in the order written and
+   the first one that answers is used. A name that is in no token is reported
+   and skipped; none of them answering is not fatal either - the choice falls
+   through to the race below instead of ending the process;
 2. otherwise, if the state file names a server that is still in the pool, that
    one is tried alone first - it answered when the process last stopped, and a
    restart is usually a restart of the daemon rather than a change in the
    world. One login instead of a race;
-3. otherwise a **login race** runs (up to 8 servers in flight, six seconds
+3. otherwise a **login race** runs (up to 16 servers in flight, six seconds
    each), and the first to answer wins;
 4. with `--max-ping` set, the winner is measured as well; if it does not fit,
    it leaves the list and the race repeats. Three rounds, then the best of the

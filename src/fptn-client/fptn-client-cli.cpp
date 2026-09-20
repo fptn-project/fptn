@@ -296,6 +296,40 @@ std::optional<ServerInfo> FindPreferredServer(
   return *it;
 }
 
+// Several preferred servers may be given, comma-separated: "eu-1, eu-2". A
+// single name is the old form and behaves exactly as before. The order is the
+// user's own - a preference is not a measurement - and names that are not in
+// any token are handed back so the caller can name them in the warning.
+struct PreferredServers {
+  std::vector<ServerInfo> found;
+  std::vector<std::string> unknown;
+};
+
+PreferredServers FindPreferredServers(
+    const std::vector<ServerInfo>& servers, const std::string& wanted) {
+  using Registry = fptn::client::status::ServerRegistry;
+
+  PreferredServers result;
+  for (const auto& name : fptn::common::utils::SplitCommaSeparated(wanted)) {
+    auto server = FindPreferredServer(servers, name);
+    if (!server) {
+      result.unknown.push_back(name);
+      continue;
+    }
+    // The same server can be reached by its bare and its qualified name;
+    // listing it twice would only cost a second login attempt.
+    const auto key = Registry::KeyOf(*server);
+    const bool already = std::ranges::any_of(result.found,
+        [&key](const ServerInfo& picked) {
+          return Registry::KeyOf(picked) == key;
+        });
+    if (!already) {
+      result.found.push_back(std::move(*server));
+    }
+  }
+  return result;
+}
+
 // Name for the log, qualified when the service is known.
 std::string DescribeServer(const ServerInfo& server) {
   if (server.service_name.empty()) {
@@ -812,7 +846,11 @@ int main(int argc, char* argv[]) {
         });
     args.add_argument("--preferred-server")
         .default_value("")
-        .help("Preferred server name (case-insensitive)");
+        .help(
+            "Preferred server name (case-insensitive). Several names may be "
+            "given comma-separated - they are tried in the order written and "
+            "the first one that answers is used. If none of them answers, the "
+            "whole pool is raced instead of giving up");
     args.add_argument("--exclude-servers")
         .default_value(std::string(""))
         .help(
@@ -1365,14 +1403,38 @@ int main(int argc, char* argv[]) {
 
       bool use_login_race = preferred_server.empty();
       if (!preferred_server.empty()) {
-        auto server_opt = FindPreferredServer(servers, preferred_server);
-        if (server_opt.has_value()) {
-          selected_server = std::move(*server_opt);
-          server_pinned = true;
-        } else {
-          SPDLOG_WARN("Server '{}' does not exist! Check your token!",
-              preferred_server);
-          use_login_race = true;
+        // A preferred server used to be taken on trust: pinned without a
+        // login, and the one login that followed ended the process when it
+        // failed. With a pool where servers come and go that reads as "the
+        // client does not start" - the node was simply down that minute.
+        // Now the names are tried in the order written and the first one that
+        // answers wins; none answering is not fatal either, the pool is raced
+        // instead, exactly as it would be with no preference set.
+        auto preferred = FindPreferredServers(servers, preferred_server);
+        for (const auto& name : preferred.unknown) {
+          SPDLOG_WARN("Server '{}' does not exist! Check your token!", name);
+        }
+        use_login_race = true;
+        for (const auto& candidate : preferred.found) {
+          auto login = fptn::utils::speed_estimator::FindServerByLogin(sni,
+              {candidate}, censorship_strategy, kLoginRaceTimeoutSec,
+              [registry](const ServerInfo& server, std::uint32_t delay_ms,
+                  const std::string& error) {
+                registry->RecordProbe(server, delay_ms, error);
+              });
+          if (login) {
+            selected_server = login->server;
+            pre_obtained_token = std::move(login->access_token);
+            server_pinned = true;
+            use_login_race = false;
+            break;
+          }
+          SPDLOG_WARN("Preferred server {} did not answer - trying the next",
+              DescribeServer(candidate));
+        }
+        if (use_login_race && !preferred.found.empty()) {
+          SPDLOG_WARN(
+              "No preferred server answered - racing the whole pool instead");
         }
       }
       // The server that was in use when the process last stopped is the best
