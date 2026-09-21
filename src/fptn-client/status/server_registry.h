@@ -54,9 +54,9 @@ struct ServerStats {
   bool alive = false;
 };
 
-// The server pool together with its measurements. The pool used to live in a
-// local inside main() and died right after a server was picked, while the
-// measured latency was discarded - not a single number reached the outside.
+// The server pool together with its measurements, owned beyond the moment a
+// server is picked: the latency taken while choosing is what the status API
+// and the remembered order are built from.
 class ServerRegistry final {
  public:
   ServerRegistry() = default;

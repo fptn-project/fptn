@@ -216,8 +216,7 @@ boost::asio::awaitable<void> StatusServer::AcceptLoop() {
         co_return;
       }
       // Out of descriptors is a sticky error: retrying at once spins the CPU
-      // and floods the log, which is exactly how the helper once burned a
-      // router. Wait a little and say so once.
+      // and floods the log. Wait a little and say so once.
       SPDLOG_WARN("Status API: accept failed - {}", ec.message());
       backoff.expires_after(kAcceptBackoff);
       co_await backoff.async_wait(
@@ -249,13 +248,11 @@ bool StatusServer::HostAllowed(const std::string& host) const {
   if (host.empty()) {
     return true;  // HTTP/1.0 clients may omit it
   }
-  // The check is there to stop a page whose domain resolves to the loopback
-  // from reaching an endpoint that asks for nothing. Once a secret is set it
-  // buys no safety - the request still has to carry the token, and no CORS
-  // header goes back, so a browser cannot read the answer either way - while
-  // it does break the case it was never meant to cover: an endpoint bound to
-  // a LAN address, or to the wildcard, reached by whatever name the caller
-  // happened to use.
+  // The check stops a page whose domain resolves to the loopback from
+  // reaching an endpoint that asks for nothing. With a secret set it buys no
+  // safety - the request still has to carry the token - and it would break an
+  // endpoint bound to a LAN address, or to the wildcard, reached by whatever
+  // name the caller happened to use.
   if (!options_.secret.empty()) {
     return true;
   }
@@ -291,8 +288,8 @@ boost::asio::awaitable<void> StatusServer::HandleConnection(
     tcp::socket socket) {
   beast::tcp_stream stream(std::move(socket));
   // The deadline only applies to asynchronous operations, which is why the
-  // reads and writes below are async: a client that connects and says nothing
-  // used to hold the endpoint forever.
+  // reads and writes below are async: without it a client that connects and
+  // then says nothing would hold the endpoint forever.
   stream.expires_after(std::chrono::seconds(15));
 
   beast::flat_buffer buffer;
@@ -326,12 +323,10 @@ boost::asio::awaitable<void> StatusServer::HandleConnection(
   response.set(http::field::content_type, "application/json");
   response.keep_alive(false);
 
-  // CORS is not an authentication mechanism and was never holding anything
-  // back here: a page that wants to read the pool still needs the token, and
-  // one that is rebound to the loopback bypasses CORS entirely. Withholding
-  // the header only kept browsers out - dashboards could not reach the API at
-  // all once a secret was set, and the preflight below failed with it. This is
-  // what sing-box and mihomo send, so existing dashboards work unchanged.
+  // CORS holds nothing back here: a page that wants to read the pool still
+  // needs the token, and one rebound to the loopback bypasses CORS entirely.
+  // Withholding the header would only keep dashboards out - which is why
+  // sing-box and mihomo send this one too.
   response.set(http::field::access_control_allow_origin, "*");
   if (!HostAllowed(std::string(request[http::field::host]))) {
     response.result(http::status::misdirected_request);

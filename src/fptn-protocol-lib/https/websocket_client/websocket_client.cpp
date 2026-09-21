@@ -217,8 +217,8 @@ void WebsocketClient::DoStop() {
       if (tcp.socket().is_open()) {
         // Only on a live socket, and only through the non-throwing
         // overload: on a closed one set_option raises Bad file descriptor,
-        // which used to take the whole block with it - shutdown and close
-        // never ran, and the descriptor leaked for the life of the process.
+        // which would take the whole block with it - shutdown and close would
+        // not run, and the descriptor would leak for the life of the process.
         const boost::asio::socket_base::linger linger(true, 0);
         tcp.socket().set_option(linger, ec);
         if (ec) {
@@ -375,7 +375,8 @@ boost::asio::awaitable<bool> WebsocketClient::Connect() {
           continue;
         }
         fptn::protocol::https::ApplyRoutingMark(socket.native_handle());
-        co_await boost::beast::get_lowest_layer(ws_).async_connect(entry.endpoint(),
+        co_await boost::beast::get_lowest_layer(ws_).async_connect(
+            entry.endpoint(),
             boost::asio::redirect_error(boost::asio::use_awaitable, ec));
         if (!ec) {
           break;

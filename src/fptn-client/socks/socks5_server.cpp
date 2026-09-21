@@ -370,9 +370,10 @@ boost::asio::awaitable<void> Socks5Server::AcceptLoop() {
         ioc_,
         [this, sock = std::move(client)]() mutable
         -> boost::asio::awaitable<void> {
-          // The counter is released by the guard: an exception thrown inside
-          // the session used to skip the decrement, and co_spawn swallows it,
-          // so the count crept up until the server refused everyone.
+          // The counter is released by the guard: co_spawn swallows an
+          // exception thrown inside the session, so a decrement left to the
+          // end of the body would be skipped and the count would creep up
+          // until the server refused everyone.
           SessionCount guard(active_sessions_);
           try {
             co_await HandleSession(std::move(sock));
@@ -395,9 +396,9 @@ boost::asio::awaitable<void> Socks5Server::HandleSession(
   boost::system::error_code ec;
   auto executor = co_await boost::asio::this_coro::executor;
 
-  // A client that connects and then says nothing used to hold its descriptors
-  // until the process ended: the idle timer only starts once the relay is up.
-  // This deadline covers the handshake itself.
+  // This deadline covers the handshake itself: the idle timer only starts
+  // once the relay is up, so without it a client that connects and then says
+  // nothing would hold its descriptors until the process ended.
   // The socket is reached through a shared flag rather than by reference: the
   // wait handler may still be queued after the coroutine frame is gone.
   auto handshake_socket = std::make_shared<boost::asio::ip::tcp::socket*>(
@@ -604,11 +605,10 @@ boost::asio::awaitable<void> Socks5Server::HandleSession(
   // The idle timer is rearmed on every chunk read; when it does fire, both
   // sides are closed and the relays exit with an error.
   //
-  // The watchdog sits behind || rather than in the shared && chain: otherwise
-  // it sleeps out its full term after both relays have finished, keeping the
-  // session frame alive all that time - and both sockets with it. On a stream
-  // of hundreds of connections a minute, descriptors piled up by the thousand
-  // and hit the session cap.
+  // The watchdog sits behind || rather than in the shared && chain: in the
+  // chain it would sleep out its full term after both relays have finished,
+  // holding the session frame - and both sockets with it - all that time. At
+  // hundreds of connections a minute that is enough to reach the session cap.
   // The handshake is over; from here the idle timer governs the session.
   finish_handshake();
 

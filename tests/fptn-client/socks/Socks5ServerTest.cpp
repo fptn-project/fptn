@@ -313,8 +313,9 @@ TEST(Socks5ServerTest, ClosesIdleSession) {
   server.Stop();
 }
 
-// A client that connects and says nothing used to hold its descriptors until
-// the process ended: the idle timer only starts once the relay is up.
+// The idle timer only starts once the relay is up, so the handshake needs a
+// deadline of its own: without it a silent client holds its descriptors until
+// the process ends.
 TEST(Socks5ServerTest, SilentClientIsDroppedAfterTheHandshakeDeadline) {
   const auto port = PickFreePort();
   auto config = MakeConfig(port);

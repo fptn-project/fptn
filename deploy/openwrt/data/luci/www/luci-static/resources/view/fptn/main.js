@@ -52,9 +52,9 @@ function serviceInfo() {
 	});
 }
 
-// Секции ZeroBlock, которые сами запускают FPTN. Тогда эта страница не
-// участвует: ZeroBlock поднимает клиент со своим конфигом и держит
-// fptn.config.enabled выключенным, а правки здесь только путают.
+// ZeroBlock sections that start FPTN themselves. This page then takes no
+// part: ZeroBlock runs the client with its own configuration and keeps
+// fptn.config.enabled off, so edits made here would only confuse.
 function zeroblockSections() {
 	return uci.load('zeroblock').then(function () {
 		return uci.sections('zeroblock', 'section').filter(function (s) {
@@ -136,9 +136,9 @@ function tokenServers(token) {
 	}) : null;
 }
 
-// Имена серверов по всем ключам в поле. null, если хотя бы один не разбирается.
-// Имя, встречающееся в нескольких сервисах, уточняется сервисом - ровно так его
-// понимает --preferred-server.
+// Server names across every token in the field; null when one of them does
+// not parse. A name that appears in several services is qualified by the
+// service - exactly how --preferred-server reads it.
 function tokenServerNames(value) {
 	var tokens = String(value || '').split(/\s+/)
 		.map(function (item) { return item.trim(); })
@@ -291,8 +291,8 @@ function checkUpdate() {
 		});
 }
 
-// Ключей может быть несколько: UCI хранит их списком, а конфиг прежних версий -
-// одиночным option. Отсюда всегда выходит массив.
+// There may be several tokens: UCI keeps them as a list, while a config from
+// an older version holds a single option. Either way an array comes out.
 function accessTokens() {
 	var value = uci.get('fptn', 'config', 'access_token');
 	if (value == null)
@@ -732,8 +732,8 @@ return view.extend({
 			var list = String(value || '').split(/\s+/)
 				.map(function (item) { return item.trim(); })
 				.filter(function (item) { return item.length > 0; });
-			// Один ключ пишем option'ом: так конфиг остаётся читаемым для тех
-			// версий пакета, что списка не знают.
+			// A single token is written as an option, so the config stays
+			// readable for package versions that do not know the list form.
 			uci.set('fptn', section_id, 'access_token',
 				list.length === 1 ? list[0] : list);
 		};

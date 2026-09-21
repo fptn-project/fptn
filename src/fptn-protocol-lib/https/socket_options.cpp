@@ -58,7 +58,8 @@ bool ApplyRoutingMark(int fd) noexcept {
 #endif
 }
 
-boost::asio::ip::tcp::endpoint ConnectMarked(boost::asio::ip::tcp::socket& socket,
+boost::asio::ip::tcp::endpoint ConnectMarked(
+    boost::asio::ip::tcp::socket& socket,
     const boost::asio::ip::tcp::resolver::results_type& results,
     boost::system::error_code& ec) {
   if (results.empty()) {

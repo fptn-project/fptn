@@ -68,8 +68,8 @@ namespace {
 // routing mark is configured, opens and marks the socket first so the kernel's
 // route lookup sees the mark.
 template <typename Stream>
-boost::asio::ip::tcp::endpoint ConnectStream(
-    Stream& stream, const boost::asio::ip::tcp::resolver::results_type& results) {
+boost::asio::ip::tcp::endpoint ConnectStream(Stream& stream,
+    const boost::asio::ip::tcp::resolver::results_type& results) {
   if (fptn::protocol::https::GetRoutingMark() == 0) {
     return boost::beast::get_lowest_layer(stream).connect(results);
   }

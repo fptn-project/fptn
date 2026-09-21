@@ -121,8 +121,6 @@ std::size_t DefaultMaxSocksSessions(std::size_t fd_limit) {
   return std::clamp((fd_limit - kReserved) / 2, kMinimum, kCeiling);
 }
 
-// Servers of every token in one pool, each carrying the credentials of the
-// token it came from.
 // A config file carries what does not fit on the command line: long keys and
 // arrays of them. Values expand into the very same flags, so parsing, types
 // and defaults stay shared. Flags given on the command line come afterwards
@@ -361,17 +359,14 @@ std::vector<ServerInfo> ExcludeServers(
 
 // The latency limit applied unless --max-ping says otherwise. It is a ceiling,
 // not a target: the probe opens a TLS connection and downloads 100 KB, so even
-// a healthy distant server reads as hundreds of milliseconds, and a busy one
-// as a second or two. Five seconds is the point past which the tunnel is
-// unusable rather than merely slow - low enough to leave a dying server,
-// high enough not to chase normal jitter. 0 turns the check off.
+// a healthy distant server reads as hundreds of milliseconds. The point is to
+// leave a server that has become unusable, not one that is merely slow.
+// 0 turns the check off.
 constexpr int kDefaultMaxPingMs = 5000;
 
-// How long a single login in the startup race may take. Ten seconds was
-// generous to the point of costing: a worker slot is held for the whole of it,
-// and on a public pool with a handful of dead nodes the first wave of eight
-// can spend it all before the second even starts. A server that needs more
-// than six seconds to answer a login is not one worth waiting for.
+// How long a single login in the startup race may take. The attempt holds a
+// worker slot for the whole of it, so on a public pool a handful of dead nodes
+// would otherwise keep the wave behind them waiting.
 constexpr int kLoginRaceTimeoutSec = 6;
 
 // Ranks for ordering the pool from what the previous run measured. A server
@@ -381,11 +376,9 @@ constexpr std::uint32_t kUnknownLatencyRank = 60000;
 constexpr std::uint32_t kDeadLatencyRank = 100000;
 
 // How long a single probe is given to answer. Past this the server counts as
-// dead for that round, so it also sets how long a sweep can stall on a node
-// that accepts the connection and then says nothing. Five seconds was more
-// than a live server ever needs - the pools we measure answer in half of one -
-// and on a public pool most of a sweep is spent waiting out the dead nodes at
-// the full timeout.
+// dead for that round, so it also bounds how long a sweep stalls on a node
+// that accepts the connection and then says nothing. A live server answers
+// well inside it.
 constexpr int kProbeTimeoutSec = 3;
 
 // How often the whole pool is re-measured, and how much better another server
@@ -459,15 +452,6 @@ std::optional<fptn::utils::speed_estimator::LoginResult> SelectServer(
   return last;
 }
 
-// Three readings in a row past the limit and the watchdog asks to shut down.
-// It used to send the process SIGTERM: crude in a multi-threaded program,
-// cleanup was skipped, and under ZeroBlock - which starts the helper itself -
-// a vanishing PID loses it for good. Now the watchdog simply stops the
-// tunnel: the main loop exits on its own, SOCKS and routes are torn down
-// properly, and procd brings the process back.
-// The limit is on by default (kDefaultMaxPingMs), so this runs unless the
-// pool holds a single server, the server is pinned by name, or --max-ping is
-// set to 0.
 // How many times the startup login race is retried before giving up, and how
 // long to wait between attempts.
 constexpr int kStartupLoginAttempts = 3;
@@ -507,13 +491,10 @@ class PoolMonitor final {
   PoolMonitor& operator=(const PoolMonitor&) = delete;
 
  private:
-  // The sweep runs before the first wait, not after it. Waiting first left the
-  // registry with the single measurement taken while picking a server, so for
-  // a whole interval - three minutes by default - a pool of forty servers
-  // reported one latency and everything reading the status API showed the rest
-  // as untested. Measured on a 25-server pool with the interval at 60s: the
-  // map filled at 126s after a restart; with the sweep first it starts filling
-  // as soon as the pool is known.
+  // The sweep runs before the first wait, not after it: until it has run, the
+  // registry holds only the single measurement taken while picking a server,
+  // and everything reading the status API sees the rest of the pool as
+  // untested for a whole interval - three minutes by default.
   void Run() {
     for (;;) {
       const bool has_pool = !registry_->Servers().empty();
@@ -631,6 +612,13 @@ std::optional<std::pair<ServerInfo, std::uint32_t>> BestServer(
   return best;
 }
 
+// Three readings in a row past the limit and the watchdog stops the tunnel:
+// the main loop then exits on its own, SOCKS and routes are torn down in
+// order, and the supervising daemon starts the process again. Stopping the
+// tunnel rather than signalling the process matters under a daemon that owns
+// the helper: a PID that simply vanishes is lost to it.
+// The limit is on by default (kDefaultMaxPingMs), so this runs unless the pool
+// holds a single server, the server is pinned by name, or --max-ping is 0.
 class LatencyWatchdog final {
  public:
   LatencyWatchdog(ServerInfo server,
@@ -1403,13 +1391,9 @@ int main(int argc, char* argv[]) {
 
       bool use_login_race = preferred_server.empty();
       if (!preferred_server.empty()) {
-        // A preferred server used to be taken on trust: pinned without a
-        // login, and the one login that followed ended the process when it
-        // failed. With a pool where servers come and go that reads as "the
-        // client does not start" - the node was simply down that minute.
-        // Now the names are tried in the order written and the first one that
-        // answers wins; none answering is not fatal either, the pool is raced
-        // instead, exactly as it would be with no preference set.
+        // The names are tried in the order written and the first one that
+        // answers wins. None of them answering is not fatal: the pool is raced
+        // instead, exactly as it would be with no preference set at all.
         auto preferred = FindPreferredServers(servers, preferred_server);
         for (const auto& name : preferred.unknown) {
           SPDLOG_WARN("Server '{}' does not exist! Check your token!", name);
@@ -1785,7 +1769,7 @@ int main(int argc, char* argv[]) {
       });
       status_server->SetSwitchServer([&](const ServerInfo& server) -> bool {
         // An explicit request pins the server: from here on the sweep only
-        // measures, it no longer moves the tunnel.
+        // measures and never moves the tunnel itself.
         if (!switch_to(server)) {
           return false;
         }

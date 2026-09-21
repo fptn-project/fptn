@@ -205,9 +205,8 @@ TEST(StatusServerTest, AcceptsTheRightToken) {
 }
 
 // A dashboard served from another origin has to be able to read the answer,
-// and the preflight has to pass before it ever gets there. Withholding the
-// header kept browsers out entirely without keeping anyone honest: the token
-// is what decides.
+// and the preflight has to pass before it ever gets there. The token is what
+// decides access; withholding the header would only keep browsers out.
 TEST(StatusServerTest, SendsCorsHeaderEvenWithASecret) {
   auto started = Start("127.0.0.1", "s3cret");
   ASSERT_NE(started.server, nullptr);

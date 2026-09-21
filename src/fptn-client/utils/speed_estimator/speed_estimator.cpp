@@ -93,9 +93,9 @@ std::optional<LoginResult> FindServerByLogin(const std::string& sni,
     return std::nullopt;
   }
 
-  // The list used to be shuffled and only a random half was probed: a fast
-  // server could simply miss the draw, and the client never learned about it.
-  // Now every server is probed, at most kMaxProbeConcurrency at a time.
+  // Every server is probed, at most kMaxProbeConcurrency at a time: probing
+  // only a random subset would let a fast server miss the draw, and the client
+  // would never learn about it.
   struct State {
     std::mutex mtx;
     std::condition_variable cv;

@@ -40,8 +40,8 @@ collect_token() {
 	[ -n "$1" ] && ACCESS_TOKENS="${ACCESS_TOKENS:+$ACCESS_TOKENS }$1"
 }
 
-# Ключей может быть несколько: 'list access_token' на каждый. Одиночный
-# 'option access_token' из прежних версий по-прежнему понимается.
+# There may be several tokens: one 'list access_token' each. A single
+# 'option access_token', as older versions wrote it, is still understood.
 collect_access_tokens() {
 	ACCESS_TOKENS=""
 	config_list_foreach config access_token collect_token

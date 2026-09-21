@@ -4,9 +4,9 @@ config fptn 'config'
 	option enabled '0'
 	option access_token ''
 	option preferred_server ''
-	# Регулярка: серверы с подходящим именем в пул не попадают.
+	# Regular expression: servers whose name matches stay out of the pool.
 	option exclude_servers ''
-	# Предел задержки, мс. 0 - без ограничения.
+	# Latency limit, ms. 0 means no limit.
 	option max_ping '0'
 	option out_network_interface ''
 	option tun_interface_name 'tun0'

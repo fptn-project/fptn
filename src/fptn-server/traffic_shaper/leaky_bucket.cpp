@@ -41,11 +41,10 @@ bool LeakyBucket::CheckSpeedLimitAt(std::size_t packet_size,
       now - last_leak_time_)
                            .count();
 
-  // The bucket leaks in proportion to the elapsed time. The counter used to
-  // reset only when a packet arrived a full second after the previous reset:
-  // a dense stream never has such a gap, so the counter hit the ceiling and
-  // everything after it was dropped until the traffic went quiet. That hurt
-  // downloads far more than uploads, where pauses are common.
+  // The bucket leaks in proportion to the elapsed time, not on a full-second
+  // boundary: a dense stream never pauses that long, and waiting for such a
+  // gap would let the counter sit at the ceiling and drop everything behind
+  // it until the traffic went quiet.
   if (elapsed > 0) {
     const auto leaked = static_cast<std::size_t>(
         (static_cast<std::uint64_t>(max_bytes_per_second_) *

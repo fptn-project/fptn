@@ -23,19 +23,17 @@ struct LoginResult {
   std::string access_token;
 };
 
-// The outcome of a single probe: how long it took and why it failed. The
-// measurements used to live inside the race and were discarded, so not a
-// single number reached the outside - neither the server list nor its
-// latency could be shown.
+// The outcome of a single probe: how long it took and why it failed. Reported
+// out of the race so the numbers outlive it - the server list and its latency
+// are shown from them.
 using ProbeCallback = std::function<void(const ServerInfo& server,
     std::uint32_t delay_ms,
     const std::string& error)>;
 
-// How many servers are probed at once. Every server used to get its own
-// thread, which is noticeable on a router with a large pool. Eight left a
-// forty-server pool sweeping in five waves, and a wave costs the probe timeout
-// whenever it holds a dead node; sixteen threads asleep on a socket are
-// cheaper on a router than the minutes that cost the panel.
+// How many servers are probed at once, rather than a thread per server, which
+// is noticeable on a router with a large pool. A wave costs the probe timeout
+// whenever it holds a dead node, so a narrow limit turns a forty-server sweep
+// into minutes; threads asleep on a socket are the cheaper side of that trade.
 constexpr std::size_t kMaxProbeConcurrency = 16;
 
 // Downloads a 100 KB test file: the number says something about throughput,

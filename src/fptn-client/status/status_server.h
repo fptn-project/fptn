@@ -21,12 +21,9 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 namespace fptn::client::status {
 
-// A local HTTP endpoint exposing the server pool and its latency.
-//
-// Before it the client had no machine-readable output at all: only log lines
-// and the process exit code. A transparent proxy running the client as its
-// helper could show neither the pool nor the latency - it had nowhere to read
-// them from.
+// A local HTTP endpoint exposing the server pool and its latency, so that a
+// supervising daemon running the client as its helper has something to read
+// them from besides log lines and the exit code.
 //
 // The response shape follows the Clash API (sing-box, mihomo): dashboards and
 // router-side tooling already parse that JSON, so nothing new has to be

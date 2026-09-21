@@ -46,9 +46,8 @@ class VpnManager final {
   bool Stop();
 
   // Swap the server without bringing the tunnel up again: the TUN device is
-  // already open and the routes are applied, only the far end changes.
-  // Switching used to mean leaving the process - procd started the client
-  // again, and it came back on the very same server.
+  // already open and the routes are applied, only the far end changes. Leaving
+  // the process instead would just have it started again on the same server.
   //
   // Takes a factory rather than a ready connection: the login to the new
   // server has to happen after the current session is released, otherwise a
@@ -60,8 +59,8 @@ class VpnManager final {
   std::size_t GetReceiveRate();
   bool IsStarted();
 
-  // The packet counters were always maintained, but had no getters - the
-  // numbers piled up and nobody could read them.
+  // Readers for the packet counters the manager maintains, so the status API
+  // can report them.
   std::uint64_t ToServerSent() const noexcept { return to_server_sent_.load(); }
   std::uint64_t ToServerDropped() const noexcept {
     return to_server_dropped_.load();

@@ -24,7 +24,8 @@ bool ApplyRoutingMark(int fd) noexcept;
 
 // Connect with the mark already set. The stock helpers open the socket
 // themselves, leaving no descriptor to mark before the SYN.
-boost::asio::ip::tcp::endpoint ConnectMarked(boost::asio::ip::tcp::socket& socket,
+boost::asio::ip::tcp::endpoint ConnectMarked(
+    boost::asio::ip::tcp::socket& socket,
     const boost::asio::ip::tcp::resolver::results_type& results,
     boost::system::error_code& ec);
 
