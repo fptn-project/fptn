@@ -5,7 +5,6 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 =============================================================================*/
 
 #include "fptn-protocol-lib/https/api_client/api_client.h"
-#include "fptn-protocol-lib/https/socket_options.h"
 
 #include <atomic>
 #include <chrono>
@@ -24,6 +23,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <zlib.h>           // NOLINT(build/include_order)
 
 #include "common/network/utils.h"
+#include "fptn-protocol-lib/https/socket_options.h"
 
 #ifdef _WIN32
 #pragma warning(push)
