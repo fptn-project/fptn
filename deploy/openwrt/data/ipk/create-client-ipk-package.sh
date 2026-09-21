@@ -58,14 +58,15 @@ Maintainer: FPTN Project <https://github.com/fptn-project/fptn>
 Section: net
 Priority: optional
 License: MIT
-Depends: libstdcpp6, libatomic, kmod-tun, ip-full
+Depends: libstdcpp6, libatomic, kmod-tun, ip-full, curl
 Description: FPTN client
 EOF
 
 cp "$SCRIPT_DIR/conffiles" "$CLIENT_TMP_DIR/CONTROL/conffiles"
 cp "$SCRIPT_DIR/postinst" "$CLIENT_TMP_DIR/CONTROL/postinst"
 cp "$SCRIPT_DIR/prerm" "$CLIENT_TMP_DIR/CONTROL/prerm"
-chmod 755 "$CLIENT_TMP_DIR/CONTROL/postinst" "$CLIENT_TMP_DIR/CONTROL/prerm"
+cp "$SCRIPT_DIR/postrm" "$CLIENT_TMP_DIR/CONTROL/postrm"
+chmod 755 "$CLIENT_TMP_DIR/CONTROL/postinst" "$CLIENT_TMP_DIR/CONTROL/prerm" "$CLIENT_TMP_DIR/CONTROL/postrm"
 chmod 644 "$CLIENT_TMP_DIR/CONTROL/control" "$CLIENT_TMP_DIR/CONTROL/conffiles"
 
 OUTPUT_DIR=$(mktemp -d -t fptn-client-ipk-XXXXXX)

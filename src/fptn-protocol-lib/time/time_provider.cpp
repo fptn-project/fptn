@@ -7,6 +7,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "fptn-protocol-lib/time/time_provider.h"
 
 #include <string>
+#include <thread>
 #include <utility>
 
 #include <ntp_client.hpp>
@@ -16,7 +17,17 @@ namespace fptn::time {
 
 TimeProvider::TimeProvider(NtpServers servers)
     : servers_(std::move(servers)), offset_seconds_(0) {
-  SyncWithNtp();
+  ntp_thread_ = std::thread([this] {
+    const std::scoped_lock lock(mutex_);
+    Refresh();
+  });
+}
+
+TimeProvider::~TimeProvider() {
+  stop_sync_.store(true);
+  if (ntp_thread_.joinable()) {
+    ntp_thread_.join();
+  }
 }
 
 std::string TimeProvider::Rfc7231Date() const {
@@ -58,6 +69,9 @@ bool TimeProvider::SyncWithNtp() {
 
 bool TimeProvider::Refresh() {
   for (const auto& [server, port] : servers_) {
+    if (stop_sync_.load()) {
+      break;
+    }
     try {
       ntp::NTPClient ntp_client(server, port);
       if (const auto epoch_server_ms = ntp_client.request_time()) {

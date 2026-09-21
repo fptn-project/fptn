@@ -11,6 +11,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <ctime>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -37,6 +38,7 @@ class TimeProvider final {
         {"ru.pool.ntp.org", 123},
         {"ntp.ix.ru", 123}
       });
+  ~TimeProvider();
   bool Refresh();
 
  private:
@@ -44,6 +46,8 @@ class TimeProvider final {
   const NtpServers servers_;
 
   std::atomic<std::int32_t> offset_seconds_;
+  std::atomic<bool> stop_sync_{false};
+  std::thread ntp_thread_;
 };
 
 }  // namespace fptn::time

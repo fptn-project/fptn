@@ -55,9 +55,10 @@ done
     --info "description:FPTN client" \
     --info "license:MIT" \
     --info "url:https://github.com/fptn-project/fptn" \
-    --info "depends:libstdcpp6 libatomic kmod-tun ip-full" \
+    --info "depends:libstdcpp6 libatomic kmod-tun ip-full curl" \
     --script "post-install:$SCRIPT_DIR/post-install" \
     --script "pre-deinstall:$SCRIPT_DIR/pre-deinstall" \
+    --script "post-deinstall:$SCRIPT_DIR/post-deinstall" \
     --files "$CLIENT_TMP_DIR" \
     --output "fptn-client-${VERSION}-openwrt-${OPENWRT_VERSION}-${ARCH}.apk"
 

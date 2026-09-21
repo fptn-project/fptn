@@ -101,7 +101,10 @@ int main(int argc, char* argv[]) {
         });
     args.add_argument("--preferred-server")
         .default_value("")
-        .help("Preferred server name (case-insensitive)");
+        .help(
+            "Preferred server name (case-insensitive). Comma-separated to "
+            "prefer several servers: the client logs in to those at once and "
+            "keeps the one that answers first. Empty means every server.");
     args.add_argument("--tun-interface-name")
         .default_value("tun0")
         .help("Network interface name")
@@ -323,7 +326,7 @@ int main(int argc, char* argv[]) {
     const auto gateway_ipv6 =
         fptn::common::network::IPv6Address::Create(param_gateway_ipv6);
 
-    const auto preferred_server = args.get<std::string>("--preferred-server");
+    const auto preferred_servers = args.get<std::string>("--preferred-server");
 
     const auto tun_interface_name =
         args.get<std::string>("--tun-interface-name");
@@ -451,14 +454,27 @@ int main(int argc, char* argv[]) {
     std::string pre_obtained_token;
     try {
       config.Parse();
-      bool use_login_race = preferred_server.empty();
-      if (!preferred_server.empty()) {
-        auto server_opt = config.GetServer(preferred_server);
+      const auto preferred_names =
+          fptn::common::utils::SplitCommaSeparated(preferred_servers);
+      bool use_login_race = preferred_names.empty();
+      if (preferred_names.size() == 1) {
+        auto server_opt = config.GetServer(preferred_names.front());
         if (server_opt.has_value()) {
           selected_server = std::move(*server_opt);
         } else {
           SPDLOG_WARN("Server '{}' does not exist! Check your token!",
-              preferred_server);
+              preferred_names.front());
+          use_login_race = true;
+        }
+      } else if (preferred_names.size() > 1) {
+        auto login_result = config.FindServerByLogin(10, preferred_names);
+        if (login_result) {
+          selected_server = login_result->server;
+          pre_obtained_token = std::move(login_result->access_token);
+        } else {
+          SPDLOG_WARN(
+              "None of the preferred servers are available, "
+              "falling back to the full server list!");
           use_login_race = true;
         }
       }
@@ -484,6 +500,7 @@ int main(int argc, char* argv[]) {
     SPDLOG_INFO(
         "\n--- Starting client ---\n"
         "VERSION:            {}\n"
+        "PREFERRED SERVERS:  {}\n"
         "SELECTED SERVER:    {}\n"
         "SNI:                {}\n"
         "VPN SERVER NAME:    {}\n"
@@ -500,6 +517,9 @@ int main(int argc, char* argv[]) {
         "BLACKLIST DOMAINS:  {}\n",
         // version
         FPTN_VERSION,
+        // preferred
+        preferred_servers.empty() ? std::string("auto (all servers)")
+                                  : preferred_servers,
         // server
         selected_server.name, sni, selected_server.name, selected_server.host,
         selected_server.port, bypass_method,
