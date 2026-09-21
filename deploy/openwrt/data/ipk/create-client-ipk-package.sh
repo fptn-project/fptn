@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
 print_usage() {
-    echo "Usage: $0 <fptn-client-cli-path> <version> <arch> <strip-tool> <openwrt-version>"
+    echo "Usage: $0 <fptn-client-cli-path> <version> <arch> <strip-tool> <openwrt-version> [release]"
     exit 1
 }
 
-if [ "$#" -ne 5 ]; then
+if [ "$#" -lt 5 ] || [ "$#" -gt 6 ]; then
     print_usage
 fi
 
@@ -14,6 +14,11 @@ VERSION="$2"
 ARCH="$3"
 STRIP_TOOL="$4"
 OPENWRT_VERSION="$5"
+# Package revision, as OpenWrt counts it: same upstream sources, a rebuilt
+# package. Left empty it stays r1 and the file names keep their usual shape.
+RELEASE="${6:-}"
+PKG_REVISION="${RELEASE:-r1}"
+FULL_VERSION="${VERSION}${RELEASE:+-$RELEASE}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SHARED_DIR="$(dirname "$SCRIPT_DIR")"
@@ -55,7 +60,7 @@ mkdir -p "$CLIENT_TMP_DIR/CONTROL"
 
 cat > "$CLIENT_TMP_DIR/CONTROL/control" <<EOF
 Package: fptn-client
-Version: ${VERSION}-r1
+Version: ${VERSION}-${PKG_REVISION}
 Architecture: ${ARCH}
 Maintainer: FPTN Project <https://github.com/fptn-project/fptn>
 Section: net
@@ -72,7 +77,7 @@ chmod 755 "$CLIENT_TMP_DIR/CONTROL/postinst" "$CLIENT_TMP_DIR/CONTROL/prerm"
 chmod 644 "$CLIENT_TMP_DIR/CONTROL/control" "$CLIENT_TMP_DIR/CONTROL/conffiles"
 
 build_ipk "$CLIENT_TMP_DIR" fptn-client \
-    "fptn-client-${VERSION}-openwrt-${OPENWRT_VERSION}-${ARCH}.ipk"
+    "fptn-client-${FULL_VERSION}-openwrt-${OPENWRT_VERSION}-${ARCH}.ipk"
 
 echo "Client ipk package created successfully."
 
@@ -83,7 +88,7 @@ echo "Client ipk package created successfully."
 LUCI_TMP_DIR=$(mktemp -d -t luci-app-fptn-XXXXXX)
 
 cp -a "$SHARED_DIR/luci/." "$LUCI_TMP_DIR/"
-sed -i "s/@FPTN_VERSION@/${VERSION}/" "$LUCI_TMP_DIR/www/luci-static/resources/view/fptn/main.js"
+sed -i "s/@FPTN_VERSION@/${FULL_VERSION}/" "$LUCI_TMP_DIR/www/luci-static/resources/view/fptn/main.js"
 find "$LUCI_TMP_DIR/usr/share/luci" "$LUCI_TMP_DIR/usr/share/rpcd" "$LUCI_TMP_DIR/www" -type d -exec chmod 755 {} +
 find "$LUCI_TMP_DIR/usr/share/luci" "$LUCI_TMP_DIR/usr/share/rpcd" "$LUCI_TMP_DIR/www" -type f -exec chmod 644 {} +
 
@@ -96,7 +101,7 @@ mkdir -p "$LUCI_TMP_DIR/CONTROL"
 
 cat > "$LUCI_TMP_DIR/CONTROL/control" <<EOF
 Package: luci-app-fptn
-Version: ${VERSION}-r1
+Version: ${VERSION}-${PKG_REVISION}
 Architecture: all
 Maintainer: FPTN Project <https://github.com/fptn-project/fptn>
 Section: luci
@@ -112,6 +117,6 @@ chmod 755 "$LUCI_TMP_DIR/CONTROL/postinst" "$LUCI_TMP_DIR/CONTROL/postrm"
 chmod 644 "$LUCI_TMP_DIR/CONTROL/control"
 
 build_ipk "$LUCI_TMP_DIR" luci-app-fptn \
-    "luci-app-fptn-${VERSION}-openwrt-${OPENWRT_VERSION}-all.ipk"
+    "luci-app-fptn-${FULL_VERSION}-openwrt-${OPENWRT_VERSION}-all.ipk"
 
 echo "LuCI ipk package created successfully."

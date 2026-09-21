@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
 print_usage() {
-    echo "Usage: $0 <fptn-client-cli-path> <version> <arch> <strip-tool> <openwrt-version>"
+    echo "Usage: $0 <fptn-client-cli-path> <version> <arch> <strip-tool> <openwrt-version> [release]"
     exit 1
 }
 
-if [ "$#" -ne 5 ]; then
+if [ "$#" -lt 5 ] || [ "$#" -gt 6 ]; then
     print_usage
 fi
 
@@ -14,6 +14,11 @@ VERSION="$2"
 ARCH="$3"
 STRIP_TOOL="$4"
 OPENWRT_VERSION="$5"
+# Package revision, as OpenWrt counts it: same upstream sources, a rebuilt
+# package. Left empty it stays r1 and the file names keep their usual shape.
+RELEASE="${6:-}"
+PKG_REVISION="${RELEASE:-r1}"
+FULL_VERSION="${VERSION}${RELEASE:+-$RELEASE}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SHARED_DIR="$(dirname "$SCRIPT_DIR")"
@@ -43,7 +48,7 @@ chmod 644 "$CLIENT_TMP_DIR/etc/config/fptn"
 
 "$APK_TOOL" mkpkg \
     --info "name:fptn-client" \
-    --info "version:${VERSION}-r1" \
+    --info "version:${VERSION}-${PKG_REVISION}" \
     --info "arch:${ARCH}" \
     --info "description:FPTN client" \
     --info "license:MIT" \
@@ -52,7 +57,7 @@ chmod 644 "$CLIENT_TMP_DIR/etc/config/fptn"
     --script "post-install:$SCRIPT_DIR/post-install" \
     --script "pre-deinstall:$SCRIPT_DIR/pre-deinstall" \
     --files "$CLIENT_TMP_DIR" \
-    --output "fptn-client-${VERSION}-openwrt-${OPENWRT_VERSION}-${ARCH}.apk"
+    --output "fptn-client-${FULL_VERSION}-openwrt-${OPENWRT_VERSION}-${ARCH}.apk"
 
 rm -rf "$CLIENT_TMP_DIR"
 
@@ -63,7 +68,7 @@ echo "Client apk package created successfully."
 LUCI_TMP_DIR=$(mktemp -d -t luci-app-fptn-XXXXXX)
 
 cp -a "$SHARED_DIR/luci/." "$LUCI_TMP_DIR/"
-sed -i "s/@FPTN_VERSION@/${VERSION}/" "$LUCI_TMP_DIR/www/luci-static/resources/view/fptn/main.js"
+sed -i "s/@FPTN_VERSION@/${FULL_VERSION}/" "$LUCI_TMP_DIR/www/luci-static/resources/view/fptn/main.js"
 find "$LUCI_TMP_DIR/usr/share/luci" "$LUCI_TMP_DIR/usr/share/rpcd" "$LUCI_TMP_DIR/www" -type d -exec chmod 755 {} +
 find "$LUCI_TMP_DIR/usr/share/luci" "$LUCI_TMP_DIR/usr/share/rpcd" "$LUCI_TMP_DIR/www" -type f -exec chmod 644 {} +
 
@@ -74,7 +79,7 @@ done
 
 "$APK_TOOL" mkpkg \
     --info "name:luci-app-fptn" \
-    --info "version:${VERSION}-r1" \
+    --info "version:${VERSION}-${PKG_REVISION}" \
     --info "arch:noarch" \
     --info "description:LuCI page for the FPTN client" \
     --info "license:MIT" \
@@ -83,7 +88,7 @@ done
     --script "post-install:$SCRIPT_DIR/luci-post-install" \
     --script "post-deinstall:$SCRIPT_DIR/luci-post-install" \
     --files "$LUCI_TMP_DIR" \
-    --output "luci-app-fptn-${VERSION}-openwrt-${OPENWRT_VERSION}-noarch.apk"
+    --output "luci-app-fptn-${FULL_VERSION}-openwrt-${OPENWRT_VERSION}-noarch.apk"
 
 rm -rf "$LUCI_TMP_DIR"
 
