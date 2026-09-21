@@ -1064,6 +1064,20 @@ int main(int argc, char* argv[]) {
             "Serve a local HTTP status API with the server pool and their "
             "latency, e.g. 127.0.0.1:9091. The JSON matches the Clash API, so "
             "existing dashboards and transparent proxies can read it as is");
+    args.add_argument("--status-listen-address")
+        .default_value(std::string("127.0.0.2"))
+        .help(
+            "Address for the status API when only a port is given through "
+            "--status-listen-port (default: 127.0.0.2). Ignored when "
+            "--status-listen carries an address of its own");
+    args.add_argument("--status-listen-port")
+        .default_value(0)
+        .scan<'i', int>()
+        .help(
+            "Port for the status API, with the address taken from "
+            "--status-listen-address. A convenience for a supervising daemon "
+            "that assigns ports: 0 (default) leaves the API off unless "
+            "--status-listen says otherwise");
     args.add_argument("--status-secret")
         .default_value(std::string(""))
         .help(
@@ -1160,6 +1174,9 @@ int main(int argc, char* argv[]) {
     const auto socks_route_table = args.get<int>("--socks-route-table");
     const auto status_listen = args.get<std::string>("--status-listen");
     const auto status_secret = args.get<std::string>("--status-secret");
+    const auto status_listen_address =
+        args.get<std::string>("--status-listen-address");
+    const auto status_listen_port = args.get<int>("--status-listen-port");
     const auto probe_interval = args.get<int>("--probe-interval");
     const auto switch_tolerance = args.get<int>("--switch-tolerance");
     auto state_file = args.get<std::string>("--state-file");
@@ -1335,7 +1352,12 @@ int main(int argc, char* argv[]) {
     // working through a large pool takes up to a minute. Until a server is
     // chosen the pool reads as empty - which is still an answer, unlike a
     // refused connection.
+    // Where the status API listens. A full address:port keeps its meaning, so
+    // a daemon already writing one is unaffected. Naming only a port is the
+    // other way in: the address then defaults to the loopback rather than the
+    // wildcard, which keeps the API off the LAN unless someone asks for it.
     std::unique_ptr<fptn::client::status::StatusServer> status_server;
+    std::optional<fptn::client::status::StatusServer::Options> status_options;
     if (!status_listen.empty()) {
       const auto colon = status_listen.rfind(':');
       if (colon == std::string::npos) {
@@ -1354,8 +1376,26 @@ int main(int argc, char* argv[]) {
         SPDLOG_ERROR("Invalid port in --status-listen '{}'", status_listen);
         return EXIT_FAILURE;
       }
+      status_options = std::move(options);
+    } else if (status_listen_port != 0) {
+      if (status_listen_port < 1 || status_listen_port > 65535) {
+        SPDLOG_ERROR("Invalid --status-listen-port '{}', expected 1-65535",
+            status_listen_port);
+        return EXIT_FAILURE;
+      }
+      if (status_listen_address.empty()) {
+        SPDLOG_ERROR("--status-listen-address must not be empty");
+        return EXIT_FAILURE;
+      }
+      fptn::client::status::StatusServer::Options options;
+      options.listen_address = status_listen_address;
+      options.listen_port = static_cast<std::uint16_t>(status_listen_port);
+      options.secret = status_secret;
+      status_options = std::move(options);
+    }
+    if (status_options) {
       status_server = std::make_unique<fptn::client::status::StatusServer>(
-          options, registry);
+          *status_options, registry);
       status_server->SetDelayProbe([sni, censorship_strategy](
                                        const ServerInfo& server,
                                        int timeout_ms) -> std::uint32_t {

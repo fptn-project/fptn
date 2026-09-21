@@ -389,6 +389,8 @@ docker run --rm -v "$PWD:/dst" openwrt-x86-64-24.10.7 cp -av /out/. /dst/
 docker build --build-arg PKG_VERSION=0.4.4 -t openwrt-armv8-25.12.5 -f ./deploy/openwrt/target-armsr-armv8/25.12.5/Dockerfile .
 ```
 
+`PKG_RELEASE` задает ревизию пакета, когда те же исходники собираются заново: `--build-arg PKG_RELEASE=r2` даст `0.4.4-r2` в control, в именах обоих файлов и на странице LuCI. Без него ревизия остается `r1`, а имена файлов — как выше.
+
 Все, что попадает в пакет, лежит в `deploy/openwrt/data`: UCI-конфиг, procd-сервис, страница LuCI и скрипты упаковки для обоих форматов. Для другой архитектуры скопируйте один из каталогов `target-*` и поправьте тег базового образа, `TOOLCHAIN_DIR`, `CROSS_PREFIX`, `CONAN_ARCH` и `PKG_ARCH`. Имя каталога тулчейна можно посмотреть в самом образе SDK:
 
 ```bash

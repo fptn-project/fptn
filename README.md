@@ -390,6 +390,8 @@ The package is named `0.0.0` unless a version is given. For a release build pass
 docker build --build-arg PKG_VERSION=0.4.4 -t openwrt-armv8-25.12.5 -f ./deploy/openwrt/target-armsr-armv8/25.12.5/Dockerfile .
 ```
 
+`PKG_RELEASE` sets the package revision when the same sources are packaged again — `--build-arg PKG_RELEASE=r2` gives `0.4.4-r2` in the control entry, in both file names and on the LuCI page. Left out, the revision stays `r1` and the file names are as above.
+
 Everything that goes into the package lives in `deploy/openwrt/data`: the UCI config, the procd service, the LuCI page, and the packaging scripts for both formats. To target another architecture, copy one of the `target-*` directories and adjust the base image tag, `TOOLCHAIN_DIR`, `CROSS_PREFIX`, `CONAN_ARCH` and `PKG_ARCH`. The toolchain directory name can be read from the SDK image itself:
 
 ```bash

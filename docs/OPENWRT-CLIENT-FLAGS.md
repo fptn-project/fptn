@@ -174,6 +174,8 @@ and dnsmasq are left alone, and the routing table belongs to whoever created it.
 | flag | default | what it does |
 |---|---|---|
 | `--status-listen` | — | Serve a local HTTP API with the server list and their latency, e.g. `127.0.0.1:9091` |
+| `--status-listen-address` | `127.0.0.2` | Address used when only a port is named through `--status-listen-port`. Ignored when `--status-listen` carries an address of its own |
+| `--status-listen-port` | `0` | Port for the API, with the address from `--status-listen-address`. For a supervising daemon that assigns ports: `0` leaves the API off unless `--status-listen` says otherwise |
 | `--status-secret` | — | Token: requests must carry `Authorization: Bearer <token>`. Empty means no check, and then the endpoint may only be bound to the loopback |
 | `--probe-interval` | `180` | Re-measure the whole pool every N seconds. The first sweep runs at startup, not N seconds into it. `0` disables it |
 | `--switch-tolerance` | `500` | How much faster another server must be, in milliseconds, before the tunnel moves to it on its own. `0` leaves only the "stopped answering" case |
