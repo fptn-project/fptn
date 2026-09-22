@@ -7,6 +7,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -22,20 +23,42 @@ struct LoginResult {
   std::string access_token;
 };
 
+// The outcome of a single probe: how long it took and why it failed. Reported
+// out of the race so the numbers outlive it - the server list and its latency
+// are shown from them.
+using ProbeCallback = std::function<void(const ServerInfo& server,
+    std::uint32_t delay_ms,
+    const std::string& error)>;
+
+// How many servers are probed at once, rather than a thread per server, which
+// is noticeable on a router with a large pool. A wave costs the probe timeout
+// whenever it holds a dead node, so a narrow limit turns a forty-server sweep
+// into minutes; threads asleep on a socket are the cheaper side of that trade.
+constexpr std::size_t kMaxProbeConcurrency = 16;
+
+// Downloads a 100 KB test file: the number says something about throughput,
+// not only about the round trip. Kept for the places that want that.
 std::uint64_t GetDownloadTimeMs(const ServerInfo& server,
     const std::string& sni,
     int timeout,
     const std::string& md5_fingerprint,
     fptn::protocol::https::CensorshipStrategy censorship_strategy);
 
-ServerInfo FindFastestServer(const std::string& sni,
-    const std::vector<ServerInfo>& servers,
-    fptn::protocol::https::CensorshipStrategy censorship_strategy,
-    int timeout_sec = 15);
+// A latency probe: the same TLS connection, but the request behind it asks
+// for the DNS record - a few dozen bytes - instead of 100 KB. This is what
+// sing-box measures with generate_204, and what a pool sweep needs: sweeping
+// thirty-five servers every few minutes at 100 KB each moves megabytes for a
+// number that the handshake alone already gives.
+std::uint64_t GetLatencyMs(const ServerInfo& server,
+    const std::string& sni,
+    int timeout,
+    const std::string& md5_fingerprint,
+    fptn::protocol::https::CensorshipStrategy censorship_strategy);
 
 std::optional<LoginResult> FindServerByLogin(const std::string& sni,
     const std::vector<ServerInfo>& servers,
     fptn::protocol::https::CensorshipStrategy censorship_strategy,
-    int timeout_sec = 15);
+    int timeout_sec = 15,
+    ProbeCallback on_probe = {});
 
 };  // namespace fptn::utils::speed_estimator

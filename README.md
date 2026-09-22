@@ -177,9 +177,18 @@ scp fptn-client-*.ipk root@192.168.1.1:/tmp/
 opkg update && opkg install /tmp/fptn-client-*.ipk
 ```
 
+The web page is a separate package, `luci-app-fptn`, one file for every architecture (`luci-app-fptn-<version>-openwrt-<branch>-all.ipk` or `-noarch.apk`). Install it after the client:
+
+```bash
+opkg install /tmp/luci-app-fptn-*.ipk      # 24.10
+apk add --allow-untrusted /tmp/luci-app-fptn-*.apk   # 25.12
+```
+
+Skip it when FPTN is run by ZeroBlock: ZeroBlock starts the client with its own configuration, and a second settings page only confuses. Upgrading from 0.4.25 or earlier, where the page lived inside `fptn-client`, upgrade the client first and install `luci-app-fptn` afterwards — the other way round opkg reports the files as belonging to both packages.
+
 The router needs working internet during installation: `kmod-tun` and `ip-full` are pulled from the OpenWrt repository.
 
-Installing sets up everything else on its own: it creates the firewall zone that masquerades LAN traffic into the tunnel, enables the service for boot, and reloads `rpcd` so the web page appears.
+Installing sets up everything else on its own: it creates the firewall zone that masquerades LAN traffic into the tunnel, enables the service for boot, and `luci-app-fptn` reloads `rpcd` so the web page appears. A reload rather than a restart: restarting `rpcd` would end the LuCI session of whoever is installing.
 
 Open `VPN` → `FPTN` in the router web interface, paste the access token from [@fptn_bot](https://t.me/fptn_bot), tick `Enabled` and press `Save & Apply` — the service starts right there. The same from the shell:
 
@@ -380,6 +389,8 @@ The package is named `0.0.0` unless a version is given. For a release build pass
 ```bash
 docker build --build-arg PKG_VERSION=0.4.4 -t openwrt-armv8-25.12.5 -f ./deploy/openwrt/target-armsr-armv8/25.12.5/Dockerfile .
 ```
+
+`PKG_RELEASE` sets the package revision when the same sources are packaged again — `--build-arg PKG_RELEASE=r2` gives `0.4.4-r2` in the control entry, in both file names and on the LuCI page. Left out, the revision stays `r1` and the file names are as above.
 
 Everything that goes into the package lives in `deploy/openwrt/data`: the UCI config, the procd service, the LuCI page, and the packaging scripts for both formats. To target another architecture, copy one of the `target-*` directories and adjust the base image tag, `TOOLCHAIN_DIR`, `CROSS_PREFIX`, `CONAN_ARCH` and `PKG_ARCH`. The toolchain directory name can be read from the SDK image itself:
 

@@ -70,6 +70,7 @@ RUN conan install . \
       --profile:build=default \
       --profile:host=/tmp/openwrt.profile \
       -s:b compiler.cppstd=20 \
+      -c:b tools.build:jobs=${JOBS} \
       -o with_gui_client=False \
       -o openwrt=True
 
@@ -92,6 +93,7 @@ RUN find /app/deploy/openwrt -type f -exec sed -i 's/\r$//' {} + \
 
 ARG OPENWRT_VERSION=24.10.x
 ARG PKG_VERSION=0.0.0
+ARG PKG_RELEASE=
 
 RUN /usr/local/bin/cmake -S /app -B /build \
       -DCMAKE_TOOLCHAIN_FILE=/build/conan_toolchain.cmake \
@@ -100,7 +102,8 @@ RUN /usr/local/bin/cmake -S /app -B /build \
       -DCMAKE_STRIP=${STAGING_DIR}/bin/${CROSS_PREFIX}-strip \
       -DFPTN_OPENWRT_ARCH=${PKG_ARCH} \
       -DFPTN_OPENWRT_VERSION=${OPENWRT_VERSION} \
-      -DFPTN_VERSION=${PKG_VERSION}
+      -DFPTN_VERSION=${PKG_VERSION} \
+      -DFPTN_OPENWRT_RELEASE=${PKG_RELEASE}
 
 RUN /usr/local/bin/cmake --build /build --target fptn-client-cli -j${JOBS}
 
