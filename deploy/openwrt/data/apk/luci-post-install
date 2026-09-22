@@ -3,8 +3,10 @@
 [ -n "$IPKG_INSTROOT" ] && exit 0
 
 # Runs after install and after removal: LuCI caches the menu and rpcd caches
-# the ACLs, so both have to forget the page for the change to show.
+# the ACLs, so both have to forget the page for the change to show. Reload
+# rather than restart - a restart of rpcd ends the session of whoever is
+# installing and throws them out of LuCI.
 rm -f /tmp/luci-indexcache* /tmp/luci-modulecache/* 2>/dev/null
-/etc/init.d/rpcd restart >/dev/null 2>&1
+/etc/init.d/rpcd reload >/dev/null 2>&1
 
 exit 0

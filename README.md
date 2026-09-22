@@ -188,7 +188,7 @@ Skip it when FPTN is run by ZeroBlock: ZeroBlock starts the client with its own 
 
 The router needs working internet during installation: `kmod-tun` and `ip-full` are pulled from the OpenWrt repository.
 
-Installing sets up everything else on its own: it creates the firewall zone that masquerades LAN traffic into the tunnel, enables the service for boot, and `luci-app-fptn` reloads `rpcd` so the web page appears.
+Installing sets up everything else on its own: it creates the firewall zone that masquerades LAN traffic into the tunnel, enables the service for boot, and `luci-app-fptn` reloads `rpcd` so the web page appears. A reload rather than a restart: restarting `rpcd` would end the LuCI session of whoever is installing.
 
 Open `VPN` → `FPTN` in the router web interface, paste the access token from [@fptn_bot](https://t.me/fptn_bot), tick `Enabled` and press `Save & Apply` — the service starts right there. The same from the shell:
 

@@ -13,7 +13,10 @@ fi
 
 /etc/init.d/fptn enable
 
+# The web page is its own package since 0.4.26, and upgrading from an older
+# one removes the files it used to carry - so the cached menu is dropped here,
+# but rpcd is left alone: only luci-app-fptn brings an ACL, and restarting rpcd
+# would end the LuCI session of whoever is installing.
 rm -f /tmp/luci-indexcache* /tmp/luci-modulecache/* 2>/dev/null
-/etc/init.d/rpcd restart >/dev/null 2>&1
 
 exit 0
