@@ -1146,6 +1146,16 @@ bool RouteManager::AddExcludeRouteWithReset(
       .reset_packet = std::move(reset)});
 }
 
+bool RouteManager::AddDnsRoutesWithReply(
+    const std::vector<fptn::common::network::IPv4Address>& ipv4,
+    const std::vector<fptn::common::network::IPv6Address>& ipv6,
+    const RoutingPolicy policy, fptn::common::network::IPPacketPtr reply) {
+  return Enqueue({.ipv4 = ipv4,
+      .ipv6 = ipv6,
+      .policy = policy,
+      .reset_packet = std::move(reply)});
+}
+
 void RouteManager::SetTunSink(
     std::function<void(fptn::common::network::IPPacketPtr)> sink) {
   const std::unique_lock<std::mutex> lock(queue_mutex_);  // mutex

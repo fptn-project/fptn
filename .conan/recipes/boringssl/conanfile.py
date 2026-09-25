@@ -64,6 +64,13 @@ class BoringSSLConan(ConanFile):
         if self.settings.arch in ["mips", "mips64"]:
             replace_in_file(
                 self,
+                os.path.join(self.source_folder, "include/openssl/target.h"),
+                "defined(__MIPSEL__)",
+                "(defined(__MIPSEL__) || defined(__MIPSEB__))",
+                strict=False,
+            )
+            replace_in_file(
+                self,
                 os.path.join(self.source_folder, "CMakeLists.txt"),
                 "-Werror",
                 "",

@@ -51,21 +51,16 @@ Result Tunneling::HandlePacket(
               domain_matched);
       if (needs_routes) {
         const auto ipv4_addresses = packet->GetDnsIPv4Addresses();
-        if (!ipv4_addresses.empty()) {
-          route_manager_->AddDnsRoutesIPv4(
-              ipv4_addresses, routing::RoutingPolicy::kExcludeFromVpn);
-          triggered = true;
-        }
+        std::vector<fptn::common::network::IPv6Address> ipv6_addresses;
 #ifndef __APPLE__
-        const auto ipv6_addresses = packet->GetDnsIPv6Addresses();
-        if (!ipv6_addresses.empty()) {
-          route_manager_->AddDnsRoutesIPv6(
-              ipv6_addresses, routing::RoutingPolicy::kExcludeFromVpn);
-          triggered = true;
-        }
+        ipv6_addresses = packet->GetDnsIPv6Addresses();
 #endif
-        if (triggered) {
+        if (!ipv4_addresses.empty() || !ipv6_addresses.empty()) {
           SPDLOG_INFO("Domain '{}' -> EXCLUDE from VPN", domain);
+          route_manager_->AddDnsRoutesWithReply(ipv4_addresses,
+              ipv6_addresses, routing::RoutingPolicy::kExcludeFromVpn,
+              std::move(packet));
+          return {.packet = nullptr, .reply = nullptr, .triggered = true};
         }
       }
     }

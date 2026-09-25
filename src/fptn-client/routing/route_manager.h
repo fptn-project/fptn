@@ -103,6 +103,11 @@ class RouteManager final {
   bool AddExcludeRouteWithReset(const fptn::common::network::IPv4Address& ip,
       fptn::common::network::IPPacketPtr reset);
 
+  bool AddDnsRoutesWithReply(
+      const std::vector<fptn::common::network::IPv4Address>& ipv4,
+      const std::vector<fptn::common::network::IPv6Address>& ipv6,
+      RoutingPolicy policy, fptn::common::network::IPPacketPtr reply);
+
   void SetTunSink(
       std::function<void(fptn::common::network::IPPacketPtr)> sink);
 
