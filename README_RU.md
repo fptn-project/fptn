@@ -307,6 +307,8 @@ ctest
 | `aarch64_cortex-a53` | `aarch64-mediatek-filogic` | Xiaomi AX3000T, Cudy TR3000, Xiaomi AX3600 / AX9000 |
 | `arm_cortex-a7_neon-vfpv4` | `armv7-ipq40xx` | GL.iNet GL-A1300 Slate Plus, GL-B1300, ZyXEL NBG6617 |
 | `x86_64` | `x86-64` | мини-ПК, виртуальные машины, Proxmox |
+| `mipsel_24kc` | `mipsel_24kc-mt7621` | Xiaomi Mi Router 4A Gigabit, Redmi AC2100, SNR-CPE-ME2 |
+| `mips_24kc` | `mips_24kc-ath79` | TP-Link Archer C7 и другие устройства на ath79 |
 
 Выполните блок, соответствующий вашему устройству и вашей ветке OpenWrt, — он собирает образ и кладет пакет в текущий каталог.
 
@@ -340,6 +342,20 @@ docker build -t openwrt-x86-64-25.12.5 -f ./deploy/openwrt/platforms/x86-64/25.1
 docker run --rm -v "$PWD:/dst" openwrt-x86-64-25.12.5 cp -av /out/. /dst/
 ```
 
+`mipsel_24kc` (MT7621 — Xiaomi 4A, Redmi AC2100, SNR-CPE-ME2):
+
+```bash
+docker build -t openwrt-mt7621-25.12.5 -f ./deploy/openwrt/platforms/mipsel_24kc-mt7621/25.12.5/Dockerfile .
+docker run --rm -v "$PWD:/dst" openwrt-mt7621-25.12.5 cp -av /out/. /dst/
+```
+
+`mips_24kc` (ath79 — TP-Link Archer C7):
+
+```bash
+docker build -t openwrt-ath79-25.12.5 -f ./deploy/openwrt/platforms/mips_24kc-ath79/25.12.5/Dockerfile .
+docker run --rm -v "$PWD:/dst" openwrt-ath79-25.12.5 cp -av /out/. /dst/
+```
+
 **OpenWrt 24.10.x, `.ipk`**
 
 `aarch64_generic`:
@@ -368,6 +384,20 @@ docker run --rm -v "$PWD:/dst" openwrt-ipq40xx-24.10.7 cp -av /out/. /dst/
 ```bash
 docker build -t openwrt-x86-64-24.10.7 -f ./deploy/openwrt/platforms/x86-64/24.10.7/Dockerfile .
 docker run --rm -v "$PWD:/dst" openwrt-x86-64-24.10.7 cp -av /out/. /dst/
+```
+
+`mipsel_24kc` (MT7621 — Xiaomi 4A, Redmi AC2100, SNR-CPE-ME2):
+
+```bash
+docker build -t openwrt-mt7621-24.10.7 -f ./deploy/openwrt/platforms/mipsel_24kc-mt7621/24.10.7/Dockerfile .
+docker run --rm -v "$PWD:/dst" openwrt-mt7621-24.10.7 cp -av /out/. /dst/
+```
+
+`mips_24kc` (ath79 — TP-Link Archer C7):
+
+```bash
+docker build -t openwrt-ath79-24.10.7 -f ./deploy/openwrt/platforms/mips_24kc-ath79/24.10.7/Dockerfile .
+docker run --rm -v "$PWD:/dst" openwrt-ath79-24.10.7 cp -av /out/. /dst/
 ```
 
 У каждой комбинации свой тег образа, поэтому сборки не затирают друг друга.

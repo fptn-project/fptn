@@ -649,7 +649,6 @@ function statusRows(data) {
 					? _('Include') : _('Exclude') ],
 		[ _('Tunnel interface'),
 			uci.get('fptn', 'config', 'tun_interface_name') || 'tun0' ],
-		[ _('PID'), data[0].pid ? String(data[0].pid) : '—' ],
 		[ _('Received'), formatBytes(stats.rx) ],
 		[ _('Sent'), formatBytes(stats.tx) ]
 	];

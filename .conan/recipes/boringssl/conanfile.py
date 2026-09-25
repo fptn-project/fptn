@@ -29,6 +29,9 @@ class BoringSSLConan(ConanFile):
         tc.variables["BUILD_TESTING"] = False
         tc.variables["ENABLE_EXPRESSION_TESTS"] = False
 
+        if self.settings.arch in ["mips", "mips64"]:
+            tc.variables["OPENSSL_NO_ASM"] = True
+
         # Apple mobile platforms need explicit SDK settings when cross-building.
         if self.settings.os in ["iOS", "tvOS"]:
             tc.variables["CMAKE_SYSTEM_NAME"] = str(self.settings.os)
@@ -58,6 +61,21 @@ class BoringSSLConan(ConanFile):
             "  install(TARGETS bssl)\n",
             "",
         )
+        if self.settings.arch in ["mips", "mips64"]:
+            replace_in_file(
+                self,
+                os.path.join(self.source_folder, "CMakeLists.txt"),
+                "-Werror",
+                "",
+                strict=False,
+            )
+            replace_in_file(
+                self,
+                os.path.join(self.source_folder, "crypto/rand/urandom.cc"),
+                '#include "getrandom_fillin.h"\n',
+                '#include "getrandom_fillin.h"\n\nusing namespace bssl;\n',
+                strict=False,
+            )
         cmake = CMake(self)
         cmake.configure()
         cmake.build()

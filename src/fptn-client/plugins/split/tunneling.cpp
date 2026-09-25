@@ -42,6 +42,7 @@ Result Tunneling::HandlePacket(
       const std::string& domain = domain_opt.value();
       const bool domain_matched =
           fptn::utils::IsDomainMatched(domains_, domain);
+      SPDLOG_INFO("split DNS domain='{}' matched={}", domain, domain_matched);
 
       const bool needs_routes =
           (policy_ == routing::RoutingPolicy::kIncludeInVpn &&
@@ -76,6 +77,7 @@ Result Tunneling::HandlePacket(
       if (sni_opt.has_value()) {
         const std::string& sni = sni_opt.value();
         const bool domain_matched = fptn::utils::IsDomainMatched(domains_, sni);
+        SPDLOG_INFO("split SNI='{}' matched={}", sni, domain_matched);
 
         const bool needs_routes =
             (policy_ == routing::RoutingPolicy::kIncludeInVpn &&

@@ -115,12 +115,12 @@ ConfigFile::FindServerByLogin(int timeout_sec) const {
 std::optional<fptn::utils::speed_estimator::LoginResult>
 ConfigFile::FindServerByLogin(int timeout_sec,
     const std::vector<std::string>& preferred_names) const {
-  std::vector<std::string> wanted;
-  wanted.reserve(preferred_names.size());
-  for (const auto& name : preferred_names) {
-    wanted.push_back(
-        fptn::common::utils::Trim(fptn::common::utils::ToLowerCase(name)));
-  }
+  std::vector<std::string> wanted(preferred_names.size());
+  std::ranges::transform(preferred_names, wanted.begin(),
+      [](const std::string& name) {
+        return fptn::common::utils::Trim(
+            fptn::common::utils::ToLowerCase(name));
+      });
 
   std::vector<ServerInfo> servers;
   for (auto s : servers_) {
