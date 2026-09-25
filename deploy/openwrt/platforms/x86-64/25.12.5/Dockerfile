@@ -1,13 +1,13 @@
-FROM --platform=linux/amd64 openwrt/sdk:mediatek-filogic-24.10.7 AS sdk
+FROM --platform=linux/amd64 openwrt/sdk:x86-64-25.12.5 AS sdk
 
 FROM --platform=linux/amd64 ubuntu:24.04 AS builder
 
-ARG TOOLCHAIN_DIR=toolchain-aarch64_cortex-a53_gcc-13.3.0_musl
-ARG CROSS_PREFIX=aarch64-openwrt-linux-musl
-ARG CONAN_ARCH=armv8
-ARG CONAN_GCC_VERSION=13
+ARG TOOLCHAIN_DIR=toolchain-x86_64_gcc-14.3.0_musl
+ARG CROSS_PREFIX=x86_64-openwrt-linux-musl
+ARG CONAN_ARCH=x86_64
+ARG CONAN_GCC_VERSION=14
 ARG JOBS=8
-ARG PKG_ARCH=aarch64_cortex-a53
+ARG PKG_ARCH=x86_64
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV STAGING_DIR=/builder/staging_dir/${TOOLCHAIN_DIR}
@@ -23,7 +23,6 @@ RUN pip3 install --no-cache-dir --break-system-packages conan cmake ninja
 
 COPY --from=sdk /builder/staging_dir/${TOOLCHAIN_DIR} /builder/staging_dir/${TOOLCHAIN_DIR}
 COPY --from=sdk /builder/staging_dir/host /builder/staging_dir/host
-COPY --from=sdk /builder/scripts /builder/scripts
 
 ENV PATH=/builder/staging_dir/host/bin:${PATH}
 
@@ -50,7 +49,10 @@ LD=${STAGING_DIR}/bin/${CROSS_PREFIX}-ld
 [conf]
 tools.build:compiler_executables={"c": "${STAGING_DIR}/bin/${CROSS_PREFIX}-gcc", "cpp": "${STAGING_DIR}/bin/${CROSS_PREFIX}-g++"}
 tools.cmake.cmaketoolchain:system_name=Linux
-tools.cmake.cmaketoolchain:system_processor=aarch64
+tools.cmake.cmaketoolchain:system_processor=x86_64
+tools.build.cross_building:cross_build=True
+tools.build.cross_building:can_run=False
+tools.gnu:host_triplet=${CROSS_PREFIX}
 tools.build:jobs=${JOBS}
 EOF
 
@@ -85,9 +87,9 @@ RUN mkdir -p /app/deploy/openwrt/data/luci/www/luci-static/resources/fptn \
 COPY . /app
 
 RUN find /app/deploy/openwrt -type f -exec sed -i 's/\r$//' {} + \
-    && chmod 755 /app/deploy/openwrt/data/ipk/create-client-ipk-package.sh
+    && chmod 755 /app/deploy/openwrt/data/apk/create-client-apk-package.sh
 
-ARG OPENWRT_VERSION=24.10.x
+ARG OPENWRT_VERSION=25.12.x
 ARG PKG_VERSION=0.0.0
 
 RUN /usr/local/bin/cmake -S /app -B /build \
@@ -101,8 +103,10 @@ RUN /usr/local/bin/cmake -S /app -B /build \
 
 RUN /usr/local/bin/cmake --build /build --target fptn-client-cli -j${JOBS}
 
-RUN /usr/local/bin/cmake --build /build --target build-openwrt-ipk
+RUN /usr/local/bin/cmake --build /build --target fptn-tcp-probe -j${JOBS}
+
+RUN /usr/local/bin/cmake --build /build --target build-openwrt-apk
 
 FROM ubuntu:24.04 AS artifact
 WORKDIR /out
-COPY --from=builder /app/*.ipk /out/
+COPY --from=builder /app/*.apk /out/

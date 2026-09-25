@@ -300,14 +300,14 @@ ctest
 
 The router client is cross-compiled inside Docker: the image ships the OpenWrt SDK, builds the CLI client and packs it, the procd service and the LuCI page into a single package. Nothing has to be installed on the host except Docker itself. Installing and using the result is described in *Installing FPTN on an OpenWrt router*.
 
-Dockerfiles are laid out as `deploy/openwrt/target-<architecture>/<OpenWrt branch>`. The 25.12.5 directories produce an `.apk`, the 24.10.7 ones an `.ipk`:
+Dockerfiles are laid out as `deploy/openwrt/platforms/<architecture>/<OpenWrt branch>`. The 25.12.5 directories produce an `.apk`, the 24.10.7 ones an `.ipk`:
 
 | Package arch | Directory | Devices |
 |---|---|---|
-| `aarch64_generic` | `target-armsr-armv8` | virtual machines, NanoPi R2S / R4S / R5S |
-| `aarch64_cortex-a53` | `target-mediatek-filogic` | Xiaomi AX3000T, Cudy TR3000, Xiaomi AX3600 / AX9000 |
-| `arm_cortex-a7_neon-vfpv4` | `target-ipq40xx` | GL.iNet GL-A1300 Slate Plus, GL-B1300, ZyXEL NBG6617 |
-| `x86_64` | `target-x86-64` | mini PCs, Proxmox and other virtual machines |
+| `aarch64_generic` | `aarch64-armsr` | virtual machines, NanoPi R2S / R4S / R5S |
+| `aarch64_cortex-a53` | `aarch64-mediatek-filogic` | Xiaomi AX3000T, Cudy TR3000, Xiaomi AX3600 / AX9000 |
+| `arm_cortex-a7_neon-vfpv4` | `armv7-ipq40xx` | GL.iNet GL-A1300 Slate Plus, GL-B1300, ZyXEL NBG6617 |
+| `x86_64` | `x86-64` | mini PCs, Proxmox and other virtual machines |
 
 Run the block matching your device and your OpenWrt branch — it builds the image and copies the package into the current directory.
 
@@ -316,28 +316,28 @@ Run the block matching your device and your OpenWrt branch — it builds the ima
 `aarch64_generic`:
 
 ```bash
-docker build -t openwrt-armv8-25.12.5 -f ./deploy/openwrt/target-armsr-armv8/25.12.5/Dockerfile .
+docker build -t openwrt-armv8-25.12.5 -f ./deploy/openwrt/platforms/aarch64-armsr/25.12.5/Dockerfile .
 docker run --rm -v "$PWD:/dst" openwrt-armv8-25.12.5 cp -av /out/. /dst/
 ```
 
 `aarch64_cortex-a53`:
 
 ```bash
-docker build -t openwrt-filogic-25.12.5 -f ./deploy/openwrt/target-mediatek-filogic/25.12.5/Dockerfile .
+docker build -t openwrt-filogic-25.12.5 -f ./deploy/openwrt/platforms/aarch64-mediatek-filogic/25.12.5/Dockerfile .
 docker run --rm -v "$PWD:/dst" openwrt-filogic-25.12.5 cp -av /out/. /dst/
 ```
 
 `arm_cortex-a7_neon-vfpv4`:
 
 ```bash
-docker build -t openwrt-ipq40xx-25.12.5 -f ./deploy/openwrt/target-ipq40xx/25.12.5/Dockerfile .
+docker build -t openwrt-ipq40xx-25.12.5 -f ./deploy/openwrt/platforms/armv7-ipq40xx/25.12.5/Dockerfile .
 docker run --rm -v "$PWD:/dst" openwrt-ipq40xx-25.12.5 cp -av /out/. /dst/
 ```
 
 `x86_64`:
 
 ```bash
-docker build -t openwrt-x86-64-25.12.5 -f ./deploy/openwrt/target-x86-64/25.12.5/Dockerfile .
+docker build -t openwrt-x86-64-25.12.5 -f ./deploy/openwrt/platforms/x86-64/25.12.5/Dockerfile .
 docker run --rm -v "$PWD:/dst" openwrt-x86-64-25.12.5 cp -av /out/. /dst/
 ```
 
@@ -346,28 +346,28 @@ docker run --rm -v "$PWD:/dst" openwrt-x86-64-25.12.5 cp -av /out/. /dst/
 `aarch64_generic`:
 
 ```bash
-docker build -t openwrt-armv8-24.10.7 -f ./deploy/openwrt/target-armsr-armv8/24.10.7/Dockerfile .
+docker build -t openwrt-armv8-24.10.7 -f ./deploy/openwrt/platforms/aarch64-armsr/24.10.7/Dockerfile .
 docker run --rm -v "$PWD:/dst" openwrt-armv8-24.10.7 cp -av /out/. /dst/
 ```
 
 `aarch64_cortex-a53`:
 
 ```bash
-docker build -t openwrt-filogic-24.10.7 -f ./deploy/openwrt/target-mediatek-filogic/24.10.7/Dockerfile .
+docker build -t openwrt-filogic-24.10.7 -f ./deploy/openwrt/platforms/aarch64-mediatek-filogic/24.10.7/Dockerfile .
 docker run --rm -v "$PWD:/dst" openwrt-filogic-24.10.7 cp -av /out/. /dst/
 ```
 
 `arm_cortex-a7_neon-vfpv4`:
 
 ```bash
-docker build -t openwrt-ipq40xx-24.10.7 -f ./deploy/openwrt/target-ipq40xx/24.10.7/Dockerfile .
+docker build -t openwrt-ipq40xx-24.10.7 -f ./deploy/openwrt/platforms/armv7-ipq40xx/24.10.7/Dockerfile .
 docker run --rm -v "$PWD:/dst" openwrt-ipq40xx-24.10.7 cp -av /out/. /dst/
 ```
  
 `x86_64`:
 
 ```bash
-docker build -t openwrt-x86-64-24.10.7 -f ./deploy/openwrt/target-x86-64/24.10.7/Dockerfile .
+docker build -t openwrt-x86-64-24.10.7 -f ./deploy/openwrt/platforms/x86-64/24.10.7/Dockerfile .
 docker run --rm -v "$PWD:/dst" openwrt-x86-64-24.10.7 cp -av /out/. /dst/
 ```
 
@@ -378,10 +378,10 @@ The SDK images are `linux/amd64` only, so on Apple Silicon the build runs throug
 The package is named `0.0.0` unless a version is given. For a release build pass it explicitly:
 
 ```bash
-docker build --build-arg PKG_VERSION=0.4.4 -t openwrt-armv8-25.12.5 -f ./deploy/openwrt/target-armsr-armv8/25.12.5/Dockerfile .
+docker build --build-arg PKG_VERSION=0.4.4 -t openwrt-armv8-25.12.5 -f ./deploy/openwrt/platforms/aarch64-armsr/25.12.5/Dockerfile .
 ```
 
-Everything that goes into the package lives in `deploy/openwrt/data`: the UCI config, the procd service, the LuCI page, and the packaging scripts for both formats. To target another architecture, copy one of the `target-*` directories and adjust the base image tag, `TOOLCHAIN_DIR`, `CROSS_PREFIX`, `CONAN_ARCH` and `PKG_ARCH`. The toolchain directory name can be read from the SDK image itself:
+Everything that goes into the package lives in `deploy/openwrt/data`: the UCI config, the procd service, the LuCI page, and the packaging scripts for both formats. To target another architecture, copy one of the platform directories and adjust the base image tag, `TOOLCHAIN_DIR`, `CROSS_PREFIX`, `CONAN_ARCH` and `PKG_ARCH`. The toolchain directory name can be read from the SDK image itself:
 
 ```bash
 docker run --rm openwrt/sdk:mediatek-filogic-25.12.5 ls /builder/staging_dir

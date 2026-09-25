@@ -315,7 +315,7 @@ jobs:
     runs-on: Docker_AMD64
     strategy:
       matrix:
-        target: [armsr-armv8, mediatek-filogic, ipq40xx, x86-64]
+        target: [aarch64-armsr, aarch64-mediatek-filogic, armv7-ipq40xx, x86-64]
         version: ['25.12.5', '24.10.7']
     steps:
       - name: Checkout code
@@ -342,7 +342,7 @@ jobs:
           docker build `
             --build-arg PKG_VERSION="$env:FPTN_VERSION" `
             -t "fptn-openwrt-${{ matrix.target }}-${{ matrix.version }}" `
-            -f "./deploy/openwrt/target-${{ matrix.target }}/${{ matrix.version }}/Dockerfile" .
+            -f "./deploy/openwrt/platforms/${{ matrix.target }}/${{ matrix.version }}/Dockerfile" .
       - name: Extract package
         shell: powershell
         run: |

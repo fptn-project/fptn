@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
 print_usage() {
-    echo "Usage: $0 <fptn-client-cli-path> <version> <arch> <strip-tool> <openwrt-version>"
+    echo "Usage: $0 <fptn-client-cli-path> <version> <arch> <strip-tool> <openwrt-version> <fptn-tcp-probe-path>"
     exit 1
 }
 
-if [ "$#" -ne 5 ]; then
+if [ "$#" -ne 6 ]; then
     print_usage
 fi
 
@@ -14,6 +14,7 @@ VERSION="$2"
 ARCH="$3"
 STRIP_TOOL="$4"
 OPENWRT_VERSION="$5"
+PROBER_CLI="$6"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SHARED_DIR="$(dirname "$SCRIPT_DIR")"
@@ -32,6 +33,10 @@ mkdir -p "$CLIENT_TMP_DIR/usr/bin"
 cp "$CLIENT_CLI" "$CLIENT_TMP_DIR/usr/bin/"
 chmod 755 "$CLIENT_TMP_DIR/usr/bin/$(basename "$CLIENT_CLI")"
 "$STRIP_TOOL" "$CLIENT_TMP_DIR/usr/bin/$(basename "$CLIENT_CLI")"
+
+cp "$PROBER_CLI" "$CLIENT_TMP_DIR/usr/bin/"
+chmod 755 "$CLIENT_TMP_DIR/usr/bin/$(basename "$PROBER_CLI")"
+"$STRIP_TOOL" "$CLIENT_TMP_DIR/usr/bin/$(basename "$PROBER_CLI")"
 
 cp -a "$SHARED_DIR/files/etc" "$CLIENT_TMP_DIR/"
 chmod 755 "$CLIENT_TMP_DIR/etc/init.d/fptn"
@@ -58,7 +63,7 @@ Maintainer: FPTN Project <https://github.com/fptn-project/fptn>
 Section: net
 Priority: optional
 License: MIT
-Depends: libstdcpp6, libatomic, kmod-tun, ip-full, curl
+Depends: libstdcpp6, libatomic, kmod-tun, ip-full
 Description: FPTN client
 EOF
 

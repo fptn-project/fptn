@@ -95,39 +95,21 @@ function tokenServers(token) {
 	}) : null;
 }
 
-function wanDevice() {
-	return fs.exec('/sbin/ip', [ '-4', 'route', 'show' ]).then(function (res) {
-		var lines = (res.stdout || '').split('\n');
-		for (var i = 0; i < lines.length; i++) {
-			var m = lines[i].match(/\bvia\b.*\bdev\s+(\S+)/);
-			if (m && m[1].indexOf('tun') !== 0)
-				return m[1];
-		}
-		for (var j = 0; j < lines.length; j++) {
-			var d = lines[j].match(/^default\b.*\bdev\s+(\S+)/);
-			if (d && d[1].indexOf('tun') !== 0)
-				return d[1];
-		}
-		return null;
-	}).catch(function () {
-		return null;
-	});
+function probeState() {
+	return Promise.resolve(uci.get('fptn', 'config', 'out_network_interface') || '');
 }
 
 function pingServer(host, port, iface) {
-	var args = [ '-s', '-o', '/dev/null',
-		'--connect-timeout', '3', '--max-time', '4',
-		'-w', '%{time_connect}' ];
+	var args = [ host, String(port), '--timeout-ms', '3000' ];
 	if (iface)
-		args = args.concat([ '--interface', iface ]);
-	args.push('https://' + host + ':' + port);
-
-	return fs.exec('/usr/bin/curl', args).then(function (res) {
-		var seconds = parseFloat((res.stdout || '').trim());
-		return seconds > 0 ? Math.round(seconds * 1000) : -1;
-	}).catch(function () {
-		return -1;
-	});
+		args.push('--interface', iface);
+	return fs.exec('/usr/bin/fptn-tcp-probe', args)
+		.then(function (res) {
+			var ms = parseInt((res.stdout || '').trim(), 10);
+			return (res.code === 0 && ms >= 0) ? ms : -1;
+		}).catch(function () {
+			return -1;
+		});
 }
 
 function formatPreferred(value) {
@@ -258,16 +240,16 @@ function updateServerChoices(widget, token) {
 	node._fptnGen = (node._fptnGen || 0) + 1;
 	var gen = node._fptnGen;
 
-	wanDevice().then(function (iface) {
+	probeState().then(function (state) {
 		(function next(i) {
-			if (node._fptnGen !== gen || !document.body.contains(node))
+			if (node._fptnGen !== gen)
 				return;
 			if (i >= servers.length) {
 				window.setTimeout(function () { next(0); }, 2000);
 				return;
 			}
 			var server = servers[i];
-			pingServer(server.host, server.port, iface).then(function (ms) {
+			pingServer(server.host, server.port, state).then(function (ms) {
 				var badge = badges[server.name];
 				if (badge) {
 					badge.textContent = pingText(ms);
@@ -944,7 +926,15 @@ return view.extend({
 			node.addEventListener('change', toggle);
 			toggle();
 
-			updateServerChoices(serverOption.getUIElement('config'), token);
+			var startPings = function () {
+				var w = serverOption.getUIElement('config');
+				if (!w || !w.node) {
+					window.setTimeout(startPings, 300);
+					return;
+				}
+				updateServerChoices(w, token);
+			};
+			startPings();
 
 			return node;
 		});

@@ -1,13 +1,13 @@
-FROM --platform=linux/amd64 openwrt/sdk:armsr-armv8-24.10.7 AS sdk
+FROM --platform=linux/amd64 openwrt/sdk:x86-64-24.10.7 AS sdk
 
 FROM --platform=linux/amd64 ubuntu:24.04 AS builder
 
-ARG TOOLCHAIN_DIR=toolchain-aarch64_generic_gcc-13.3.0_musl
-ARG CROSS_PREFIX=aarch64-openwrt-linux-musl
-ARG CONAN_ARCH=armv8
-ARG CONAN_GCC_VERSION=13
+ARG TOOLCHAIN_DIR=toolchain-x86_64_gcc-13.3.0_musl
+ARG CROSS_PREFIX=x86_64-openwrt-linux-musl
+ARG CONAN_ARCH=x86_64
+ARG CONAN_GCC_VERSION=13.3
 ARG JOBS=8
-ARG PKG_ARCH=aarch64_generic
+ARG PKG_ARCH=x86_64
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV STAGING_DIR=/builder/staging_dir/${TOOLCHAIN_DIR}
@@ -50,7 +50,10 @@ LD=${STAGING_DIR}/bin/${CROSS_PREFIX}-ld
 [conf]
 tools.build:compiler_executables={"c": "${STAGING_DIR}/bin/${CROSS_PREFIX}-gcc", "cpp": "${STAGING_DIR}/bin/${CROSS_PREFIX}-g++"}
 tools.cmake.cmaketoolchain:system_name=Linux
-tools.cmake.cmaketoolchain:system_processor=aarch64
+tools.cmake.cmaketoolchain:system_processor=x86_64
+tools.build.cross_building:cross_build=True
+tools.build.cross_building:can_run=False
+tools.gnu:host_triplet=${CROSS_PREFIX}
 tools.build:jobs=${JOBS}
 EOF
 
@@ -100,6 +103,8 @@ RUN /usr/local/bin/cmake -S /app -B /build \
       -DFPTN_VERSION=${PKG_VERSION}
 
 RUN /usr/local/bin/cmake --build /build --target fptn-client-cli -j${JOBS}
+
+RUN /usr/local/bin/cmake --build /build --target fptn-tcp-probe -j${JOBS}
 
 RUN /usr/local/bin/cmake --build /build --target build-openwrt-ipk
 

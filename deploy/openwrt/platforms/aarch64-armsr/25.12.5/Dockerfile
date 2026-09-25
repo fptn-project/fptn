@@ -100,6 +100,8 @@ RUN /usr/local/bin/cmake -S /app -B /build \
 
 RUN /usr/local/bin/cmake --build /build --target fptn-client-cli -j${JOBS}
 
+RUN /usr/local/bin/cmake --build /build --target fptn-tcp-probe -j${JOBS}
+
 RUN /usr/local/bin/cmake --build /build --target build-openwrt-apk
 
 FROM ubuntu:24.04 AS artifact

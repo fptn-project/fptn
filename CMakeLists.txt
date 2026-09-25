@@ -159,6 +159,9 @@ if (NOT FPTN_BUILD_ONLY_FPTN_LIB)
         add_subdirectory(src/fptn-passwd)
     endif ()
     add_subdirectory(src/fptn-client)
+    if (FPTN_OPENWRT)
+        add_subdirectory(deploy/openwrt/fptn-tcp-probe)
+    endif ()
     # --- install ---
     install(TARGETS fptn-client-cli DESTINATION bin)
     if (APPLE OR UNIX)
@@ -194,7 +197,7 @@ if (NOT FPTN_BUILD_ONLY_FPTN_LIB)
                     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                     COMMAND
                     bash -c
-                    "${CMAKE_CURRENT_SOURCE_DIR}/deploy/openwrt/data/apk/create-client-apk-package.sh ${CMAKE_BINARY_DIR}/src/fptn-client/fptn-client-cli ${FPTN_VERSION} ${FPTN_OPENWRT_ARCH} ${CMAKE_STRIP} ${FPTN_OPENWRT_VERSION}"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/deploy/openwrt/data/apk/create-client-apk-package.sh ${CMAKE_BINARY_DIR}/src/fptn-client/fptn-client-cli ${FPTN_VERSION} ${FPTN_OPENWRT_ARCH} ${CMAKE_STRIP} ${FPTN_OPENWRT_VERSION} ${CMAKE_BINARY_DIR}/deploy/openwrt/fptn-tcp-probe/fptn-tcp-probe"
                     COMMENT "Building .apk package"
                     VERBATIM)
             add_custom_target(
@@ -202,7 +205,7 @@ if (NOT FPTN_BUILD_ONLY_FPTN_LIB)
                     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                     COMMAND
                     bash -c
-                    "${CMAKE_CURRENT_SOURCE_DIR}/deploy/openwrt/data/ipk/create-client-ipk-package.sh ${CMAKE_BINARY_DIR}/src/fptn-client/fptn-client-cli ${FPTN_VERSION} ${FPTN_OPENWRT_ARCH} ${CMAKE_STRIP} ${FPTN_OPENWRT_VERSION}"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/deploy/openwrt/data/ipk/create-client-ipk-package.sh ${CMAKE_BINARY_DIR}/src/fptn-client/fptn-client-cli ${FPTN_VERSION} ${FPTN_OPENWRT_ARCH} ${CMAKE_STRIP} ${FPTN_OPENWRT_VERSION} ${CMAKE_BINARY_DIR}/deploy/openwrt/fptn-tcp-probe/fptn-tcp-probe"
                     COMMENT "Building .ipk package"
                     VERBATIM)
         endif ()
