@@ -1,13 +1,13 @@
-FROM --platform=linux/amd64 openwrt/sdk:ipq40xx-generic-25.12.5 AS sdk
+FROM --platform=linux/amd64 openwrt/sdk:ath79-generic-25.12.5 AS sdk
 
 FROM --platform=linux/amd64 ubuntu:24.04 AS builder
 
-ARG TOOLCHAIN_DIR=toolchain-arm_cortex-a7+neon-vfpv4_gcc-14.3.0_musl_eabi
-ARG CROSS_PREFIX=arm-openwrt-linux-muslgnueabi
-ARG CONAN_ARCH=armv7hf
+ARG TOOLCHAIN_DIR=toolchain-mips_24kc_gcc-14.3.0_musl
+ARG CROSS_PREFIX=mips-openwrt-linux-musl
+ARG CONAN_ARCH=mips
 ARG CONAN_GCC_VERSION=14
 ARG JOBS=8
-ARG PKG_ARCH=arm_cortex-a7_neon-vfpv4
+ARG PKG_ARCH=mips_24kc
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV STAGING_DIR=/builder/staging_dir/${TOOLCHAIN_DIR}
@@ -49,7 +49,9 @@ LD=${STAGING_DIR}/bin/${CROSS_PREFIX}-ld
 [conf]
 tools.build:compiler_executables={"c": "${STAGING_DIR}/bin/${CROSS_PREFIX}-gcc", "cpp": "${STAGING_DIR}/bin/${CROSS_PREFIX}-g++"}
 tools.cmake.cmaketoolchain:system_name=Linux
-tools.cmake.cmaketoolchain:system_processor=arm
+tools.cmake.cmaketoolchain:system_processor=mips
+tools.build:exelinkflags=["-Wl,--no-as-needed,-latomic"]
+tools.build:sharedlinkflags=["-Wl,--no-as-needed,-latomic"]
 tools.build:jobs=${JOBS}
 EOF
 
@@ -99,6 +101,8 @@ RUN /usr/local/bin/cmake -S /app -B /build \
       -DFPTN_VERSION=${PKG_VERSION}
 
 RUN /usr/local/bin/cmake --build /build --target fptn-client-cli -j${JOBS}
+
+RUN /usr/local/bin/cmake --build /build --target fptn-tcp-probe -j${JOBS}
 
 RUN /usr/local/bin/cmake --build /build --target build-openwrt-apk
 

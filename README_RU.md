@@ -299,14 +299,16 @@ ctest
 
 Клиент для роутера кросс-компилируется в докере: в образе лежит OpenWrt SDK, сборка собирает CLI-клиент и упаковывает его вместе с procd-сервисом и страницей LuCI в один пакет. На хосте, кроме самого докера, ничего ставить не нужно. Установка и работа с готовым пакетом описаны в разделе *Установка FPTN на роутер с OpenWrt*.
 
-Докерфайлы разложены по каталогам `deploy/openwrt/target-<архитектура>/<ветка OpenWrt>`. Каталоги 25.12.5 дают `.apk`, каталоги 24.10.7 — `.ipk`:
+Докерфайлы разложены по каталогам `deploy/openwrt/platforms/<архитектура>/<ветка OpenWrt>`. Каталоги 25.12.5 дают `.apk`, каталоги 24.10.7 — `.ipk`:
 
 | Архитектура пакетов | Каталог | Устройства |
 |---|---|---|
-| `aarch64_generic` | `target-armsr-armv8` | виртуальные машины, NanoPi R2S / R4S / R5S |
-| `aarch64_cortex-a53` | `target-mediatek-filogic` | Xiaomi AX3000T, Cudy TR3000, Xiaomi AX3600 / AX9000 |
-| `arm_cortex-a7_neon-vfpv4` | `target-ipq40xx` | GL.iNet GL-A1300 Slate Plus, GL-B1300, ZyXEL NBG6617 |
-| `x86_64` | `target-x86-64` | мини-ПК, виртуальные машины, Proxmox |
+| `aarch64_generic` | `aarch64-armsr` | виртуальные машины, NanoPi R2S / R4S / R5S |
+| `aarch64_cortex-a53` | `aarch64-mediatek-filogic` | Xiaomi AX3000T, Cudy TR3000, Xiaomi AX3600 / AX9000 |
+| `arm_cortex-a7_neon-vfpv4` | `armv7-ipq40xx` | GL.iNet GL-A1300 Slate Plus, GL-B1300, ZyXEL NBG6617 |
+| `x86_64` | `x86-64` | мини-ПК, виртуальные машины, Proxmox |
+| `mipsel_24kc` | `mipsel_24kc-mt7621` | Xiaomi Mi Router 4A Gigabit, Redmi AC2100, SNR-CPE-ME2 |
+| `mips_24kc` | `mips_24kc-ath79` | TP-Link Archer C7 и другие устройства на ath79 |
 
 Выполните блок, соответствующий вашему устройству и вашей ветке OpenWrt, — он собирает образ и кладет пакет в текущий каталог.
 
@@ -315,29 +317,43 @@ ctest
 `aarch64_generic`:
 
 ```bash
-docker build -t openwrt-armv8-25.12.5 -f ./deploy/openwrt/target-armsr-armv8/25.12.5/Dockerfile .
+docker build -t openwrt-armv8-25.12.5 -f ./deploy/openwrt/platforms/aarch64-armsr/25.12.5/Dockerfile .
 docker run --rm -v "$PWD:/dst" openwrt-armv8-25.12.5 cp -av /out/. /dst/
 ```
 
 `aarch64_cortex-a53`:
 
 ```bash
-docker build -t openwrt-filogic-25.12.5 -f ./deploy/openwrt/target-mediatek-filogic/25.12.5/Dockerfile .
+docker build -t openwrt-filogic-25.12.5 -f ./deploy/openwrt/platforms/aarch64-mediatek-filogic/25.12.5/Dockerfile .
 docker run --rm -v "$PWD:/dst" openwrt-filogic-25.12.5 cp -av /out/. /dst/
 ```
 
 `arm_cortex-a7_neon-vfpv4`:
 
 ```bash
-docker build -t openwrt-ipq40xx-25.12.5 -f ./deploy/openwrt/target-ipq40xx/25.12.5/Dockerfile .
+docker build -t openwrt-ipq40xx-25.12.5 -f ./deploy/openwrt/platforms/armv7-ipq40xx/25.12.5/Dockerfile .
 docker run --rm -v "$PWD:/dst" openwrt-ipq40xx-25.12.5 cp -av /out/. /dst/
 ```
 
 `x86_64`:
 
 ```bash
-docker build -t openwrt-x86-64-25.12.5 -f ./deploy/openwrt/target-x86-64/25.12.5/Dockerfile .
+docker build -t openwrt-x86-64-25.12.5 -f ./deploy/openwrt/platforms/x86-64/25.12.5/Dockerfile .
 docker run --rm -v "$PWD:/dst" openwrt-x86-64-25.12.5 cp -av /out/. /dst/
+```
+
+`mipsel_24kc` (MT7621 — Xiaomi 4A, Redmi AC2100, SNR-CPE-ME2):
+
+```bash
+docker build -t openwrt-mt7621-25.12.5 -f ./deploy/openwrt/platforms/mipsel_24kc-mt7621/25.12.5/Dockerfile .
+docker run --rm -v "$PWD:/dst" openwrt-mt7621-25.12.5 cp -av /out/. /dst/
+```
+
+`mips_24kc` (ath79 — TP-Link Archer C7):
+
+```bash
+docker build -t openwrt-ath79-25.12.5 -f ./deploy/openwrt/platforms/mips_24kc-ath79/25.12.5/Dockerfile .
+docker run --rm -v "$PWD:/dst" openwrt-ath79-25.12.5 cp -av /out/. /dst/
 ```
 
 **OpenWrt 24.10.x, `.ipk`**
@@ -345,29 +361,43 @@ docker run --rm -v "$PWD:/dst" openwrt-x86-64-25.12.5 cp -av /out/. /dst/
 `aarch64_generic`:
 
 ```bash
-docker build -t openwrt-armv8-24.10.7 -f ./deploy/openwrt/target-armsr-armv8/24.10.7/Dockerfile .
+docker build -t openwrt-armv8-24.10.7 -f ./deploy/openwrt/platforms/aarch64-armsr/24.10.7/Dockerfile .
 docker run --rm -v "$PWD:/dst" openwrt-armv8-24.10.7 cp -av /out/. /dst/
 ```
 
 `aarch64_cortex-a53`:
 
 ```bash
-docker build -t openwrt-filogic-24.10.7 -f ./deploy/openwrt/target-mediatek-filogic/24.10.7/Dockerfile .
+docker build -t openwrt-filogic-24.10.7 -f ./deploy/openwrt/platforms/aarch64-mediatek-filogic/24.10.7/Dockerfile .
 docker run --rm -v "$PWD:/dst" openwrt-filogic-24.10.7 cp -av /out/. /dst/
 ```
 
 `arm_cortex-a7_neon-vfpv4`:
 
 ```bash
-docker build -t openwrt-ipq40xx-24.10.7 -f ./deploy/openwrt/target-ipq40xx/24.10.7/Dockerfile .
+docker build -t openwrt-ipq40xx-24.10.7 -f ./deploy/openwrt/platforms/armv7-ipq40xx/24.10.7/Dockerfile .
 docker run --rm -v "$PWD:/dst" openwrt-ipq40xx-24.10.7 cp -av /out/. /dst/
 ```
 
 `x86_64`:
 
 ```bash
-docker build -t openwrt-x86-64-24.10.7 -f ./deploy/openwrt/target-x86-64/24.10.7/Dockerfile .
+docker build -t openwrt-x86-64-24.10.7 -f ./deploy/openwrt/platforms/x86-64/24.10.7/Dockerfile .
 docker run --rm -v "$PWD:/dst" openwrt-x86-64-24.10.7 cp -av /out/. /dst/
+```
+
+`mipsel_24kc` (MT7621 — Xiaomi 4A, Redmi AC2100, SNR-CPE-ME2):
+
+```bash
+docker build -t openwrt-mt7621-24.10.7 -f ./deploy/openwrt/platforms/mipsel_24kc-mt7621/24.10.7/Dockerfile .
+docker run --rm -v "$PWD:/dst" openwrt-mt7621-24.10.7 cp -av /out/. /dst/
+```
+
+`mips_24kc` (ath79 — TP-Link Archer C7):
+
+```bash
+docker build -t openwrt-ath79-24.10.7 -f ./deploy/openwrt/platforms/mips_24kc-ath79/24.10.7/Dockerfile .
+docker run --rm -v "$PWD:/dst" openwrt-ath79-24.10.7 cp -av /out/. /dst/
 ```
 
 У каждой комбинации свой тег образа, поэтому сборки не затирают друг друга.
@@ -377,10 +407,10 @@ docker run --rm -v "$PWD:/dst" openwrt-x86-64-24.10.7 cp -av /out/. /dst/
 Без указания версии пакет получает номер `0.0.0`. Для релизной сборки передайте ее явно:
 
 ```bash
-docker build --build-arg PKG_VERSION=0.4.4 -t openwrt-armv8-25.12.5 -f ./deploy/openwrt/target-armsr-armv8/25.12.5/Dockerfile .
+docker build --build-arg PKG_VERSION=0.4.4 -t openwrt-armv8-25.12.5 -f ./deploy/openwrt/platforms/aarch64-armsr/25.12.5/Dockerfile .
 ```
 
-Все, что попадает в пакет, лежит в `deploy/openwrt/data`: UCI-конфиг, procd-сервис, страница LuCI и скрипты упаковки для обоих форматов. Для другой архитектуры скопируйте один из каталогов `target-*` и поправьте тег базового образа, `TOOLCHAIN_DIR`, `CROSS_PREFIX`, `CONAN_ARCH` и `PKG_ARCH`. Имя каталога тулчейна можно посмотреть в самом образе SDK:
+Все, что попадает в пакет, лежит в `deploy/openwrt/data`: UCI-конфиг, procd-сервис, страница LuCI и скрипты упаковки для обоих форматов. Для другой архитектуры скопируйте один из каталогов платформ и поправьте тег базового образа, `TOOLCHAIN_DIR`, `CROSS_PREFIX`, `CONAN_ARCH` и `PKG_ARCH`. Имя каталога тулчейна можно посмотреть в самом образе SDK:
 
 ```bash
 docker run --rm openwrt/sdk:mediatek-filogic-25.12.5 ls /builder/staging_dir

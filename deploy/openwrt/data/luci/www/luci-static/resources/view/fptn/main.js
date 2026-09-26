@@ -57,7 +57,7 @@ function isRunning() {
 	});
 }
 
-function tokenServers(token) {
+function tokenServerList(token) {
 	try {
 		var text = token.replace(/[\s=]/g, '');
 		var brotli = /^fptnb(:|\/\/)/.test(text);
@@ -81,11 +81,184 @@ function tokenServers(token) {
 			});
 
 		return valid ? config.servers.map(function (server) {
-			return server.name;
+			return { name: server.name, host: server.host, port: server.port };
 		}) : null;
 	} catch (e) {
 		return null;
 	}
+}
+
+function tokenServers(token) {
+	var list = tokenServerList(token);
+	return list ? list.map(function (server) {
+		return server.name;
+	}) : null;
+}
+
+function probeState() {
+	return Promise.resolve(uci.get('fptn', 'config', 'out_network_interface') || '');
+}
+
+function pingServer(host, port, iface) {
+	var args = [ host, String(port), '--timeout-ms', '3000' ];
+	if (iface)
+		args.push('--interface', iface);
+	return fs.exec('/usr/bin/fptn-tcp-probe', args)
+		.then(function (res) {
+			var ms = parseInt((res.stdout || '').trim(), 10);
+			return (res.code === 0 && ms >= 0) ? ms : -1;
+		}).catch(function () {
+			return -1;
+		});
+}
+
+function formatPreferred(value) {
+	var arr = Array.isArray(value) ? value : (value ? [ value ] : []);
+	arr = arr.filter(function (v) {
+		return v !== '';
+	});
+	return arr.length ? arr.join(', ') : _('Auto');
+}
+
+function pingColor(ms) {
+	if (ms === undefined)
+		return '#888';
+	if (ms < 0)
+		return '#c0392b';
+	if (ms < 200)
+		return '#00a000';
+	if (ms < 300)
+		return '#c8a400';
+	if (ms < 500)
+		return '#e0730a';
+	return '#c0392b';
+}
+
+function pingText(ms) {
+	if (ms === undefined)
+		return '…';
+	return ms < 0 ? _('offline') : ms + ' ms';
+}
+
+function pingLabel(name, ms) {
+	return E('span', {
+		'style': 'display:flex;align-items:center;width:100%;gap:1em'
+	}, [
+		E('span', {}, name),
+		E('span', {
+			'class': 'fptn-ping',
+			'style': 'margin-left:auto;font-variant-numeric:tabular-nums;' +
+				'color:' + pingColor(ms)
+		}, pingText(ms))
+	]);
+}
+
+function reorderWidget(widget) {
+	var root = widget && widget.node;
+	if (!root)
+		return;
+
+	var order = root._fptnOrder || [];
+	var byValue = {};
+	root.querySelectorAll('li[data-value]').forEach(function (li) {
+		var v = li.getAttribute('data-value');
+		(byValue[v] = byValue[v] || []).push(li);
+	});
+	order.forEach(function (val) {
+		(byValue[val] || []).forEach(function (li) {
+			if (li.parentNode)
+				li.parentNode.appendChild(li);
+		});
+	});
+}
+
+function attachServerBehavior(widget) {
+	var root = widget && widget.node;
+	if (!root || root._fptnBound)
+		return;
+	root._fptnBound = true;
+	root._fptnPrev = widget.getValue() || [];
+
+	root.addEventListener('cbi-dropdown-change', function () {
+		var cur = widget.getValue() || [];
+		var prev = root._fptnPrev || [];
+		var addedAuto = cur.indexOf('') >= 0 && prev.indexOf('') < 0;
+		var val = cur.slice();
+
+		if (addedAuto)
+			val = [ '' ];
+		else if (cur.indexOf('') >= 0 && cur.length > 1)
+			val = cur.filter(function (v) { return v !== ''; });
+		if (!val.length)
+			val = [ '' ];
+
+		if (val.join('\n') !== cur.join('\n'))
+			widget.setValue(val);
+		root._fptnPrev = widget.getValue() || [];
+		reorderWidget(widget);
+	});
+
+	root.addEventListener('click', function () {
+		window.setTimeout(function () { reorderWidget(widget); }, 0);
+	});
+}
+
+function updateServerChoices(widget, token) {
+	if (!widget)
+		return;
+
+	var servers = tokenServerList(token) || [];
+
+	var values = [ '' ];
+	var labels = { '': _('Automatically') };
+	var badges = {};
+	servers.forEach(function (server) {
+		var node = pingLabel(server.name, undefined);
+		values.push(server.name);
+		labels[server.name] = node;
+		badges[server.name] = node.querySelector('.fptn-ping');
+	});
+
+	var selected = (widget.getValue() || []).filter(function (name) {
+		return name !== '' && values.indexOf(name) >= 0;
+	});
+	if (!selected.length)
+		selected = [ '' ];
+
+	widget.clearChoices(true);
+	widget.addChoices(values, labels);
+	widget.setValue(selected);
+
+	widget.node._fptnOrder = values;
+	reorderWidget(widget);
+	attachServerBehavior(widget);
+
+	if (!servers.length)
+		return;
+
+	var node = widget.node;
+	node._fptnGen = (node._fptnGen || 0) + 1;
+	var gen = node._fptnGen;
+
+	probeState().then(function (state) {
+		(function next(i) {
+			if (node._fptnGen !== gen)
+				return;
+			if (i >= servers.length) {
+				window.setTimeout(function () { next(0); }, 2000);
+				return;
+			}
+			var server = servers[i];
+			pingServer(server.host, server.port, state).then(function (ms) {
+				var badge = badges[server.name];
+				if (badge) {
+					badge.textContent = pingText(ms);
+					badge.style.color = pingColor(ms);
+				}
+				next(i + 1);
+			});
+		})(0);
+	});
 }
 
 function tunnelStats(name) {
@@ -467,7 +640,7 @@ function statusRows(data) {
 	return [
 		[ _('Connection'), state[0], state[1] ],
 		[ _('Selected server'),
-			uci.get('fptn', 'config', 'preferred_server') || _('Auto') ],
+			formatPreferred(uci.get('fptn', 'config', 'preferred_server')) ],
 		[ _('Bypass blocking method'),
 			spoofing ? spoofing[1] : _('Traffic masking (obfuscation)') ],
 		[ _('Split tunneling'),
@@ -476,7 +649,6 @@ function statusRows(data) {
 					? _('Include') : _('Exclude') ],
 		[ _('Tunnel interface'),
 			uci.get('fptn', 'config', 'tun_interface_name') || 'tun0' ],
-		[ _('PID'), data[0].pid ? String(data[0].pid) : '—' ],
 		[ _('Received'), formatBytes(stats.rx) ],
 		[ _('Sent'), formatBytes(stats.tx) ]
 	];
@@ -624,25 +796,20 @@ return view.extend({
 				'again from @fptn_bot');
 		};
 		o.onchange = function (ev, section_id, value) {
-			var names = tokenServers(value);
-			var widget = serverOption.getUIElement(section_id);
-
-			if (!names || !widget)
-				return;
-
-			var selected = widget.getValue();
-			widget.clearChoices(true);
-			widget.addChoices([ '' ].concat(names), { '': _('Auto') });
-			widget.setValue(names.indexOf(selected) >= 0 ? selected : '');
+			updateServerChoices(serverOption.getUIElement(section_id), value);
 		};
 
-		o = s.taboption('general', form.Value, 'preferred_server', _('Preferred server'),
-			_('Server from the access token to connect to. "Auto" logs in to ' +
-			'every server at once and keeps the one that answers first.'));
+		o = s.taboption('general', form.MultiValue, 'preferred_server',
+			_('Preferred server(s)'),
+			_('Pick one or more servers to prefer, or "Automatically" to log in ' +
+			'to every server at once and keep the one that answers first. The ' +
+			'value next to each server is its response time from the router.'));
 		o.rmempty = true;
-		o.value('', _('Auto'));
-		(tokenServers(token || '') || []).forEach(function (name) {
-			o.value(name);
+		o.display_size = 1;
+		o.placeholder = _('Automatically');
+		o.value('', _('Automatically'));
+		(tokenServerList(token || '') || []).forEach(function (server) {
+			o.value(server.name, pingLabel(server.name, undefined));
 		});
 
 		var serverOption = o;
@@ -757,6 +924,16 @@ return view.extend({
 
 			node.addEventListener('change', toggle);
 			toggle();
+
+			var startPings = function () {
+				var w = serverOption.getUIElement('config');
+				if (!w || !w.node) {
+					window.setTimeout(startPings, 300);
+					return;
+				}
+				updateServerChoices(w, token);
+			};
+			startPings();
 
 			return node;
 		});

@@ -29,6 +29,9 @@ class ConfigFile final {
       int timeout_sec) const;
   std::optional<fptn::utils::speed_estimator::LoginResult> FindServerByLogin(
       int timeout_sec) const;
+  std::optional<fptn::utils::speed_estimator::LoginResult> FindServerByLogin(
+      int timeout_sec,
+      const std::vector<std::string>& preferred_names) const;
   std::uint64_t GetDownloadTimeMs(
       const fptn::utils::speed_estimator::ServerInfo& server,
       const std::string& sni,

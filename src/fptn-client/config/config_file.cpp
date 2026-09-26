@@ -109,12 +109,38 @@ ServerInfo ConfigFile::FindFastestServer(int timeout_sec) const {
 
 std::optional<fptn::utils::speed_estimator::LoginResult>
 ConfigFile::FindServerByLogin(int timeout_sec) const {
-  // Ensure every server has credentials (CLI path sets them at ConfigFile
-  // level)
-  std::vector<ServerInfo> servers = servers_;
-  for (auto& s : servers) {
-    if (s.username.empty()) s.username = username_;
-    if (s.password.empty()) s.password = password_;
+  return FindServerByLogin(timeout_sec, {});
+}
+
+std::optional<fptn::utils::speed_estimator::LoginResult>
+ConfigFile::FindServerByLogin(int timeout_sec,
+    const std::vector<std::string>& preferred_names) const {
+  std::vector<std::string> wanted(preferred_names.size());
+  std::ranges::transform(preferred_names, wanted.begin(),
+      [](const std::string& name) {
+        return fptn::common::utils::Trim(
+            fptn::common::utils::ToLowerCase(name));
+      });
+
+  std::vector<ServerInfo> servers;
+  for (auto s : servers_) {
+    if (!wanted.empty()) {
+      const std::string server_name =
+          fptn::common::utils::Trim(fptn::common::utils::ToLowerCase(s.name));
+      if (std::ranges::find(wanted, server_name) == wanted.end()) {
+        continue;
+      }
+    }
+    if (s.username.empty()) {
+      s.username = username_;
+    }
+    if (s.password.empty()) {
+      s.password = password_;
+    }
+    servers.push_back(std::move(s));
+  }
+  if (servers.empty()) {
+    return std::nullopt;
   }
   return fptn::utils::speed_estimator::FindServerByLogin(
       sni_, servers, censorship_strategy_, timeout_sec);

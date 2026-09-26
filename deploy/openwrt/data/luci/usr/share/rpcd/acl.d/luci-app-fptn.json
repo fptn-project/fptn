@@ -10,6 +10,7 @@
 				"/sbin/logread": [ "exec" ],
 				"/sbin/ip": [ "exec" ],
 				"/bin/ping": [ "exec" ],
+				"/usr/bin/fptn-tcp-probe": [ "exec" ],
 				"/var/log/fptn/fptn-client-cli.log": [ "read" ]
 			}
 		},
