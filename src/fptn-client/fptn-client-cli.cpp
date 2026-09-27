@@ -777,9 +777,7 @@ fptn::protocol::https::CensorshipStrategy ResolveBypassMethod(
   return fptn::protocol::https::CensorshipStrategy::kSniRealityModeYandex26_4;
 }
 
-}  // namespace
-
-int main(int argc, char* argv[]) {
+int RunClient(int argc, char* argv[]) {
 #if defined(__linux__) || defined(__APPLE__)
   if (geteuid() != 0) {
     std::cerr << "You must be root to run this program." << std::endl;
@@ -1917,7 +1915,6 @@ int main(int argc, char* argv[]) {
     if (status_server) {
       status_server->Stop();
     }
-    spdlog::shutdown();
 
     return EXIT_SUCCESS;
   } catch (const std::exception& ex) {
@@ -1926,4 +1923,16 @@ int main(int argc, char* argv[]) {
     SPDLOG_ERROR("An unknown error occurred. Exiting...");
   }
   return EXIT_FAILURE;
+}
+
+}  // namespace
+
+int main(int argc, char* argv[]) {
+  const int exit_code = RunClient(argc, argv);
+  // Only after RunClient has returned: its objects are destroyed on the way
+  // out and their destructors still log (PolicyRoute::Clean runs `ip` through
+  // command::run, which logs every command). The logger is asynchronous, so
+  // this call is also what flushes the last messages.
+  spdlog::shutdown();
+  return exit_code;
 }

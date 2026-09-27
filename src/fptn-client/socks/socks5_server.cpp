@@ -1194,7 +1194,14 @@ bool RunChecked(const std::string& command) {
 
 PolicyRoute::PolicyRoute(Config config) : config_(std::move(config)) {}
 
-PolicyRoute::~PolicyRoute() { Clean(); }
+// The owner cleans up explicitly on the normal path; the destructor only
+// covers a path that left routing applied, such as an exception between
+// Apply() and that explicit Clean().
+PolicyRoute::~PolicyRoute() {
+  if (applied_) {
+    Clean();
+  }
+}
 
 bool PolicyRoute::Apply() {
   if (config_.tun_interface_name.empty()) {
