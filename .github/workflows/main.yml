@@ -324,29 +324,24 @@ jobs:
           submodules: true
           fetch-depth: 0
       - name: Set env
-        shell: powershell
         if: github.event_name == 'release'
         run: |
-          $releaseVersion = "${{ github.ref_name }}"
-          echo "RELEASE_VERSION=$releaseVersion" >> $env:GITHUB_ENV
-          echo "FPTN_VERSION=$releaseVersion" >> $env:GITHUB_ENV
+          echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+          echo "FPTN_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
       - name: Set dev version
-        shell: powershell
         if: github.event_name != 'release'
         run: |
-          echo "FPTN_VERSION=0.0.0" >> $env:GITHUB_ENV
-          Write-Output "Dev version: 0.0.0"
+          echo "FPTN_VERSION=0.0.0" >> $GITHUB_ENV
+          echo "Dev version: 0.0.0"
       - name: Build OpenWrt package
-        shell: powershell
         run: |
-          docker build `
-            --build-arg PKG_VERSION="$env:FPTN_VERSION" `
-            -t "fptn-openwrt-${{ matrix.target }}-${{ matrix.version }}" `
+          docker build \
+            --build-arg PKG_VERSION="$FPTN_VERSION" \
+            -t "fptn-openwrt-${{ matrix.target }}-${{ matrix.version }}" \
             -f "./deploy/openwrt/platforms/${{ matrix.target }}/${{ matrix.version }}/Dockerfile" .
       - name: Extract package
-        shell: powershell
         run: |
-          docker run --rm -v "$($PWD.Path):/dst" "fptn-openwrt-${{ matrix.target }}-${{ matrix.version }}" cp -av /out/. /dst/
+          docker run --rm -v "$PWD:/dst" "fptn-openwrt-${{ matrix.target }}-${{ matrix.version }}" cp -av /out/. /dst/
       - name: Upload apk RELEASE
         if: github.event_name == 'release' && matrix.version == '25.12.5'
         uses: AButler/upload-release-assets@v3.0
