@@ -95,6 +95,10 @@ TrayApp::TrayApp(const SettingsModelPtr& settings, QObject* parent)
   qApp->setStyleSheet(fptn::gui::GetUbuntuStyleSheet());
 #elif __APPLE__
   qApp->setStyleSheet(fptn::gui::GetMacStyleSheet());
+  connect(qApp->styleHints(), &QStyleHints::colorSchemeChanged, this,
+      [](Qt::ColorScheme) {
+        qApp->setStyleSheet(fptn::gui::GetMacStyleSheet());
+      });
 #elif _WIN32
   qApp->setStyleSheet(fptn::gui::GetWindowsStyleSheet());
 #else
@@ -118,6 +122,14 @@ TrayApp::TrayApp(const SettingsModelPtr& settings, QObject* parent)
           tray_menu_->exec(QCursor::pos());
         } else {
           tray_menu_->close();
+        }
+      });
+#elif __APPLE__
+  connect(tray_icon_, &QSystemTrayIcon::activated,
+      [this](QSystemTrayIcon::ActivationReason reason) {
+        if (reason == QSystemTrayIcon::Trigger ||
+            reason == QSystemTrayIcon::Context) {
+          tray_menu_->popup(tray_icon_->geometry().bottomLeft());
         }
       });
 #endif
@@ -225,7 +237,9 @@ TrayApp::TrayApp(const SettingsModelPtr& settings, QObject* parent)
   tray_menu_->addSeparator();
   tray_menu_->addAction(quit_action_);
 
+#ifndef __APPLE__
   tray_icon_->setContextMenu(tray_menu_);
+#endif
 
   tray_icon_->show();
 

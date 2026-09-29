@@ -8,8 +8,10 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include <algorithm>
 
-#include <QFontDatabase>  // NOLINT(build/include_order)
-#include <QStringList>    // NOLINT(build/include_order)
+#include <QFontDatabase>     // NOLINT(build/include_order)
+#include <QGuiApplication>   // NOLINT(build/include_order)
+#include <QStringList>       // NOLINT(build/include_order)
+#include <QStyleHints>       // NOLINT(build/include_order)
 
 namespace fptn::gui {
 
@@ -47,33 +49,51 @@ QFont GetCyrillicCapableFont() {
 }
 
 QString GetMacStyleSheet() {
-  static const QString kStyleSheet = R"(
+  const bool dark = QGuiApplication::styleHints()->colorScheme() ==
+                    Qt::ColorScheme::Dark;
+  const QString bg = dark ? "#262629" : "#ffffff";
+  const QString fg = dark ? "#ffffff" : "#1d1d1f";
+  const QString border = dark ? "#3c3c40" : "#d5d5d7";
+  const QString separator = dark ? "#3c3c40" : "#e5e5e7";
+  const QString disabled = dark ? "#7f7f83" : "#9a9a9e";
+  return QString(R"(
 QMenu {
-    background-color: #333;
-    color: #fff;
-    border: 1px solid #555;
+    background-color: %1;
+    color: %2;
+    border: 1px solid %3;
+    border-radius: 10px;
+    padding: 3px;
 }
 QMenu::item {
-    background-color: #333;
-    color: #fff;
-    padding: 5px 5px;
+    background-color: transparent;
+    color: %2;
+    padding: 2px 10px;
+    margin: 0px 3px;
+    border-radius: 5px;
 }
 QMenu::item:selected {
-    background-color: #555;
-    color: #fff;
+    background-color: #0a60d6;
+    color: #ffffff;
+}
+QMenu::item:disabled {
+    color: %4;
+}
+QMenu::separator {
+    height: 1px;
+    background-color: %5;
+    margin: 3px 8px;
 }
 QMenu::icon {
-    margin-right: 4px;
+    margin-right: 6px;
 }
-QAction {
-    padding: 2px 2px;
-    color: #fff;
+QMenu::right-arrow {
+    margin-right: 8px;
 }
 QWidgetAction {
-    padding: 5px;
+    padding: 2px 4px;
 }
-)";
-  return kStyleSheet;
+)")
+      .arg(bg, fg, border, disabled, separator);
 }
 
 QString GetUbuntuStyleSheet() {
