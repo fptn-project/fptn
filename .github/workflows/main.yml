@@ -89,6 +89,12 @@ jobs:
             --push \
             --provenance=false \
             --sbom=false .
+      - name: Clean workspace
+        if: always()
+        run: |
+          docker run --rm -v "$PWD:/ws" -w /ws alpine \
+            chown -R "$(id -u):$(id -g)" . || true
+          git clean -ffdx || true
 
   build_ubuntu_arm64:
     runs-on: Ubuntu_ARM64_Desktop
@@ -318,6 +324,10 @@ jobs:
         target: [aarch64-armsr, aarch64-mediatek-filogic, armv7-ipq40xx, x86-64, mipsel_24kc-mt7621, mips_24kc-ath79]
         version: ['25.12.5', '24.10.7']
     steps:
+      - name: Fix workspace ownership
+        run: |
+          docker run --rm -v "$PWD:/ws" -w /ws alpine \
+            chown -R "$(id -u):$(id -g)" . || true
       - name: Checkout code
         uses: actions/checkout@v3
         with:
@@ -341,7 +351,8 @@ jobs:
             -f "./deploy/openwrt/platforms/${{ matrix.target }}/${{ matrix.version }}/Dockerfile" .
       - name: Extract package
         run: |
-          docker run --rm -v "$PWD:/dst" "fptn-openwrt-${{ matrix.target }}-${{ matrix.version }}" cp -av /out/. /dst/
+          docker run --rm "fptn-openwrt-${{ matrix.target }}-${{ matrix.version }}" \
+            tar -C /out -cf - . | tar --no-same-owner -xf -
       - name: Upload apk RELEASE
         if: github.event_name == 'release' && matrix.version == '25.12.5'
         uses: AButler/upload-release-assets@v3.0
@@ -362,6 +373,12 @@ jobs:
             *.apk
             *.ipk
           if-no-files-found: warn
+      - name: Clean workspace
+        if: always()
+        run: |
+          docker run --rm -v "$PWD:/ws" -w /ws alpine \
+            chown -R "$(id -u):$(id -g)" . || true
+          git clean -ffdx || true
 
   create_multiarch_manifest:
     needs: [build_ubuntu_x86_64, build_ubuntu_arm64]
