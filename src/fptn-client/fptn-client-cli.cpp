@@ -30,9 +30,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include "config/config_file.h"
 #include "fptn-protocol-lib/https/obfuscator/methods/detector.h"
 #include "fptn-protocol-lib/time/time_provider.h"
-#ifndef FPTN_OPENWRT
 #include "plugins/adblock/adblock.h"
-#endif
 #include "plugins/blacklist/domain_blacklist.h"
 #include "routing/route_manager.h"
 // cppcheck-suppress missingInclude
@@ -138,7 +136,6 @@ int main(int argc, char* argv[]) {
             "subdomains\n"
             "Format: example.com,sub.site.org\n"
             "Example: ria.ru blocks ria.ru and all *.ria.ru sites");
-#ifndef FPTN_OPENWRT
     args.add_argument("--enable-ad-block")
         .help("Block ads and trackers at the DNS level")
         .default_value(true)
@@ -155,7 +152,6 @@ int main(int argc, char* argv[]) {
           }
           throw std::runtime_error("Value must be true/false");
         });
-#endif
     // Method to bypass censorship
     args.add_argument("--bypass-method")
         .default_value("sni-spoofing-yandex-26-4")
@@ -428,9 +424,7 @@ int main(int argc, char* argv[]) {
         fptn::common::utils::SplitCommaSeparated(include_networks_str);
 
     /* parse split-tunneling parameters */
-#ifndef FPTN_OPENWRT
     const bool enable_ad_block = args.get<bool>("--enable-ad-block");
-#endif
     const bool enable_split_tunnel = args.get<bool>("--enable-split-tunnel");
     const auto tunnel_mode = args.get<std::string>("--split-tunnel-mode");
     const auto split_domains_str =
@@ -595,11 +589,9 @@ int main(int argc, char* argv[]) {
 
     /* plugins */
     std::vector<fptn::plugin::BasePluginPtr> client_plugins;
-#ifndef FPTN_OPENWRT
     if (enable_ad_block) {
       client_plugins.push_back(std::make_unique<fptn::plugin::AdBlock>());
     }
-#endif
     if (!blacklist_domains.empty()) {
       auto blacklist_plugin = std::make_unique<fptn::plugin::DomainBlacklist>(
           blacklist_domains, route_manager);

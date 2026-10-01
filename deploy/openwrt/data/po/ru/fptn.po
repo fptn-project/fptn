@@ -157,6 +157,12 @@ msgstr "Фейковый домен для обхода блокировок"
 msgid "Domain name sent in the TLS handshake instead of the real server address. Empty means rutube.ru. Pick a popular site that is not blocked where you are."
 msgstr "Домен, который отправляется в TLS-рукопожатии вместо настоящего адреса сервера. Пустое значение означает rutube.ru. Выберите популярный сайт, который у вас не заблокирован."
 
+msgid "Block ads"
+msgstr "Блокировать рекламу"
+
+msgid "Blocks ad and tracker domains using a built-in list of about 75 000 names. The list needs around 10 MB of RAM; if the router does not have enough, the client writes a warning to the log and keeps working without blocking."
+msgstr "Блокирует рекламные и следящие домены по встроенному списку примерно из 75 000 имен. Списку нужно около 10 МБ оперативной памяти; если на роутере ее не хватит, клиент напишет предупреждение в журнал и продолжит работать без блокировки."
+
 msgid "Use FPTN DNS"
 msgstr "Использовать DNS FPTN"
 

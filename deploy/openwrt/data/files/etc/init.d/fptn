@@ -155,6 +155,7 @@ start_service() {
 	append_option bypass_method bypass-method
 	append_option connection_strategy connection-strategy
 	append_option mtu_size mtu-size
+	append_bool enable_ad_block enable-ad-block 1
 
 	append_bool enable_split_tunnel enable-split-tunnel 1
 	append_option split_tunnel_mode split-tunnel-mode

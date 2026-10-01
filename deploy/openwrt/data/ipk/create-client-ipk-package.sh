@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
 print_usage() {
-    echo "Usage: $0 <fptn-client-cli-path> <version> <arch> <strip-tool> <openwrt-version> <fptn-tcp-probe-path>"
+    echo "Usage: $0 <fptn-client-cli-path> <version> <arch> <strip-tool> <openwrt-version> <fptn-tcp-probe-path> <split-tunnel-domains>"
     exit 1
 }
 
-if [ "$#" -ne 6 ]; then
+if [ "$#" -ne 7 ]; then
     print_usage
 fi
 
@@ -15,6 +15,7 @@ ARCH="$3"
 STRIP_TOOL="$4"
 OPENWRT_VERSION="$5"
 PROBER_CLI="$6"
+SPLIT_TUNNEL_DOMAINS="$7"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SHARED_DIR="$(dirname "$SCRIPT_DIR")"
@@ -42,6 +43,10 @@ cp -a "$SHARED_DIR/files/etc" "$CLIENT_TMP_DIR/"
 chmod 755 "$CLIENT_TMP_DIR/etc/init.d/fptn"
 chmod 755 "$CLIENT_TMP_DIR/etc/uci-defaults/99-fptn"
 chmod 644 "$CLIENT_TMP_DIR/etc/config/fptn"
+
+{ echo "$SPLIT_TUNNEL_DOMAINS" | tr ',' '\n'; cat "$SHARED_DIR/../../domain_blacklist/russia.txt"; } |
+    awk 'NF && !seen[$0]++ { printf "\tlist split_tunnel_domains '\''%s'\''\n", $0 }' \
+    >> "$CLIENT_TMP_DIR/etc/config/fptn"
 
 cp -a "$SHARED_DIR/luci/." "$CLIENT_TMP_DIR/"
 sed -i "s/@FPTN_VERSION@/${VERSION}/" "$CLIENT_TMP_DIR/www/luci-static/resources/view/fptn/main.js"

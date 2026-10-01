@@ -6,6 +6,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include "plugins/adblock/adblock.h"
 
+#include <new>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -83,28 +84,34 @@ std::string ParseBlocklistLine(std::string line) {
 }
 
 std::unordered_set<std::string> LoadEmbeddedBlocklist() {
-  std::unordered_set<std::string> domains;
-  const std::string list = Gunzip(kBlocklistGz, kBlocklistGzLen);
-  if (list.empty()) {
-    SPDLOG_WARN(
-        "Ad-block list could not be decompressed; ad blocking inactive");
-    return domains;
-  }
+  try {
+    std::unordered_set<std::string> domains;
+    const std::string list = Gunzip(kBlocklistGz, kBlocklistGzLen);
+    if (list.empty()) {
+      SPDLOG_WARN(
+          "Ad-block list could not be decompressed; ad blocking inactive");
+      return domains;
+    }
 
-  std::size_t start = 0;
-  while (start < list.size()) {
-    std::size_t nl = list.find('\n', start);
-    if (nl == std::string::npos) {
-      nl = list.size();
+    std::size_t start = 0;
+    while (start < list.size()) {
+      std::size_t nl = list.find('\n', start);
+      if (nl == std::string::npos) {
+        nl = list.size();
+      }
+      std::string domain = ParseBlocklistLine(list.substr(start, nl - start));
+      if (!domain.empty()) {
+        domains.insert(std::move(domain));
+      }
+      start = nl + 1;
     }
-    std::string domain = ParseBlocklistLine(list.substr(start, nl - start));
-    if (!domain.empty()) {
-      domains.insert(std::move(domain));
-    }
-    start = nl + 1;
+    SPDLOG_INFO("Ad-block list loaded [domains={}]", domains.size());
+    return domains;
+  } catch (const std::bad_alloc&) {
+    SPDLOG_WARN(
+        "Not enough memory for the ad-block list; ad blocking inactive");
+    return {};
   }
-  SPDLOG_INFO("Ad-block list loaded [domains={}]", domains.size());
-  return domains;
 }
 
 }  // namespace

@@ -1,8 +1,14 @@
 if(NOT EXISTS "${GZ}")
-  set(SOURCES
-      "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/ultimate-onlydomains.txt"
-      "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
-  )
+  set(HOSTS_LIST
+      "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts")
+  set(WILDCARD_LIST
+      "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/ultimate-onlydomains.txt")
+
+  if(FPTN_OPENWRT)
+    set(SOURCES "${HOSTS_LIST}")
+  else()
+    set(SOURCES "${WILDCARD_LIST}" "${HOSTS_LIST}")
+  endif()
 
   set(MAX_ATTEMPTS 10)
   set(RETRY_DELAY 5)

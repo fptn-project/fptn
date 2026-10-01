@@ -858,6 +858,14 @@ return view.extend({
 		o.default = '1';
 		o.rmempty = false;
 
+		o = s.taboption('routing', form.Flag, 'enable_ad_block', _('Block ads'),
+			_('Blocks ad and tracker domains using a built-in list of about ' +
+			'75 000 names. The list needs around 10 MB of RAM; if the router ' +
+			'does not have enough, the client writes a warning to the log and ' +
+			'keeps working without blocking.'));
+		o.default = '1';
+		o.rmempty = false;
+
 		o = s.taboption('routing', form.Flag, 'enable_split_tunnel',
 			_('Enable split tunneling'),
 			_('When enabled, you can configure which sites use VPN and which go directly.'));

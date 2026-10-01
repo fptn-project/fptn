@@ -28,23 +28,20 @@ find_library(BROTLI_DEC_LIB NAMES brotlidec REQUIRED)
 find_library(BROTLI_COMMON_LIB NAMES brotlicommon REQUIRED)
 find_library(BROTLI_ENC_LIB NAMES brotlienc REQUIRED)
 
-if (FPTN_OPENWRT)
-  set(ADBLOCK_SOURCES "")
-else()
-  set(ADBLOCK_BLOCKLIST_GZ "${CMAKE_CURRENT_BINARY_DIR}/blocklist.gz")
-  set(ADBLOCK_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/blocklist_data.generated.cpp")
-  add_custom_command(
-    OUTPUT "${ADBLOCK_GENERATED}"
-    COMMAND ${CMAKE_COMMAND} -DGZ=${ADBLOCK_BLOCKLIST_GZ}
-            -DOUTPUT=${ADBLOCK_GENERATED} -DSYMBOL=kBlocklistGz
-            -P "${CMAKE_SOURCE_DIR}/depends/cmake/FetchBlocklist.cmake"
-    DEPENDS "${CMAKE_SOURCE_DIR}/depends/cmake/FetchBlocklist.cmake"
-    COMMENT "Downloading and embedding ad-block domain list"
-    VERBATIM)
-  set_source_files_properties(
-    "${ADBLOCK_GENERATED}" PROPERTIES GENERATED TRUE SKIP_CLANG_TIDY ON)
-  set(ADBLOCK_SOURCES plugins/adblock/adblock.h plugins/adblock/adblock.cpp "${ADBLOCK_GENERATED}")
-endif()
+set(ADBLOCK_BLOCKLIST_GZ "${CMAKE_CURRENT_BINARY_DIR}/blocklist.gz")
+set(ADBLOCK_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/blocklist_data.generated.cpp")
+add_custom_command(
+  OUTPUT "${ADBLOCK_GENERATED}"
+  COMMAND ${CMAKE_COMMAND} -DGZ=${ADBLOCK_BLOCKLIST_GZ}
+          -DOUTPUT=${ADBLOCK_GENERATED} -DSYMBOL=kBlocklistGz
+          -DFPTN_OPENWRT=${FPTN_OPENWRT}
+          -P "${CMAKE_SOURCE_DIR}/depends/cmake/FetchBlocklist.cmake"
+  DEPENDS "${CMAKE_SOURCE_DIR}/depends/cmake/FetchBlocklist.cmake"
+  COMMENT "Downloading and embedding ad-block domain list"
+  VERBATIM)
+set_source_files_properties(
+  "${ADBLOCK_GENERATED}" PROPERTIES GENERATED TRUE SKIP_CLANG_TIDY ON)
+set(ADBLOCK_SOURCES plugins/adblock/adblock.h plugins/adblock/adblock.cpp "${ADBLOCK_GENERATED}")
 
 set(SPLIT_TUNNEL_DOMAINS_LIST "${CMAKE_SOURCE_DIR}/deploy/domain_blacklist/russia.txt")
 set(SPLIT_TUNNEL_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/split_tunnel_domains.generated.h")
