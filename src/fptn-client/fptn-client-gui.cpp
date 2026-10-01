@@ -106,7 +106,7 @@ int main(int argc, char* argv[]) {
 
     // Clean resources
     tray.stop();
-    spdlog::shutdown();
+    // No spdlog::shutdown(): a detached ApiClient worker may still be logging.
     return code;
   } catch (const std::exception& ex) {
     SPDLOG_ERROR("An error occurred: {}. Exiting...", ex.what());
