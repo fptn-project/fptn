@@ -357,7 +357,9 @@ class GenericTunInterface final
 
 }  // namespace fptn::common::network
 // Platform-specific TUN device includes (outside namespace to avoid nesting)
-#if defined(__APPLE__)
+#if defined(FPTN_USERSPACE_TUN)
+#include "fptn-vless/userspace_tun_device.h"
+#elif defined(__APPLE__)
 #include "common/network/tun/darwin_tun_device.h"
 
 #elif defined(__linux__)
@@ -368,7 +370,9 @@ class GenericTunInterface final
 
 namespace fptn::common::network {
 // Platform-specific TUN interface aliases
-#if defined(__APPLE__)
+#if defined(FPTN_USERSPACE_TUN)
+using TunInterface = GenericTunInterface<UserspaceTunDevice>;
+#elif defined(__APPLE__)
 using TunInterface = GenericTunInterface<DarwinTunDevice>;
 #elif defined(__linux__)
 using TunInterface = GenericTunInterface<LinuxTunDevice>;
