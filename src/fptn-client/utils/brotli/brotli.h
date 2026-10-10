@@ -6,6 +6,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #pragma once
 
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -20,12 +21,18 @@ inline std::string Decompress(const std::string& compressed_data) {
     std::vector<std::uint8_t> decoded_buffer(decoded_size);
     std::size_t available_out = decoded_size;
 
-    const BROTLI_BOOL result = BrotliDecoderDecompress(encoded_size,
+    const BrotliDecoderResult result = BrotliDecoderDecompress(encoded_size,
         reinterpret_cast<const uint8_t*>(compressed_data.data()),
         &available_out, decoded_buffer.data());
-    if (result == BROTLI_TRUE) {
+    if (result == BROTLI_DECODER_RESULT_SUCCESS) {
       return std::string(
           reinterpret_cast<char*>(decoded_buffer.data()), available_out);
+    }
+    if (result != BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT) {
+      // A corrupt or truncated stream never becomes decodable by growing the
+      // buffer; without this check the loop doubles it until the OOM killer
+      // reaps the whole client.
+      throw std::runtime_error("Brotli decompression failed: corrupt stream");
     }
     decoded_size *= 2;
   }
