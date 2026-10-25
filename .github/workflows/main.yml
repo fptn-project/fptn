@@ -13,6 +13,7 @@ env:
   IMAGE_NAME: fptn-vpn-server
 jobs:
   build_ubuntu_x86_64:
+    if: false
     runs-on: Ubuntu_x86_64
     steps:
       - name: Checkout code
@@ -255,6 +256,7 @@ jobs:
             *.pkg
           if-no-files-found: warn
   build_windows_AMD64:
+    if: false
     runs-on: Windows11_AMD64
     steps:
       - name: Checkout code
@@ -344,6 +346,7 @@ jobs:
           if-no-files-found: warn
 
   build_openwrt:
+    if: false
     runs-on: Docker_AMD64
     strategy:
       matrix:
@@ -443,7 +446,7 @@ jobs:
 
   deploy_website:
     if: github.event_name == 'release' || github.ref == 'refs/heads/master'
-    needs: [build_ubuntu_x86_64, build_ubuntu_arm64, build_macos_arm64, build_windows_AMD64, build_openwrt]
+    needs: [build_ubuntu_arm64, build_macos_arm64]
     runs-on: ubuntu-latest
     permissions:
       contents: read

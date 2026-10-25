@@ -97,9 +97,11 @@ int main(int argc, char* argv[]) {
 #endif
 
     QApplication app(argc, argv);
-    const int font_id = QFontDatabase::addApplicationFont(":/fonts/Vazirmatn-Regular.ttf");
+    const int font_id =
+        QFontDatabase::addApplicationFont(":/fonts/Vazirmatn-Regular.ttf");
     if (font_id != -1) {
-      const QStringList families = QFontDatabase::applicationFontFamilies(font_id);
+      const QStringList families =
+          QFontDatabase::applicationFontFamilies(font_id);
       if (!families.isEmpty()) {
         QFont default_font(families.first());
         default_font.setStyleHint(QFont::SansSerif);
@@ -108,7 +110,9 @@ int main(int argc, char* argv[]) {
     }
     const auto settings =
         std::make_shared<fptn::gui::SettingsModel>(
-            QMap<QString, QString>{{"en", "English"}, {"ru", "Русский"}, {"fa", "فارسی"}});
+            QMap<QString, QString>{{"en", "English"},
+                                   {"ru", "Русский"},
+                                   {"fa", "فارسی"}});
 
     // Start GUI app
     fptn::gui::TrayApp tray(settings);
