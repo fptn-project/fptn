@@ -11,8 +11,11 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 #include <iostream>
 #include <memory>
 
-#include <QApplication>   // NOLINT(build/include_order)
-#include <QStyleFactory>  // NOLINT(build/include_order)
+#include <QApplication>    // NOLINT(build/include_order)
+#include <QFont>           // NOLINT(build/include_order)
+#include <QFontDatabase>   // NOLINT(build/include_order)
+#include <QStringList>     // NOLINT(build/include_order)
+#include <QStyleFactory>   // NOLINT(build/include_order)
 
 #include "common/logger/logger.h"
 
@@ -94,9 +97,18 @@ int main(int argc, char* argv[]) {
 #endif
 
     QApplication app(argc, argv);
+    const int font_id = QFontDatabase::addApplicationFont(":/fonts/Vazirmatn-Regular.ttf");
+    if (font_id != -1) {
+      const QStringList families = QFontDatabase::applicationFontFamilies(font_id);
+      if (!families.isEmpty()) {
+        QFont default_font(families.first());
+        default_font.setStyleHint(QFont::SansSerif);
+        QApplication::setFont(default_font);
+      }
+    }
     const auto settings =
         std::make_shared<fptn::gui::SettingsModel>(
-            QMap<QString, QString>{{"en", "English"}, {"ru", "Русский"}});
+            QMap<QString, QString>{{"en", "English"}, {"ru", "Русский"}, {"fa", "فارسی"}});
 
     // Start GUI app
     fptn::gui::TrayApp tray(settings);

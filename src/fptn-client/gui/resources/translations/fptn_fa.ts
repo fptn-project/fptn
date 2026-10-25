@@ -43,7 +43,7 @@
 
         <message>
             <source>Unable to find the default gateway IP address. Please check your connection and make sure no other VPN is active. If the error persists, specify the gateway address in the FPTN settings using your router's IP address, and ensure that an active internet interface (adapter) is selected. If the issue remains unresolved, please contact the developer via Telegram @fptn_chat.</source>
-            <translation>آدرس IP پیش‌فرض网关 یافت نشد. لطفاً اتصال خود را بررسی کرده و مطمئن شوید که هیچ VPN دیگری فعال نیست. در صورت ادامه خطا، آدرس网关 را در تنظیمات FPTN با استفاده از آدرس IP روتر خود مشخص کنید و مطمئن شوید که یک رابط (آداپتور) اینترنتی فعال انتخاب شده است. اگر مشکل همچنان پابرجا بود، از طریق تلگرام @fptn_chat با توسعه‌دهنده تماس بگیرید.</translation>
+            <translation>آدرس IP دروازه پیش‌فرض یافت نشد. لطفاً اتصال خود را بررسی کرده و مطمئن شوید که هیچ VPN دیگری فعال نیست. در صورت ادامه خطا، آدرس دروازه را در تنظیمات FPTN با استفاده از آدرس IP روتر خود مشخص کنید و مطمئن شوید که یک رابط (آداپتور) اینترنتی فعال انتخاب شده است. اگر مشکل همچنان پابرجا بود، از طریق تلگرام @fptn_chat با توسعه‌دهنده تماس بگیرید.</translation>
         </message>
         <message>
             <source>Configuration error</source>
@@ -67,7 +67,7 @@
         </message>
         <message>
             <source>The server did not respond in time (operation timeout). Please try again.</source>
-            <translation>سرور به‌موقع پاسخ نداد (اتمام زمان عملیات). لطفاً دوباره تلاش کنید.</translation>
+            <translation>سرور در زمان مقرر پاسخ نداد (پایان زمان عملیات). لطفاً دوباره تلاش کنید.</translation>
         </message>
         <message>
             <source>DNS server error! Check your connection!</source>
@@ -84,7 +84,7 @@
         </message>
         <message>
             <source>Gateway IP Address (typically your router's address)</source>
-            <translation>آدرس IP网关 (معمولاً آدرس روتر شما)</translation>
+            <translation>آدرس IP دروازه (معمولاً آدرس روتر شما)</translation>
         </message>
         <message>
             <source>Service name</source>
@@ -573,7 +573,7 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
         </message>
         <message>
             <source>Enable advanced DNS management</source>
-            <translation>فعال کردن مدیریت پیشرفته DNS (آزمایشی)</translation>
+            <translation>فعال کردن مدیریت پیشرفته DNS</translation>
         </message>
         <message>
             <source>Enables advanced DNS configuration to prevent leaks. Recommended when using split tunneling. Use with caution!</source>

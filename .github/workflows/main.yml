@@ -48,10 +48,16 @@ jobs:
       - name: Run cmake-format
         run: |
           cmake-format -i CMakeLists.txt src/fptn-client/CMakeLists.txt src/fptn-passwd/CMakeLists.txt src/fptn-server/CMakeLists.txt src/fptn-protocol-lib/CMakeLists.txt depends/cmake/FetchBase64.cmake depends/cmake/FetchLibTunTap.cmake depends/cmake/FetchWintun.cmake
-      - name: Build
+      - name: Configure CMake
         run: |
           cd build
           cmake .. -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release
+      - name: Patch camouflage-tls (missing <algorithm>)
+        run: |
+          python3 scripts/patch_camouflage_tls.py
+      - name: Build
+        run: |
+          cd build
           cmake --build .
       - name: Test
         run: |
@@ -132,10 +138,16 @@ jobs:
       - name: Run cmake-format
         run: |
           cmake-format -i CMakeLists.txt src/fptn-client/CMakeLists.txt src/fptn-passwd/CMakeLists.txt src/fptn-server/CMakeLists.txt src/fptn-protocol-lib/CMakeLists.txt depends/cmake/FetchBase64.cmake depends/cmake/FetchLibTunTap.cmake depends/cmake/FetchWintun.cmake
-      - name: Build
+      - name: Configure CMake
         run: |
           cd build
           cmake .. -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release
+      - name: Patch camouflage-tls (missing <algorithm>)
+        run: |
+          python3 scripts/patch_camouflage_tls.py
+      - name: Build
+        run: |
+          cd build
           cmake --build .
       - name: Test
         run: |
@@ -210,10 +222,16 @@ jobs:
       - name: Run cmake-format
         run: |
           cmake-format -i CMakeLists.txt src/fptn-client/CMakeLists.txt src/fptn-passwd/CMakeLists.txt src/fptn-server/CMakeLists.txt src/fptn-protocol-lib/CMakeLists.txt depends/cmake/FetchBase64.cmake depends/cmake/FetchLibTunTap.cmake depends/cmake/FetchWintun.cmake
-      - name: Build
+      - name: Configure CMake
         run: |
           cd build
           cmake .. -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release
+      - name: Patch camouflage-tls (missing <algorithm>)
+        run: |
+          python3 scripts/patch_camouflage_tls.py
+      - name: Build
+        run: |
+          cd build
           cmake --build .
       - name: Test
         run: |
@@ -282,11 +300,19 @@ jobs:
         shell: powershell
         run: |
           cmake-format -i CMakeLists.txt src/fptn-client/CMakeLists.txt src/fptn-passwd/CMakeLists.txt src/fptn-server/CMakeLists.txt src/fptn-protocol-lib/CMakeLists.txt depends/cmake/FetchBase64.cmake depends/cmake/FetchLibTunTap.cmake depends/cmake/FetchWintun.cmake
-      - name: Build
+      - name: Configure CMake
         shell: powershell
         run: |
           cd build
           cmake .. -G "Visual Studio 17 2022" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release
+      - name: Patch camouflage-tls (missing <algorithm>)
+        shell: powershell
+        run: |
+          python scripts/patch_camouflage_tls.py
+      - name: Build
+        shell: powershell
+        run: |
+          cd build
           cmake --build . --config Release
       - name: Test
         shell: powershell
