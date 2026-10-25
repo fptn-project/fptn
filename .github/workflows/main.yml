@@ -38,6 +38,12 @@ jobs:
           echo "FPTN_VERSION=$DEV_VERSION" >> $GITHUB_ENV
           echo "Dev version: $DEV_VERSION"
       - name: Install dependencies
+        env:
+          CONAN_DOWNLOAD_TIMEOUT: "300"
+          CONAN_READ_TIMEOUT: "300"
+          CONAN_TIMEOUT: "300"
+          CONAN_RETRY: "5"
+          CONAN_RETRY_WAIT: "10"
         run: |
           conan install . --output-folder=build --build=missing -o with_gui_client=True --settings build_type=Release -s compiler.cppstd=17 -c "tools.build:defines=['QT_NO_INT128']"
       - name: Run cpplint
