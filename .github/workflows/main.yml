@@ -136,6 +136,25 @@ jobs:
             echo "tools.files.download:retry=5"
             echo "tools.files.download:retry_wait=10"
           } >> $HOME/.conan2/global.conf
+      - name: Pre-download elfutils source
+        run: |
+          ELFUTILS_SRC="$HOME/.conan2/p/elfut898c51d349c5a/s/src"
+          mkdir -p "$ELFUTILS_SRC"
+          if [ -f "$ELFUTILS_SRC/configure" ]; then
+            echo "Already extracted"
+          else
+            echo "Downloading elfutils-0.190.tar.bz2 with extended timeout..."
+            curl -L -o /tmp/elfutils-0.190.tar.bz2 \
+              --retry 10 \
+              --retry-delay 15 \
+              --retry-max-time 600 \
+              --connect-timeout 60 \
+              --max-time 600 \
+              https://sourceware.org/elfutils/ftp/0.190/elfutils-0.190.tar.bz2
+            cd "$ELFUTILS_SRC"
+            tar xjf /tmp/elfutils-0.190.tar.bz2 --strip-components=1
+            echo "Downloaded and extracted to $ELFUTILS_SRC"
+          fi
       - name: Install dependencies
         run: |
           conan install . --output-folder=build --build=missing -o with_gui_client=True --settings build_type=Release -s compiler.cppstd=17 -c "tools.build:defines=['QT_NO_INT128']"
