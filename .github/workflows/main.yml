@@ -13,7 +13,6 @@ env:
   IMAGE_NAME: fptn-vpn-server
 jobs:
   build_ubuntu_x86_64:
-    if: false
     runs-on: Ubuntu_x86_64
     steps:
       - name: Checkout code
@@ -104,6 +103,7 @@ jobs:
           git clean -ffdx || true
 
   build_ubuntu_arm64:
+    if: false
     runs-on: Ubuntu_ARM64_Desktop
     steps:
       - name: Checkout code
@@ -475,7 +475,7 @@ jobs:
 
   deploy_website:
     if: github.event_name == 'release' || github.ref == 'refs/heads/master'
-    needs: [build_ubuntu_arm64]
+    needs: [build_ubuntu_x86_64]
     runs-on: ubuntu-latest
     permissions:
       contents: read
