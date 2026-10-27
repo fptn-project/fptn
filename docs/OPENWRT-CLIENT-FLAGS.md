@@ -159,6 +159,7 @@ again next time. It stays out only while it stays slow.
 | `--disable-routing` | off | Do not touch the system routes: the interface comes up, the default route stays someone else's |
 | `--socks-route-table` | `1080` | Routing table id used for SOCKS traffic |
 | `--socks-max-sessions` | from the descriptor limit | Cap on simultaneous SOCKS sessions. By default derived from the process `RLIMIT_NOFILE`: two descriptors per session plus headroom, which is 1920 at a limit of 4096 |
+| `--max-reconnects` | `0` with `--socks-listen`, `10` otherwise | Full reconnects before the client gives up and exits. `0` never gives up: the tunnel is retried every 30 s for as long as it takes, and the startup login and the server address lookup are retried with a 5 → 60 s backoff instead of exiting. A daemon such as ZeroBlock does not start a helper that has left, so in SOCKS mode the client stays |
 | `--routing-mark` | — | `SO_MARK` (hex or decimal) on every outgoing socket, so firewall rules can keep the client's traffic out of DPI bypass and transparent proxying, e.g. `0x40000000` |
 
 The port opens **immediately at startup**, before the login race: connections
