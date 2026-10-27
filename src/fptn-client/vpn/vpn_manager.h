@@ -36,6 +36,10 @@ class VpnManager final {
     fptn::routing::RouteManagerSPtr route_manager;
     fptn::common::network::TunInterfaceSPtr virtual_net_interface;
     fptn::plugin::PluginList plugins;
+    // How many full restarts the supervisor makes before giving up and
+    // letting the process end. 0 means never give up: a helper run by a
+    // daemon that does not start it again has to outlive any outage.
+    int max_full_restarts = 10;
   };
 
  public:
@@ -86,7 +90,6 @@ class VpnManager final {
  private:
   mutable std::mutex mutex_;
   mutable std::mutex queue_mutex_;
-  static constexpr int kMaxFullRestarts_ = 10;
 
   std::atomic<bool> running_;
   std::atomic<bool> ever_connected_;

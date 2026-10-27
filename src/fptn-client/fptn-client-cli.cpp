@@ -457,6 +457,24 @@ std::optional<fptn::utils::speed_estimator::LoginResult> SelectServer(
 constexpr int kStartupLoginAttempts = 3;
 constexpr std::chrono::seconds kStartupRetryDelay{5};
 
+// Pause between startup attempts when the client must not give up: short at
+// first, so a brief outage costs little, then capped so a long one does not
+// hammer the servers.
+std::chrono::seconds StartupBackoff(int attempt) {
+  switch (attempt) {
+    case 1:
+      return std::chrono::seconds(5);
+    case 2:
+      return std::chrono::seconds(10);
+    case 3:
+      return std::chrono::seconds(20);
+    case 4:
+      return std::chrono::seconds(30);
+    default:
+      return std::chrono::seconds(60);
+  }
+}
+
 // A scheduled sweep over the whole pool. Without it the registry holds a
 // single measurement - the one taken while picking a server at startup - and
 // the server list shows long-stale numbers. A server that was down at launch
@@ -1052,6 +1070,14 @@ int RunClient(int argc, char* argv[]) {
         .help(
             "Limit of simultaneous SOCKS5 sessions. 0 (default) derives it "
             "from the file descriptor limit of the process");
+    args.add_argument("--max-reconnects")
+        .default_value(-1)
+        .scan<'i', int>()
+        .help(
+            "Full reconnects before the client gives up and exits. 0 never "
+            "gives up and keeps retrying the startup login as well. Default: "
+            "0 with --socks-listen (the daemon running the helper does not "
+            "start it again), 10 otherwise");
     args.add_argument("--socks-route-table")
         .default_value(1080)
         .scan<'i', int>()
@@ -1158,6 +1184,11 @@ int RunClient(int argc, char* argv[]) {
 
     const auto socks_listen = args.get<std::string>("--socks-listen");
     const bool socks_enabled = !socks_listen.empty();
+    int max_reconnects = args.get<int>("--max-reconnects");
+    if (max_reconnects < 0) {
+      max_reconnects = socks_enabled ? 0 : 10;
+    }
+    const bool never_give_up = max_reconnects == 0;
     const int socks_max_sessions_arg = args.get<int>("--socks-max-sessions");
     const std::size_t max_socks_sessions =
         socks_max_sessions_arg > 0
@@ -1496,18 +1527,28 @@ int RunClient(int argc, char* argv[]) {
         // start it again - the router then sits without a proxy until someone
         // restarts it by hand. So the pool is retried a few times first.
         std::optional<fptn::utils::speed_estimator::LoginResult> login_result;
-        for (int attempt = 1; attempt <= kStartupLoginAttempts; ++attempt) {
+        for (int attempt = 1;; ++attempt) {
           login_result =
               SelectServer(servers, sni, censorship_strategy, max_ping,
                   registry);
           if (login_result) {
             break;
           }
-          if (attempt < kStartupLoginAttempts) {
-            SPDLOG_WARN("No server answered (attempt {}/{}), retrying in {}s",
-                attempt, kStartupLoginAttempts, kStartupRetryDelay.count());
-            std::this_thread::sleep_for(kStartupRetryDelay);
+          if (never_give_up) {
+            // A helper that leaves is not started again: keep waiting for
+            // the uplink or the servers to come back instead.
+            const auto delay = StartupBackoff(attempt);
+            SPDLOG_WARN("No server answered (attempt {}), retrying in {}s",
+                attempt, delay.count());
+            std::this_thread::sleep_for(delay);
+            continue;
           }
+          if (attempt >= kStartupLoginAttempts) {
+            break;
+          }
+          SPDLOG_WARN("No server answered (attempt {}/{}), retrying in {}s",
+              attempt, kStartupLoginAttempts, kStartupRetryDelay.count());
+          std::this_thread::sleep_for(kStartupRetryDelay);
         }
         if (!login_result) {
           SPDLOG_ERROR("All servers unavailable!");
@@ -1524,7 +1565,14 @@ int RunClient(int argc, char* argv[]) {
     }
     // The route manager needs the chosen server address as well: it excludes
     // it from the tunnel, or the tunnel would run inside itself.
-    const auto server_ip = fptn::routing::ResolveDomain(selected_server.host);
+    auto server_ip = fptn::routing::ResolveDomain(selected_server.host);
+    for (int attempt = 1; server_ip.IsEmpty() && never_give_up; ++attempt) {
+      const auto delay = StartupBackoff(attempt);
+      SPDLOG_WARN("DNS resolve error: {} (attempt {}), retrying in {}s",
+          selected_server.host, attempt, delay.count());
+      std::this_thread::sleep_for(delay);
+      server_ip = fptn::routing::ResolveDomain(selected_server.host);
+    }
     if (server_ip.IsEmpty()) {
       SPDLOG_ERROR("DNS resolve error: {}", selected_server.host);
       return EXIT_FAILURE;
@@ -1672,7 +1720,8 @@ int RunClient(int argc, char* argv[]) {
         fptn::vpn::VpnManager::Config{.http_client = std::move(http_client),
             .route_manager = route_manager,
             .virtual_net_interface = virtual_network_interface,
-            .plugins = std::move(client_plugins)});
+            .plugins = std::move(client_plugins),
+            .max_full_restarts = max_reconnects});
 
     vpn_client.Start();
 

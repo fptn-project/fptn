@@ -68,7 +68,9 @@ bool VpnManager::IsReconnecting() const { return reconnecting_; }
 int VpnManager::ReconnectAttempt() const { return reconnect_attempt_; }
 
 // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
-int VpnManager::MaxReconnectAttempts() const { return kMaxFullRestarts_; }
+int VpnManager::MaxReconnectAttempts() const {
+  return config_.max_full_restarts;
+}
 
 bool VpnManager::Start() {
   if (running_) {
@@ -467,9 +469,10 @@ void VpnManager::Supervise() {
       continue;
     }
 
-    if (full_restart_count >= kMaxFullRestarts_) {
+    const int max_full_restarts = config_.max_full_restarts;
+    if (max_full_restarts > 0 && full_restart_count >= max_full_restarts) {
       SPDLOG_ERROR("VPN reconnection failed after {} full restarts. Giving up.",
-          kMaxFullRestarts_);
+          max_full_restarts);
       if (config_.route_manager) {
         config_.route_manager->Clean();
       }
@@ -479,8 +482,12 @@ void VpnManager::Supervise() {
     }
     ++full_restart_count;
     reconnect_attempt_ = full_restart_count;
-    SPDLOG_WARN(
-        "Full VPN restart {}/{}", full_restart_count, kMaxFullRestarts_);
+    if (max_full_restarts > 0) {
+      SPDLOG_WARN(
+          "Full VPN restart {}/{}", full_restart_count, max_full_restarts);
+    } else {
+      SPDLOG_WARN("Full VPN restart {} (no limit)", full_restart_count);
+    }
 
     std::string tun_name;
     {
