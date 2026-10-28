@@ -455,6 +455,9 @@ std::optional<fptn::utils::speed_estimator::LoginResult> SelectServer(
 // How many times the startup login race is retried before giving up, and how
 // long to wait between attempts.
 constexpr int kStartupLoginAttempts = 3;
+// Full restarts on the same server after which the tunnel counts as broken
+// there, whatever the probes say, and the sweep moves it elsewhere.
+constexpr int kFailoverAfterFullRestarts = 2;
 constexpr std::chrono::seconds kStartupRetryDelay{5};
 
 // Pause between startup attempts when the client must not give up: short at
@@ -619,6 +622,40 @@ std::optional<std::pair<ServerInfo, std::uint32_t>> BestServer(
     const fptn::client::status::ServerRegistry& registry) {
   std::optional<std::pair<ServerInfo, std::uint32_t>> best;
   for (const auto& server : registry.Servers()) {
+    const auto stats = registry.Stats(server);
+    if (!stats.alive || stats.average_ms == 0) {
+      continue;
+    }
+    if (!best || stats.average_ms < best->second) {
+      best = std::make_pair(server, stats.average_ms);
+    }
+  }
+  return best;
+}
+
+// Where to go when the current server has stopped working: the next of the
+// preferred servers that answers, in the order the user gave them, and only
+// then the fastest of the rest. Never the current server itself.
+std::optional<std::pair<ServerInfo, std::uint32_t>> NextWorkingServer(
+    const fptn::client::status::ServerRegistry& registry,
+    const std::vector<ServerInfo>& preferred,
+    const ServerInfo& current) {
+  using Registry = fptn::client::status::ServerRegistry;
+  const auto current_key = Registry::KeyOf(current);
+  for (const auto& server : preferred) {
+    if (Registry::KeyOf(server) == current_key) {
+      continue;
+    }
+    const auto stats = registry.Stats(server);
+    if (stats.alive && stats.average_ms != 0) {
+      return std::make_pair(server, stats.average_ms);
+    }
+  }
+  std::optional<std::pair<ServerInfo, std::uint32_t>> best;
+  for (const auto& server : registry.Servers()) {
+    if (Registry::KeyOf(server) == current_key) {
+      continue;
+    }
     const auto stats = registry.Stats(server);
     if (!stats.alive || stats.average_ms == 0) {
       continue;
@@ -1871,8 +1908,15 @@ int RunClient(int argc, char* argv[]) {
     // measurement does not outrank it), the route manager owns the routes so
     // an in-place switch is impossible, or the pool holds a single server and
     // there is nowhere to move.
-    const bool may_auto_switch =
-        !server_pinned && !route_manager && registry->Servers().size() > 1;
+    const bool may_move = !route_manager && registry->Servers().size() > 1;
+    const bool may_auto_switch = may_move && !server_pinned;
+    // A pin holds while its server works. When it stops working the tunnel
+    // still leaves it - to the next preferred server first: otherwise it sits
+    // on a dead node until someone restarts the client by hand.
+    const auto preferred_order =
+        preferred_server.empty()
+            ? std::vector<ServerInfo>{}
+            : FindPreferredServers(registry->Servers(), preferred_server).found;
 
     std::unique_ptr<PoolMonitor> pool_monitor;
     if (probe_interval > 0) {
@@ -1886,24 +1930,35 @@ int RunClient(int argc, char* argv[]) {
             // Fresh measurements are worth keeping whether or not they lead
             // to a move: they are what orders the pool on the next start.
             save_state(current);
-            if (!may_auto_switch || manually_pinned) {
+            if (!may_move) {
               return;
             }
-            const auto best = BestServer(*registry);
+            using Registry = fptn::client::status::ServerRegistry;
+            const auto stats = registry->Stats(current);
+            // Full restarts on this node keep failing: the tunnel is broken
+            // here even if the probe still gets an answer.
+            const bool tunnel_failing =
+                vpn_client.ReconnectAttempt() >= kFailoverAfterFullRestarts;
+            // Stopped answering, answers past the limit, or the tunnel cannot
+            // come up: leave now, without waiting out the tolerance or the gap
+            // between switches - and past a pin, by name or from the dashboard.
+            const bool current_broken =
+                !stats.alive || tunnel_failing ||
+                (max_ping > 0 &&
+                    stats.average_ms > static_cast<std::uint32_t>(max_ping));
+            if ((!may_auto_switch || manually_pinned) && !current_broken) {
+              return;
+            }
+            const auto best =
+                current_broken
+                    ? NextWorkingServer(*registry, preferred_order, current)
+                    : BestServer(*registry);
             if (!best) {
               return;  // nothing answered - the current server is all there is
             }
-            using Registry = fptn::client::status::ServerRegistry;
             if (Registry::KeyOf(best->first) == Registry::KeyOf(current)) {
               return;  // already on the fastest one
             }
-            const auto stats = registry->Stats(current);
-            // Stopped answering, or answers past the limit: leave now,
-            // without waiting out the tolerance or the gap between switches.
-            const bool current_broken =
-                !stats.alive ||
-                (max_ping > 0 &&
-                    stats.average_ms > static_cast<std::uint32_t>(max_ping));
             if (!current_broken) {
               if (switch_tolerance <= 0) {
                 return;  // moving on latency alone is switched off
@@ -1921,7 +1976,10 @@ int RunClient(int argc, char* argv[]) {
             SPDLOG_INFO("{} answers in {} ms against {} ms on {}{} - moving",
                 Registry::DisplayName(best->first), best->second,
                 stats.average_ms, Registry::DisplayName(current),
-                current_broken ? " (over the limit or dead)" : "");
+                current_broken
+                    ? (tunnel_failing ? " (tunnel keeps failing there)"
+                                      : " (over the limit or dead)")
+                    : "");
             switch_to(best->first);
           });
     }
