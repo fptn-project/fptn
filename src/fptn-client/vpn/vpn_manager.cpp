@@ -372,7 +372,9 @@ void VpnManager::Supervise() {
     if (full_restart_count >= kMaxFullRestarts_) {
       SPDLOG_ERROR("VPN reconnection failed after {} full restarts. Giving up.",
           kMaxFullRestarts_);
-      config_.route_manager->Clean();
+      if (config_.route_manager) {
+        config_.route_manager->Clean();
+      }
       reconnecting_ = false;
       gave_up_ = true;
       break;
@@ -392,7 +394,9 @@ void VpnManager::Supervise() {
 
     // Unlocked: the route manager guards itself, and holding mutex_ across
     // seconds of netsh/powershell freezes both packet paths.
-    config_.route_manager->Clean();
+    if (config_.route_manager) {
+      config_.route_manager->Clean();
+    }
 
     {
       std::unique_lock<std::mutex> lock(reconnect_mutex_);
@@ -403,7 +407,9 @@ void VpnManager::Supervise() {
       break;
     }
 
-    config_.route_manager->Apply(tun_name);
+    if (config_.route_manager) {
+      config_.route_manager->Apply(tun_name);
+    }
 
     {
       const std::unique_lock<std::mutex> lock(mutex_);  // mutex
