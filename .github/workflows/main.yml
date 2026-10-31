@@ -13,6 +13,7 @@ env:
   IMAGE_NAME: fptn-vpn-server
 jobs:
   build_ubuntu_x86_64:
+    if: false
     runs-on: Ubuntu_x86_64
     steps:
       - name: Checkout code
@@ -39,7 +40,6 @@ jobs:
       - name: Remove stale Qt 6.11.1 from cache
         run: |
           conan remove "qt/6.11.1" -c -f || true
-
       - name: Install dependencies
         run: |
           conan install . --output-folder=build --build=missing -o with_gui_client=True --settings build_type=Release -s compiler.cppstd=17 -c "tools.build:defines=['QT_NO_INT128']"
@@ -131,6 +131,9 @@ jobs:
           DEV_VERSION="$TAG-dev-$(date -u +%Y%m%d-%H%M%S)"
           echo "FPTN_VERSION=$DEV_VERSION" >> $GITHUB_ENV
           echo "Dev version: $DEV_VERSION"
+      - name: Remove stale Qt 6.11.1 from cache
+        run: |
+          conan remove "qt/6.11.1" -c -f || true
       - name: Configure Conan timeouts
         run: |
           mkdir -p $HOME/.conan2
@@ -220,7 +223,6 @@ jobs:
             --sbom=false .
 
   build_macos_arm64:
-    if: false
     runs-on: MacOS_ARM64
     steps:
       - name: Checkout code
@@ -244,6 +246,9 @@ jobs:
           DEV_VERSION="$TAG-dev-$(date -u +%Y%m%d-%H%M%S)"
           echo "FPTN_VERSION=$DEV_VERSION" >> $GITHUB_ENV
           echo "Dev version: $DEV_VERSION"
+      - name: Remove stale Qt 6.11.1 from cache
+        run: |
+          conan remove "qt/6.11.1" -c -f || true
       - name: Install dependencies
         run: |
           conan install . --output-folder=build --build=missing -o with_gui_client=True --settings build_type=Release -s compiler.cppstd=17 -c tools.cmake.cmaketoolchain:extra_variables="{'QT_NO_APPLE_SDK_AND_XCODE_CHECK': 'ON'}"
@@ -289,7 +294,6 @@ jobs:
             *.pkg
           if-no-files-found: warn
   build_windows_AMD64:
-    if: false
     runs-on: Windows11_AMD64
     steps:
       - name: Checkout code
@@ -320,6 +324,10 @@ jobs:
           $devVersion = "$tag-dev-$stamp"
           echo "FPTN_VERSION=$devVersion" >> $env:GITHUB_ENV
           Write-Output "Dev version: $devVersion"
+      - name: Remove stale Qt 6.11.1 from cache
+        shell: bash
+        run: |
+          conan remove "qt/6.11.1" -c -f || true
       - name: Install dependencies
         shell: powershell
         run: |
@@ -479,7 +487,7 @@ jobs:
 
   deploy_website:
     if: github.event_name == 'release' || github.ref == 'refs/heads/master'
-    needs: [build_ubuntu_x86_64]
+    needs: [build_macos_arm64, build_windows_AMD64]
     runs-on: ubuntu-latest
     permissions:
       contents: read
