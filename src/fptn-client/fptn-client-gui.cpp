@@ -97,7 +97,16 @@ int main(int argc, char* argv[]) {
 #endif
 
     QApplication app(argc, argv);
-    QFontDatabase::addApplicationFont(":/fonts/Vazirmatn-Regular.ttf");
+    const int font_id =
+        QFontDatabase::addApplicationFont(":/fonts/Vazirmatn-Regular.ttf");
+    if (font_id == -1) {
+      SPDLOG_ERROR("Failed to load Vazirmatn font from resources!");
+    } else {
+      const QStringList families =
+          QFontDatabase::applicationFontFamilies(font_id);
+      SPDLOG_INFO("Loaded font families: {}",
+          families.join(", ").toStdString());
+    }
     const auto settings =
         std::make_shared<fptn::gui::SettingsModel>(
             QMap<QString, QString>{{"en", "English"},

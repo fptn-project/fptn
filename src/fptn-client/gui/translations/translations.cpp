@@ -24,7 +24,6 @@ QTranslator& getTranslator() {
 bool fptn::gui::SetTranslation(const QString& language_code) {
   QFont font = QFontDatabase::systemFont(QFontDatabase::GeneralFont);
   if (language_code == "fa") {
-    font.setFamily("Vazirmatn");
     font.setStyleHint(QFont::SansSerif);
   }
   qApp->setFont(font);
