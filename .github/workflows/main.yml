@@ -36,9 +36,15 @@ jobs:
           DEV_VERSION="$TAG-dev-$(date -u +%Y%m%d-%H%M%S)"
           echo "FPTN_VERSION=$DEV_VERSION" >> $GITHUB_ENV
           echo "Dev version: $DEV_VERSION"
+      - name: Clean Qt cache (force rebuild with new options)
+        run: |
+          conan cache clean qt/6.11.1 || true
+          conan cache clean harfbuzz || true
+          conan cache clean fontconfig || true
+
       - name: Install dependencies
         run: |
-          conan install . --output-folder=build --build=missing -o with_gui_client=True --settings build_type=Release -s compiler.cppstd=17 -c "tools.build:defines=['QT_NO_INT128']"
+          conan install . --output-folder=build --build=qt -o with_gui_client=True --settings build_type=Release -s compiler.cppstd=17 -c "tools.build:defines=['QT_NO_INT128']"
       - name: Run cpplint
         run: |
           python3 cpplint.py --recursive --filter=-build/c++17,-whitespace/newline,-readability/braces --counting=total ./src/ ./tests/
