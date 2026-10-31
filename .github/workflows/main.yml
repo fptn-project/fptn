@@ -38,8 +38,9 @@ jobs:
           echo "FPTN_VERSION=$DEV_VERSION" >> $GITHUB_ENV
           echo "Dev version: $DEV_VERSION"
       - name: Remove stale Qt 6.11.1 from cache
+        continue-on-error: true
         run: |
-          conan remove "qt/6.11.1" -c -f || true
+          conan remove "qt/6.11.1" -c
       - name: Install dependencies
         run: |
           conan install . --output-folder=build --build=missing -o with_gui_client=True --settings build_type=Release -s compiler.cppstd=17 -c "tools.build:defines=['QT_NO_INT128']"
@@ -132,8 +133,9 @@ jobs:
           echo "FPTN_VERSION=$DEV_VERSION" >> $GITHUB_ENV
           echo "Dev version: $DEV_VERSION"
       - name: Remove stale Qt 6.11.1 from cache
+        continue-on-error: true
         run: |
-          conan remove "qt/6.11.1" -c -f || true
+          conan remove "qt/6.11.1" -c
       - name: Configure Conan timeouts
         run: |
           mkdir -p $HOME/.conan2
@@ -247,8 +249,9 @@ jobs:
           echo "FPTN_VERSION=$DEV_VERSION" >> $GITHUB_ENV
           echo "Dev version: $DEV_VERSION"
       - name: Remove stale Qt 6.11.1 from cache
+        continue-on-error: true
         run: |
-          conan remove "qt/6.11.1" -c -f || true
+          conan remove "qt/6.11.1" -c
       - name: Install dependencies
         run: |
           conan install . --output-folder=build --build=missing -o with_gui_client=True --settings build_type=Release -s compiler.cppstd=17 -c tools.cmake.cmaketoolchain:extra_variables="{'QT_NO_APPLE_SDK_AND_XCODE_CHECK': 'ON'}"
@@ -325,9 +328,11 @@ jobs:
           echo "FPTN_VERSION=$devVersion" >> $env:GITHUB_ENV
           Write-Output "Dev version: $devVersion"
       - name: Remove stale Qt 6.11.1 from cache
-        shell: bash
+        continue-on-error: true
+        shell: powershell
         run: |
-          conan remove "qt/6.11.1" -c -f || true
+          conan remove "qt/6.11.1" -c
+          if ($LASTEXITCODE -ne 0) { Write-Host "Qt 6.11.1 not in cache or already removed" }
       - name: Install dependencies
         shell: powershell
         run: |
