@@ -36,11 +36,9 @@ jobs:
           DEV_VERSION="$TAG-dev-$(date -u +%Y%m%d-%H%M%S)"
           echo "FPTN_VERSION=$DEV_VERSION" >> $GITHUB_ENV
           echo "Dev version: $DEV_VERSION"
-      - name: Clean Qt cache (force rebuild with new options)
+      - name: Remove stale Qt 6.11.1 from cache
         run: |
-          conan cache clean qt/6.11.1 || true
-          conan cache clean harfbuzz || true
-          conan cache clean fontconfig || true
+          conan remove "qt/6.11.1" -c -f || true
 
       - name: Install dependencies
         run: |

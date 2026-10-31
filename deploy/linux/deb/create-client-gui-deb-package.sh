@@ -46,15 +46,31 @@ mkdir -p "$QT_PLUGINS_DIR/platforms"
 mkdir -p "$QT_PLUGINS_DIR/imageformats"
 mkdir -p "$QT_PLUGINS_DIR/styles"
 
-# Copy Qt libraries (libQt6*.so*)
-find ~/.conan2 -name "libQt6*.so*" -print0 | xargs -0 cp -av -t "$QT_LIBS_DIR" 2>/dev/null || echo "WARNING: Qt libs not found in ~/.conan2"
+# Find the newest Qt package directory by looking for versioned libQt6Core.so
+# This avoids mixing different Qt versions (e.g., 6.7.3 and 6.11.1)
+QT_CORE_SO=$(find ~/.conan2 -name "libQt6Core.so.6.*" -printf "%T@ %p\n" 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
 
-# Copy Qt plugins to correct subdirectories (preserve relative structure)
-find ~/.conan2 -name "libq*.so" -path "*/plugins/*" -print0 2>/dev/null | while IFS= read -r -d '' file; do
-    # Extract the subdirectory name (e.g., 'platforms', 'imageformats')
-    subdir=$(echo "$file" | sed 's|.*/plugins/||' | xargs dirname)
-    mkdir -p "$QT_PLUGINS_DIR/$subdir"
-    cp -av "$file" "$QT_PLUGINS_DIR/$subdir/" 2>/dev/null || true
+if [ -z "$QT_CORE_SO" ]; then
+    echo "ERROR: Could not find versioned libQt6Core.so in ~/.conan2"
+    exit 1
+fi
+
+QT_PKG_DIR=$(dirname "$QT_CORE_SO")         # .../p/lib
+QT_PACKAGE_ROOT=$(dirname "$QT_PKG_DIR")     # .../p
+QT_BUILD_ROOT=$(dirname "$QT_PACKAGE_ROOT")  # .../b
+echo "Using Qt from: $QT_PKG_DIR"
+
+# Copy Qt libraries only from the identified directory
+cp -av "$QT_PKG_DIR"/libQt6*.so* "$QT_LIBS_DIR" 2>/dev/null || echo "WARNING: Qt libs not found"
+
+# Copy Qt plugins - check multiple possible locations
+for plugin_dir in \
+    "$QT_PACKAGE_ROOT/plugins" \
+    "$QT_BUILD_ROOT/build/Release/qtbase/plugins"; do
+    if [ -d "$plugin_dir" ]; then
+        echo "Copying Qt plugins from: $plugin_dir"
+        cp -av "$plugin_dir"/* "$QT_PLUGINS_DIR/" 2>/dev/null || true
+    fi
 done
 
 # Create wrapper script
