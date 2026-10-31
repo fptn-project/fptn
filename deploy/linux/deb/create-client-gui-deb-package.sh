@@ -43,10 +43,9 @@ QT_LIBS_DIR=$CLIENT_TMP_DIR/opt/fptn/qt6/
 QT_PLUGINS_DIR="$QT_LIBS_DIR/plugins"
 mkdir -p "$QT_LIBS_DIR"
 mkdir -p "$QT_PLUGINS_DIR"
-
-find ~/.conan2 -path "*/Release/qtbase/lib/libQt6*.so*" -print0 | xargs -0 cp -av -t "$QT_LIBS_DIR"
-find ~/.conan2 -type d -path "*/Release/qtbase/plugins" | grep -E "/qt[0-9a-f]+" | while read -r dir; do
-    cp -rv "$dir"/* "$QT_PLUGINS_DIR"
+find ~/.conan2 -name "libQt6*.so*" -print0 | xargs -0 cp -av -t "$QT_LIBS_DIR" 2>/dev/null || echo "WARNING: Qt libs not found in ~/.conan2"
+find ~/.conan2 -type d -name "plugins" -path "*qtbase*" | while read -r dir; do
+cp -rv "$dir"/* "$QT_PLUGINS_DIR" 2>/dev/null || true
 done
 
 # Create wrapper script
