@@ -99,26 +99,76 @@ def copy_qt_libraries(frameworks_path: pathlib.Path):
     conan_path = get_conan_path()
     print(f"Detected Conan path: {conan_path}")
 
-    qt_libs = run_command(f'dir /S /B "{conan_path}"\\*.dll')
-    qt_lib_paths = qt_libs.splitlines()
+    # Find the most recent Qt version by looking for Qt6Core.dll
+    # We look for all Qt6Core.*.dll in qtbase/bin to determine the version (6.7.3 or 6.11.1)
+    qt_core_dlls = run_command(
+        f'dir /S /B "{conan_path}"\\Qt6Core*.dll'
+    ).splitlines()
+
+    qt_version = None
+    qt_bin_dir = None
+    qt_core_dlls_mtime = 0  # Track the modification time of the newest DLL
+    for dll_path_str in qt_core_dlls:
+        dll_path = pathlib.Path(dll_path_str)
+        # Look for files like Qt6Core.6.7.3.dll or Qt6Core.6.11.1.dll
+        name = dll_path.name
+        # Normalize the path to search for "qtbase/bin"
+        posix_path = str(dll_path.as_posix())
+        if r"qtbase/bin/" in posix_path and name.startswith("Qt6Core."):
+            # Extract the version from the filename: Qt6Core.6.7.3.dll -> 6.7.3
+            version_part = name.replace("Qt6Core.", "").replace(".dll", "")
+            # Pick the most recent one (by file modification time)
+            if qt_version is None or dll_path.stat().st_mtime > qt_core_dlls_mtime:
+                qt_version = version_part
+                qt_bin_dir = dll_path.parent
+                qt_core_dlls_mtime = dll_path.stat().st_mtime
+
+    if not qt_version or not qt_bin_dir:
+        raise FileNotFoundError(
+            "Could not find Qt6Core.dll in Conan cache. "
+            "Make sure Qt is built with -o with_gui_client=True"
+        )
+
+    print(f"Detected Qt version: {qt_version}")
+    print(f"Qt bin directory: {qt_bin_dir}")
+
+    # Copy all Qt6*.dll from the found directory, renaming the version
+    # Qt6Core.6.7.3.dll -> Qt6Core.dll
+    for dll in qt_bin_dir.glob("Qt6*.dll"):
+        # Skip already-renamed files (without version) and debug files ('d.dll')
+        if dll.name.endswith("d.dll") or "." not in dll.stem.split("Qt6")[-1]:
+            # Filename without a version, e.g. Qt6Core.dll — skip it
+            if not any(c.isdigit() for c in dll.stem[-5:]):
+                continue
+        target_name = dll.name
+        # Strip the version from the name: Qt6Core.6.7.3.dll -> Qt6Core.dll
+        # Split by dots: ['Qt6Core', '6', '7', '3', 'dll']
+        parts = target_name.split(".")
+        if len(parts) >= 3 and parts[1].isdigit():
+            # Remove all numeric version segments
+            target_name = parts[0] + ".dll"
+        print(f"Copy {dll} -> {frameworks_path / target_name}")
+        shutil.copy(dll, frameworks_path / target_name)
+
+    # Copy plugins
     frameworks_qt_plugins_path = frameworks_path / "plugins"
-    for lib in qt_lib_paths:
-        lib_path = pathlib.Path(lib)
-        lib_name = lib_path.name
-    for lib in qt_lib_paths:
-        lib_path = pathlib.Path(lib)
-        lib_name = lib_path.name
-        if r"qtbase/bin/" in str(lib_path.as_posix()):
-            if r".6.11.1.dll" in lib_name:
-                lib_name = lib_name.replace(".6.11.1.dll", ".6.dll")
-            print(f"Copy {lib} -> {frameworks_path / lib_name}")
-            shutil.copy(lib, frameworks_path / lib_name)
-        elif "qtbase/plugins" in str(lib_path.as_posix()):
-            separated = str(lib_path.as_posix()).split("qtbase/plugins/")
-            plugin_folder = frameworks_qt_plugins_path / separated[1].replace(lib_name, "")
-            os.makedirs(plugin_folder, exist_ok=True)
-            print(f"Copy {lib_path} -> {plugin_folder / lib_name}")
-            shutil.copy(lib, plugin_folder / lib_name)
+    # Look for the plugins folder relative to qt_bin_dir
+    # qt_bin_dir = .../qtbase/bin, plugins = .../qtbase/plugins
+    qt_plugins_dir = qt_bin_dir.parent / "plugins"
+    if not qt_plugins_dir.exists():
+        # In case the Conan cache path is: .../p/bin, plugins = .../p/plugins
+        qt_plugins_dir = qt_bin_dir.parent.parent / "plugins"
+
+    if qt_plugins_dir.exists():
+        print(f"Qt plugins directory: {qt_plugins_dir}")
+        for plugin_file in qt_plugins_dir.rglob("*.dll"):
+            rel_path = plugin_file.relative_to(qt_plugins_dir)
+            target = frameworks_qt_plugins_path / rel_path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            print(f"Copy {plugin_file} -> {target}")
+            shutil.copy(plugin_file, target)
+    else:
+        print(f"WARNING: Qt plugins directory not found near {qt_bin_dir}")
 
 
 def compile_inno_setup_script(script_path: pathlib.Path, output_dir: pathlib.Path) -> bool:
