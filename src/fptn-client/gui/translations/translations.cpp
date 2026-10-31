@@ -24,7 +24,10 @@ QTranslator& getTranslator() {
 bool fptn::gui::SetTranslation(const QString& language_code) {
   QFont font = QFontDatabase::systemFont(QFontDatabase::GeneralFont);
   if (language_code == "fa") {
+    font.setFamily("Tahoma");
+    font.setFamilies({"Tahoma", "Vazirmatn", "DejaVu Sans"});
     font.setStyleHint(QFont::SansSerif);
+    font.setStyleStrategy(QFont::PreferMatch);
   }
   qApp->setFont(font);
 

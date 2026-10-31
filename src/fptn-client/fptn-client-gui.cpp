@@ -46,6 +46,10 @@ BOOL WINAPI SignalHandler(DWORD ctrlType) {
 }  // namespace
 
 int main(int argc, char* argv[]) {
+  // Force HarfBuzz shaping for complex scripts (Persian/Arabic).
+  // MUST be set before QApplication is constructed.
+  qputenv("QT_HARFBUZZ", "always");
+
   try {
 #ifdef __linux__
     if (geteuid() != 0) {
