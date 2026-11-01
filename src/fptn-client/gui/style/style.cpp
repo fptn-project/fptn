@@ -28,7 +28,7 @@ QFont GetCyrillicCapableFont() {
     return QFont(*preferred);
   }
 
-  const QFont system_font =
+  QFont system_font =
       QFontDatabase::systemFont(QFontDatabase::GeneralFont);
   if (QFontDatabase::writingSystems(system_font.family())
           .contains(QFontDatabase::Cyrillic)) {
