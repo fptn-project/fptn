@@ -82,24 +82,61 @@ def create_app(
         shutil.copy(fptn_client_gui_wrapper_sh, fptn_client_gui_wrapper_sh_dest)
         os.chmod(binary_dest, 0o4755)  # 0o755)
 
-        qt_libs = run_command(r'find ~/.conan2 -type f \( -name "*.dylib" \) | grep Release')
+        # Find the newest Qt version by looking for libQt6Core.dylib
+        qt_core_dylibs = run_command(
+            r'find ~/.conan2 -type f -name "libQt6Core.*.dylib" | grep "qtbase/lib"'
+        ).splitlines()
 
-        qt_lib_paths = qt_libs.splitlines()
-        for lib in qt_lib_paths:
-            lib_path = pathlib.Path(lib)
-            lib_name = lib_path.name
-            if r"qtbase/lib/" in lib:
-                if r".6.11.1.dylib" in lib_name:
-                    lib_name = lib_name.replace(".6.11.1.dylib", ".6.dylib")
-                print(f"Copy {lib} -> {frameworks_path / lib_name}")
-                shutil.copy(lib, frameworks_path / lib_name)
-            elif "qtbase/plugins/" in str(lib_path):
-                separeted = lib.split(r"qtbase/plugins/")
-                plugin_folder = frameworks_qt_plugins_path / separeted[1].replace(lib_name, "")
-                os.makedirs(plugin_folder, exist_ok=True)
+        qt_version = None
+        qt_lib_dir = None
+        qt_core_mtime = 0
+        for dylib_path_str in qt_core_dylibs:
+            dylib_path = pathlib.Path(dylib_path_str)
+            name = dylib_path.name
+            # Extract the version from the filename: libQt6Core.6.7.3.dylib -> 6.7.3
+            if name.startswith("libQt6Core.") and name.endswith(".dylib"):
+                version_part = name.replace("libQt6Core.", "").replace(".dylib", "")
+                # Pick the most recent one (by file modification time)
+                mtime = dylib_path.stat().st_mtime
+                if qt_version is None or mtime > qt_core_mtime:
+                    qt_version = version_part
+                    qt_lib_dir = dylib_path.parent
+                    qt_core_mtime = mtime
 
-                print(f"Copy {lib_path} -> {plugin_folder / lib_name}")
-                shutil.copy(lib, plugin_folder / lib_name)
+        if not qt_version or not qt_lib_dir:
+            raise FileNotFoundError(
+                "Could not find libQt6Core.dylib in Conan cache. "
+                "Make sure Qt is built with -o with_gui_client=True"
+            )
+
+        print(f"Detected Qt version: {qt_version}")
+        print(f"Qt lib directory: {qt_lib_dir}")
+
+        # Copy all Qt6*.dylib from the found directory, renaming the version
+        # libQt6Core.6.7.3.dylib -> libQt6Core.6.dylib
+        for dylib in qt_lib_dir.glob("libQt6*.dylib"):
+            target_name = dylib.name
+            # Strip the version from the name: libQt6Core.6.7.3.dylib -> libQt6Core.6.dylib
+            # Split by dots: ['libQt6Core', '6', '7', '3', 'dylib']
+            parts = target_name.split(".")
+            if len(parts) >= 4 and parts[1].isdigit():
+                # Keep only the major version number: libQt6Core.6.dylib
+                target_name = f"{parts[0]}.{parts[1]}.dylib"
+            print(f"Copy {dylib} -> {frameworks_path / target_name}")
+            shutil.copy(dylib, frameworks_path / target_name)
+
+        # Copy Qt plugins
+        qt_plugins_dir = qt_lib_dir.parent / "plugins"
+        if qt_plugins_dir.exists():
+            print(f"Qt plugins directory: {qt_plugins_dir}")
+            for plugin_file in qt_plugins_dir.rglob("*.dylib"):
+                rel_path = plugin_file.relative_to(qt_plugins_dir)
+                target = frameworks_qt_plugins_path / rel_path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                print(f"Copy {plugin_file} -> {target}")
+                shutil.copy(plugin_file, target)
+        else:
+            print(f"WARNING: Qt plugins directory not found near {qt_lib_dir}")
 
         # copy icon
         icon_dest = resources_path / ICON.name
