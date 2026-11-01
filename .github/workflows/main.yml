@@ -188,7 +188,6 @@ jobs:
             --sbom=false .
 
   build_macos_arm64:
-    if: false
     runs-on: MacOS_ARM64
     steps:
       - name: Checkout code
@@ -257,7 +256,6 @@ jobs:
             *.pkg
           if-no-files-found: warn
   build_windows_AMD64:
-    if: false
     runs-on: Windows11_AMD64
     steps:
       - name: Checkout code
@@ -447,7 +445,7 @@ jobs:
 
   deploy_website:
     if: github.event_name == 'release' || github.ref == 'refs/heads/master'
-    needs: [build_ubuntu_x86_64]
+    needs: [build_ubuntu_x86_64, build_macos_arm64, build_windows_AMD64]
     runs-on: ubuntu-latest
     permissions:
       contents: read
