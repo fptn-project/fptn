@@ -99,8 +99,9 @@ def copy_qt_libraries(frameworks_path: pathlib.Path):
     conan_path = get_conan_path()
     print(f"Detected Conan path: {conan_path}")
 
-    # Find the most recent Qt version by looking for Qt6Core.dll
-    # We look for all Qt6Core.*.dll in qtbase/bin to determine the version (6.7.3 or 6.11.1)
+    # Find Qt6Core.dll to determine the Qt version and bin directory.
+    # On Windows, Qt DLLs are typically in qtbase/bin/.
+    # On Linux/macOS, they are in qtbase/lib/.
     qt_core_dlls = run_command(
         f'dir /S /B "{conan_path}"\\Qt6Core*.dll'
     ).splitlines()
@@ -112,16 +113,24 @@ def copy_qt_libraries(frameworks_path: pathlib.Path):
         dll_path = pathlib.Path(dll_path_str)
         # Look for files like Qt6Core.6.7.3.dll or Qt6Core.6.11.1.dll
         name = dll_path.name
-        # Normalize the path to search for "qtbase/bin"
+        # Normalize the path to search for "qtbase/bin" OR "qtbase/lib"
         posix_path = str(dll_path.as_posix())
-        if r"qtbase/bin/" in posix_path and name.startswith("Qt6Core."):
+        is_qt_path = (
+            r"qtbase/bin/" in posix_path or
+            r"qtbase/lib/" in posix_path
+        )
+        if is_qt_path and name.startswith("Qt6Core."):
             # Extract the version from the filename: Qt6Core.6.7.3.dll -> 6.7.3
             version_part = name.replace("Qt6Core.", "").replace(".dll", "")
             # Pick the most recent one (by file modification time)
-            if qt_version is None or dll_path.stat().st_mtime > qt_core_dlls_mtime:
+            try:
+                mtime = dll_path.stat().st_mtime
+            except OSError:
+                continue
+            if qt_version is None or mtime > qt_core_dlls_mtime:
                 qt_version = version_part
                 qt_bin_dir = dll_path.parent
-                qt_core_dlls_mtime = dll_path.stat().st_mtime
+                qt_core_dlls_mtime = mtime
 
     if not qt_version or not qt_bin_dir:
         raise FileNotFoundError(
@@ -135,11 +144,9 @@ def copy_qt_libraries(frameworks_path: pathlib.Path):
     # Copy all Qt6*.dll from the found directory, renaming the version
     # Qt6Core.6.7.3.dll -> Qt6Core.dll
     for dll in qt_bin_dir.glob("Qt6*.dll"):
-        # Skip already-renamed files (without version) and debug files ('d.dll')
-        if dll.name.endswith("d.dll") or "." not in dll.stem.split("Qt6")[-1]:
-            # Filename without a version, e.g. Qt6Core.dll — skip it
-            if not any(c.isdigit() for c in dll.stem[-5:]):
-                continue
+        # Skip debug files ('d.dll')
+        if dll.name.endswith("d.dll"):
+            continue
         target_name = dll.name
         # Strip the version from the name: Qt6Core.6.7.3.dll -> Qt6Core.dll
         # Split by dots: ['Qt6Core', '6', '7', '3', 'dll']
