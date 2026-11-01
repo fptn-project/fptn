@@ -95,7 +95,6 @@ class FPTN(ConanFile):
         "qt/*:with_harfbuzz": True,
         "qt/*:with_icu": True,
         "qt/*:with_freetype": True,
-        "qt/*:with_fontconfig": True, 
         "qt/*:with_mysql": False,
         "qt/*:with_pq": False,
         "qt/*:with_odbc": False,
@@ -124,7 +123,7 @@ class FPTN(ConanFile):
         self._register_local_recipe("boringssl", "openssl", "boringssl", True, False)
         self._register_local_recipe("yaff", "yaff", "0.0.0", visible=False)
         if self.options.with_gui_client:
-            self.requires("qt/6.7.3")
+            self.requires("qt/6.12.0")
         if self.settings.os != "Windows":
             self.requires("meson/1.10.2", override=True, force=True)
         if not self.options.build_only_fptn_lib:
