@@ -100,6 +100,7 @@ jobs:
           git clean -ffdx || true
 
   build_ubuntu_arm64:
+    if: false
     runs-on: Ubuntu_ARM64_Desktop
     steps:
       - name: Checkout code
@@ -332,6 +333,7 @@ jobs:
           if-no-files-found: warn
 
   build_openwrt:
+    if: false
     runs-on: Docker_AMD64
     strategy:
       matrix:
@@ -395,6 +397,7 @@ jobs:
           git clean -ffdx || true
 
   create_multiarch_manifest:
+    if: false
     needs: [build_ubuntu_x86_64, build_ubuntu_arm64]
     runs-on: ubuntu-latest
     steps:
