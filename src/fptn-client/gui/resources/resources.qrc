@@ -4,21 +4,19 @@
         <file>icons/app.ico</file>
         <file>icons/active.ico</file>
         <file>icons/inactive.ico</file>
-
         <file>icons/ping_green_circle.png</file>
         <file>icons/ping_orange_circle.png</file>
         <file>icons/ping_red_circle.png</file>
         <file>icons/ping_yellow_circle.png</file>
-
         <file>icons/menu_server_list.png</file>
         <file>icons/menu_settings.png</file>
         <file>icons/menu_new_version_download.png</file>
         <file>icons/menu_exit.png</file>
         <file>icons/menu_disconnect.png</file>
         <file>icons/menu_connection.png</file>
-
         <file>translations/fptn_ru.qm</file>
         <file>translations/fptn_en.qm</file>
         <file>translations/fptn_fa.qm</file>
+        <file>fonts/Vazirmatn-Regular.ttf</file>
     </qresource>
 </RCC>

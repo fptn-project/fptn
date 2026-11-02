@@ -42,11 +42,34 @@ fi
 QT_LIBS_DIR=$CLIENT_TMP_DIR/opt/fptn/qt6/
 QT_PLUGINS_DIR="$QT_LIBS_DIR/plugins"
 mkdir -p "$QT_LIBS_DIR"
-mkdir -p "$QT_PLUGINS_DIR"
+mkdir -p "$QT_PLUGINS_DIR/platforms"
+mkdir -p "$QT_PLUGINS_DIR/imageformats"
+mkdir -p "$QT_PLUGINS_DIR/styles"
 
-find ~/.conan2 -path "*/Release/qtbase/lib/libQt6*.so*" -print0 | xargs -0 cp -av -t "$QT_LIBS_DIR"
-find ~/.conan2 -type d -path "*/Release/qtbase/plugins" | grep -E "/qt[0-9a-f]+" | while read -r dir; do
-    cp -rv "$dir"/* "$QT_PLUGINS_DIR"
+# The Conan cache may hold several Qt builds, so take the most recent one
+QT_CORE_SO=$(find ~/.conan2 -name "libQt6Core.so.6" -printf "%T@ %p\n" 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+
+if [ -z "$QT_CORE_SO" ]; then
+    echo "ERROR: Could not find libQt6Core.so.6 in ~/.conan2"
+    exit 1
+fi
+
+QT_PKG_DIR=$(dirname "$QT_CORE_SO")
+echo "Using Qt from: $QT_PKG_DIR"
+
+# Copy Qt libraries
+cp -av "$QT_PKG_DIR"/libQt6*.so* "$QT_LIBS_DIR" 2>/dev/null || echo "WARNING: Qt libs not found"
+
+# Copy Qt plugins
+for plugin_dir in \
+    "$QT_PKG_DIR/../plugins" \
+    "$QT_PKG_DIR/../../plugins" \
+    "$QT_PKG_DIR/../../build/Release/qtbase/plugins"; do
+    if [ -d "$plugin_dir" ]; then
+        echo "Copying Qt plugins from: $plugin_dir"
+        cp -av "$plugin_dir"/* "$QT_PLUGINS_DIR/" 2>/dev/null || true
+        break
+    fi
 done
 
 # Create wrapper script

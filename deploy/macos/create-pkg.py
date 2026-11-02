@@ -82,24 +82,45 @@ def create_app(
         shutil.copy(fptn_client_gui_wrapper_sh, fptn_client_gui_wrapper_sh_dest)
         os.chmod(binary_dest, 0o4755)  # 0o755)
 
-        qt_libs = run_command(r'find ~/.conan2 -type f \( -name "*.dylib" \) | grep Release')
+        # Find Qt libraries in Conan cache. libQt6Core.dylib is a symlink to
+        # the versioned file, so do not use find -type f. The cache may hold
+        # several Qt builds, so pick the most recent one.
+        qt_core_dylibs = run_command(
+            r'find ~/.conan2 -name "libQt6Core.dylib" | grep "qtbase/lib"'
+        ).splitlines()
+        if not qt_core_dylibs:
+            raise FileNotFoundError(
+                "Could not find libQt6Core.dylib in Conan cache. "
+                "Make sure Qt is built with -o with_gui_client=True"
+            )
+        qt_core_dylib = max(qt_core_dylibs, key=lambda p: pathlib.Path(p).stat().st_mtime)
 
-        qt_lib_paths = qt_libs.splitlines()
-        for lib in qt_lib_paths:
-            lib_path = pathlib.Path(lib)
-            lib_name = lib_path.name
-            if r"qtbase/lib/" in lib:
-                if r".6.11.1.dylib" in lib_name:
-                    lib_name = lib_name.replace(".6.11.1.dylib", ".6.dylib")
-                print(f"Copy {lib} -> {frameworks_path / lib_name}")
-                shutil.copy(lib, frameworks_path / lib_name)
-            elif "qtbase/plugins/" in str(lib_path):
-                separeted = lib.split(r"qtbase/plugins/")
-                plugin_folder = frameworks_qt_plugins_path / separeted[1].replace(lib_name, "")
-                os.makedirs(plugin_folder, exist_ok=True)
+        qt_lib_dir = pathlib.Path(qt_core_dylib).parent
+        print(f"Qt lib directory: {qt_lib_dir}")
 
-                print(f"Copy {lib_path} -> {plugin_folder / lib_name}")
-                shutil.copy(lib, plugin_folder / lib_name)
+        # Copy all Qt6*.dylib from the found directory, normalizing versioned names:
+        # libQt6Core.6.12.0.dylib -> libQt6Core.6.dylib (compatible with @rpath)
+        for dylib in qt_lib_dir.glob("libQt6*.dylib"):
+            target_name = dylib.name
+            parts = target_name.split(".")
+            if len(parts) >= 4 and parts[1].isdigit():
+                # Keep only the major version: libQt6Core.6.dylib
+                target_name = f"{parts[0]}.{parts[1]}.dylib"
+            print(f"Copy {dylib} -> {frameworks_path / target_name}")
+            shutil.copy(dylib, frameworks_path / target_name)
+
+        # Copy Qt plugins
+        qt_plugins_dir = qt_lib_dir.parent / "plugins"
+        if qt_plugins_dir.exists():
+            print(f"Qt plugins directory: {qt_plugins_dir}")
+            for plugin_file in qt_plugins_dir.rglob("*.dylib"):
+                rel_path = plugin_file.relative_to(qt_plugins_dir)
+                target = frameworks_qt_plugins_path / rel_path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                print(f"Copy {plugin_file} -> {target}")
+                shutil.copy(plugin_file, target)
+        else:
+            print(f"WARNING: Qt plugins directory not found near {qt_lib_dir}")
 
         # copy icon
         icon_dest = resources_path / ICON.name
