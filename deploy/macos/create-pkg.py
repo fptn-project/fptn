@@ -82,9 +82,11 @@ def create_app(
         shutil.copy(fptn_client_gui_wrapper_sh, fptn_client_gui_wrapper_sh_dest)
         os.chmod(binary_dest, 0o4755)  # 0o755)
 
-        # Find Qt libraries in Conan cache
+        # Find Qt libraries in Conan cache.
+        # On macOS, libQt6Core.dylib is a symlink to libQt6Core.6.12.0.dylib,
+        # so we search for the versioned file (a real file, not a symlink).
         qt_core_dylib = run_command(
-            r'find ~/.conan2 -type f -name "libQt6Core.dylib" | grep "qtbase/lib" | head -1'
+            r'find ~/.conan2 -name "libQt6Core.dylib" | grep "qtbase/lib" | head -1'
         )
         if not qt_core_dylib:
             raise FileNotFoundError(
