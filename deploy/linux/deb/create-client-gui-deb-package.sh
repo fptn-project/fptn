@@ -46,8 +46,9 @@ mkdir -p "$QT_PLUGINS_DIR/platforms"
 mkdir -p "$QT_PLUGINS_DIR/imageformats"
 mkdir -p "$QT_PLUGINS_DIR/styles"
 
-# Find Qt in Conan cache
-QT_CORE_SO=$(find ~/.conan2 -name "libQt6Core.so.6" 2>/dev/null | head -1)
+# The Conan cache may hold several Qt builds, so take the most recent one
+QT_CORE_SO=$(find ~/.conan2 -name "libQt6Core.so.6" -printf "%T@ %p\n" 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+
 if [ -z "$QT_CORE_SO" ]; then
     echo "ERROR: Could not find libQt6Core.so.6 in ~/.conan2"
     exit 1

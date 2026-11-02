@@ -104,19 +104,18 @@ def copy_qt_libraries(frameworks_path: pathlib.Path):
         f'dir /S /B "{conan_path}"\\Qt6Core.dll'
     ).splitlines()
 
-    qt_bin_dir = None
-    for dll_path_str in qt_core_dlls:
-        dll_path = pathlib.Path(dll_path_str)
-        posix_path = str(dll_path.as_posix())
-        if "qtbase/bin/" in posix_path or "qtbase/lib/" in posix_path:
-            qt_bin_dir = dll_path.parent
-            break
-
-    if not qt_bin_dir:
+    # The Conan cache may hold several Qt builds (old and current),
+    # so pick the most recent one - the Qt this build was linked against.
+    candidates = [
+        pathlib.Path(p) for p in qt_core_dlls
+        if "qtbase/bin/" in p.replace("\\", "/") or "qtbase/lib/" in p.replace("\\", "/")
+    ]
+    if not candidates:
         raise FileNotFoundError(
             "Could not find Qt6Core.dll in Conan cache. "
             "Make sure Qt is built with -o with_gui_client=True"
         )
+    qt_bin_dir = max(candidates, key=lambda p: p.stat().st_mtime).parent
 
     print(f"Qt bin directory: {qt_bin_dir}")
 

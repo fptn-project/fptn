@@ -82,17 +82,18 @@ def create_app(
         shutil.copy(fptn_client_gui_wrapper_sh, fptn_client_gui_wrapper_sh_dest)
         os.chmod(binary_dest, 0o4755)  # 0o755)
 
-        # Find Qt libraries in Conan cache.
-        # On macOS, libQt6Core.dylib is a symlink to libQt6Core.6.12.0.dylib,
-        # so we search for the versioned file (a real file, not a symlink).
-        qt_core_dylib = run_command(
-            r'find ~/.conan2 -name "libQt6Core.dylib" | grep "qtbase/lib" | head -1'
-        )
-        if not qt_core_dylib:
+        # Find Qt libraries in Conan cache. libQt6Core.dylib is a symlink to
+        # the versioned file, so do not use find -type f. The cache may hold
+        # several Qt builds, so pick the most recent one.
+        qt_core_dylibs = run_command(
+            r'find ~/.conan2 -name "libQt6Core.dylib" | grep "qtbase/lib"'
+        ).splitlines()
+        if not qt_core_dylibs:
             raise FileNotFoundError(
                 "Could not find libQt6Core.dylib in Conan cache. "
                 "Make sure Qt is built with -o with_gui_client=True"
             )
+        qt_core_dylib = max(qt_core_dylibs, key=lambda p: pathlib.Path(p).stat().st_mtime)
 
         qt_lib_dir = pathlib.Path(qt_core_dylib).parent
         print(f"Qt lib directory: {qt_lib_dir}")
