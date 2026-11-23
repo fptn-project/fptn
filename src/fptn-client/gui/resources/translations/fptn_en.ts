@@ -24,6 +24,10 @@
             <translation>Reconnecting...</translation>
         </message>
         <message>
+            <source> (paused)</source>
+            <translation> (paused)</translation>
+        </message>
+        <message>
             <source>Disconnecting...</source>
             <translation>Disconnecting...</translation>
         </message>
