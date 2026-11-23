@@ -162,7 +162,6 @@ class SettingsModel : public QObject {
   static constexpr const char* kConnectionStrategyBrowserMimicry =
       "browser-mimicry";
 
-  // Limit of VpnManager full restarts; -1 means unlimited attempts
   static constexpr int kInfiniteReconnectAttempts = -1;
 
  public:

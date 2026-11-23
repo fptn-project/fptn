@@ -695,7 +695,7 @@ void TrayApp::handleTimer() {
             if (max_attempts >= 0) {
               max_str = QString::number(max_attempts);
             } else {
-              max_str = QString(QChar(0x221E));  // infinity sign U+221E
+              max_str = QString(QChar(0x221E));  // infinity sign
             }
             text += QString(" (%1/%2)").arg(n).arg(max_str);
           }
@@ -1131,7 +1131,8 @@ bool TrayApp::startVpn(QString& err_msg) {
       fptn::vpn::VpnManager::Config{.http_client = std::move(http_client),
           .route_manager = route_manager,
           .virtual_net_interface = virtual_network_interface,
-          .plugins = std::move(client_plugins)});
+          .plugins = std::move(client_plugins),
+          .max_reconnect_attempts = settings_->MaxReconnectAttempts()});
   {
     const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 

@@ -66,7 +66,6 @@ class VpnManager final {
   mutable std::mutex queue_mutex_;
 
   std::atomic<int> max_reconnect_attempts_{10};
-
   std::atomic<bool> running_;
   std::atomic<bool> ever_connected_;
   std::atomic<bool> gave_up_;

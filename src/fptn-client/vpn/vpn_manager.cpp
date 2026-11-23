@@ -33,12 +33,12 @@ std::chrono::seconds ReconnectBackoff(int full_restart_count) {
 
 namespace fptn::vpn {
 VpnManager::VpnManager(Config config)
-    : running_(false),
+    : max_reconnect_attempts_(config.max_reconnect_attempts),
+      running_(false),
       ever_connected_(false),
       gave_up_(false),
       reconnecting_(false),
       reconnect_attempt_(0),
-      max_reconnect_attempts_(config.max_reconnect_attempts),
       config_(std::move(config)) {}  // NOLINT
 
 VpnManager::~VpnManager() { Stop(); }

@@ -268,8 +268,8 @@ void SettingsWidget::SetupUi() {
   reconnect_attempts_combo_box_->addItem("10", 10);
   reconnect_attempts_combo_box_->addItem("15", 15);
   reconnect_attempts_combo_box_->addItem("35", 35);
-  reconnect_attempts_combo_box_->addItem(QObject::tr("Infinite"),
-      SettingsModel::kInfiniteReconnectAttempts);
+  reconnect_attempts_combo_box_->addItem(
+      QObject::tr("Infinite"), SettingsModel::kInfiniteReconnectAttempts);
   reconnect_attempts_combo_box_->setSizePolicy(
       QSizePolicy::Expanding, QSizePolicy::Fixed);
   reconnect_attempts_combo_box_->setMinimumWidth(200);
@@ -280,8 +280,8 @@ void SettingsWidget::SetupUi() {
   reconnect_attempts_combo_box_->setCurrentIndex(
       reconnect_attempts_index >= 0 ? reconnect_attempts_index : 1);
 
-  connect(reconnect_attempts_combo_box_, &QComboBox::currentIndexChanged,
-      this, [this](int) {
+  connect(reconnect_attempts_combo_box_, &QComboBox::currentIndexChanged, this,
+      [this](int) {
         settings_->SetMaxReconnectAttempts(
             reconnect_attempts_combo_box_->currentData().toInt());
       });
@@ -1230,23 +1230,25 @@ void SettingsWidget::onLanguageChanged(const QString&) {
         strategy_index >= 0 ? strategy_index : 0);
   }
 
+  // Reconnection attempts
   if (reconnect_attempts_label_) {
     reconnect_attempts_label_->setText(QObject::tr("Reconnection attempts"));
   }
   if (reconnect_attempts_combo_box_) {
     const int current_attempts = settings_->MaxReconnectAttempts();
+    reconnect_attempts_combo_box_->blockSignals(true);
     reconnect_attempts_combo_box_->clear();
     reconnect_attempts_combo_box_->addItem("5", 5);
     reconnect_attempts_combo_box_->addItem("10", 10);
     reconnect_attempts_combo_box_->addItem("15", 15);
     reconnect_attempts_combo_box_->addItem("35", 35);
-    reconnect_attempts_combo_box_->addItem(QObject::tr("Infinite"),
-        SettingsModel::kInfiniteReconnectAttempts);
-
+    reconnect_attempts_combo_box_->addItem(
+        QObject::tr("Infinite"), SettingsModel::kInfiniteReconnectAttempts);
     const int attempts_index =
         reconnect_attempts_combo_box_->findData(current_attempts);
     reconnect_attempts_combo_box_->setCurrentIndex(
         attempts_index >= 0 ? attempts_index : 1);
+    reconnect_attempts_combo_box_->blockSignals(false);
   }
 
   // Bypass blocking
