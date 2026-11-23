@@ -162,6 +162,9 @@ class SettingsModel : public QObject {
   static constexpr const char* kConnectionStrategyBrowserMimicry =
       "browser-mimicry";
 
+  // Limit of VpnManager full restarts; -1 means unlimited attempts
+  static constexpr int kInfiniteReconnectAttempts = -1;
+
  public:
   explicit SettingsModel(const QMap<QString, QString>& languages,
       const QString& default_language = "en",
@@ -217,6 +220,9 @@ class SettingsModel : public QObject {
 
   QString ConnectionStrategy() const;
   void SetConnectionStrategy(const QString& strategy);
+
+  int MaxReconnectAttempts() const;
+  void SetMaxReconnectAttempts(int attempts);
 
   SNIManagerSPtr SniManager() const;
 
@@ -281,6 +287,7 @@ class SettingsModel : public QObject {
 
   QString bypass_method_;
   QString connection_strategy_;
+  int max_reconnect_attempts_ = 10;
 
   bool enable_ad_block_;
   QString blacklist_domains_;

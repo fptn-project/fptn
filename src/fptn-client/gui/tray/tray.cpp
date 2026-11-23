@@ -688,11 +688,16 @@ void TrayApp::handleTimer() {
       } else if (vpn_client_->IsReconnecting()) {
         if (reconnecting_label_action_) {
           const int n = vpn_client_->ReconnectAttempt();
+          const int max_attempts = vpn_client_->MaxReconnectAttempts();
           QString text = QObject::tr("Reconnecting...");
           if (n > 0) {
-            text += QString(" (%1/%2)")
-                        .arg(n)
-                        .arg(vpn_client_->MaxReconnectAttempts());
+            QString max_str;
+            if (max_attempts >= 0) {
+              max_str = QString::number(max_attempts);
+            } else {
+              max_str = QString(QChar(0x221E));  // infinity sign U+221E
+            }
+            text += QString(" (%1/%2)").arg(n).arg(max_str);
           }
           reconnecting_label_action_->setText(text);
           reconnecting_label_action_->setVisible(true);

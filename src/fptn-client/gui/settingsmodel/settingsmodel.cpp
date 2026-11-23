@@ -402,6 +402,14 @@ void SettingsModel::Load(bool dont_load_server) {
     connection_strategy_ = kConnectionStrategyDual;
   }
 
+  if (service_obj.contains("max_reconnect_attempts")) {
+    const int attempts = service_obj["max_reconnect_attempts"].toInt();
+    if (attempts == kInfiniteReconnectAttempts || attempts == 5 ||
+        attempts == 10 || attempts == 15 || attempts == 35) {
+      max_reconnect_attempts_ = attempts;
+    }
+  }
+
   if (service_obj.contains("enable_ad_block")) {
     enable_ad_block_ = service_obj["enable_ad_block"].toBool();
   }
@@ -547,6 +555,7 @@ bool SettingsModel::Save() {
   json_object["sni"] = sni_;
   json_object["bypass_method"] = bypass_method_;
   json_object["connection_strategy"] = connection_strategy_;
+  json_object["max_reconnect_attempts"] = max_reconnect_attempts_;
 
 #if _WIN32
   json_object["enable_advanced_dns_management"] =
@@ -721,6 +730,18 @@ QString SettingsModel::ConnectionStrategy() const {
 void SettingsModel::SetConnectionStrategy(const QString& strategy) {
   connection_strategy_ = strategy;
   Save();
+}
+
+int SettingsModel::MaxReconnectAttempts() const {
+  return max_reconnect_attempts_;
+}
+
+void SettingsModel::SetMaxReconnectAttempts(int attempts) {
+  if (attempts == kInfiniteReconnectAttempts || attempts == 5 ||
+      attempts == 10 || attempts == 15 || attempts == 35) {
+    max_reconnect_attempts_ = attempts;
+    Save();
+  }
 }
 
 fptn::gui::SNIManagerSPtr SettingsModel::SniManager() const {
