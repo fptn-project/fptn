@@ -13,6 +13,7 @@ Distributed under the MIT License (https://opensource.org/licenses/MIT)
 
 #include <QAction>          // NOLINT(build/include_order)
 #include <QApplication>     // NOLINT(build/include_order)
+#include <QElapsedTimer>    // NOLINT(build/include_order)
 #include <QMenu>            // NOLINT(build/include_order)
 #include <QMouseEvent>      // NOLINT(build/include_order)
 #include <QObject>          // NOLINT(build/include_order)
@@ -113,6 +114,12 @@ class TrayApp : public QWidget {
   QTimer* update_timer_ = nullptr;
   ConnectionState connection_state_ = ConnectionState::None;
   QString connected_server_address_;
+
+  // session time counter (read-only label in the tray menu)
+  QAction* connection_time_action_ = nullptr;
+  QElapsedTimer session_time_clock_;
+  qint64 session_time_elapsed_ms_ = 0;
+  bool session_time_paused_ = false;
 
   QString active_icon_path_;
   QString inactive_icon_path_;

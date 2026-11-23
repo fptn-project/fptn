@@ -24,6 +24,10 @@
             <translation>در حال اتصال مجدد...</translation>
         </message>
         <message>
+            <source> (paused)</source>
+            <translation> (توقف موقت)</translation>
+        </message>
+        <message>
             <source>Disconnecting...</source>
             <translation>در حال قطع ارتباط...</translation>
         </message>

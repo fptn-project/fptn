@@ -24,6 +24,10 @@
             <translation>Переподключение...</translation>
         </message>
         <message>
+            <source> (paused)</source>
+            <translation> (пауза)</translation>
+        </message>
+        <message>
             <source>Disconnecting...</source>
             <translation>Отключение...</translation>
         </message>

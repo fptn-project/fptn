@@ -79,6 +79,14 @@ void ShowWarning(const QString& title, const QString& msg) {
 }
 #endif
 
+QString FormatSessionTime(qint64 total_ms) {
+  const qint64 total_seconds = total_ms / 1000;
+  return QString("%1:%2:%3")
+      .arg(total_seconds / 3600, 2, 10, QChar('0'))
+      .arg((total_seconds / 60) % 60, 2, 10, QChar('0'))
+      .arg(total_seconds % 60, 2, 10, QChar('0'));
+}
+
 }  // namespace
 
 TrayApp::TrayApp(const SettingsModelPtr& settings, QObject* parent)
@@ -185,6 +193,11 @@ TrayApp::TrayApp(const SettingsModelPtr& settings, QObject* parent)
   speed_widget_action_ = new QWidgetAction(this);
   speed_widget_action_->setDefaultWidget(speed_widget_);
 
+  // Session time counter (read-only label)
+  connection_time_action_ = new QAction("00:00:00", this);
+  connection_time_action_->setEnabled(false);
+  connection_time_action_->setVisible(false);
+
   // Settings
   connect(settings_.get(), &SettingsModel::dataChanged, this,
       &TrayApp::UpdateTrayMenu);
@@ -230,6 +243,7 @@ TrayApp::TrayApp(const SettingsModelPtr& settings, QObject* parent)
   tray_menu_->addAction(disconnecting_label_action_);
   tray_menu_->addAction(reconnecting_label_action_);
   tray_menu_->addAction(speed_widget_action_);
+  tray_menu_->addAction(connection_time_action_);
   tray_menu_->addSeparator();
   tray_menu_->addAction(settings_action_);
   tray_menu_->addSeparator();
@@ -449,6 +463,11 @@ void TrayApp::UpdateTrayMenu() {
       if (speed_widget_) {
         speed_widget_->setVisible(false);
       }
+      if (connection_time_action_) {
+        connection_time_action_->setVisible(false);
+      }
+      session_time_elapsed_ms_ = 0;
+      session_time_paused_ = false;
       if (connecting_label_action_) {
         connecting_label_action_->setVisible(false);
       }
@@ -497,6 +516,9 @@ void TrayApp::UpdateTrayMenu() {
       }
       if (speed_widget_action_) {
         speed_widget_action_->setVisible(true);
+      }
+      if (connection_time_action_) {
+        connection_time_action_->setVisible(true);
       }
       if (connecting_label_action_) {
         connecting_label_action_->setVisible(false);
@@ -645,6 +667,11 @@ void TrayApp::handleConnected() {
     const std::unique_lock<std::mutex> lock(mutex_);  // mutex
 
     connection_state_ = ConnectionState::Connected;
+
+    // restart the session time counter for the new session
+    session_time_elapsed_ms_ = 0;
+    session_time_paused_ = false;
+    session_time_clock_.start();
   }
   UpdateTrayMenu();
 }
@@ -686,6 +713,11 @@ void TrayApp::handleTimer() {
           is_disconnected = true;
         }
       } else if (vpn_client_->IsReconnecting()) {
+        // pause the session time counter during reconnection attempts
+        if (!session_time_paused_) {
+          session_time_elapsed_ms_ += session_time_clock_.elapsed();
+          session_time_paused_ = true;
+        }
         if (reconnecting_label_action_) {
           const int n = vpn_client_->ReconnectAttempt();
           QString text = QObject::tr("Reconnecting...");
@@ -701,6 +733,11 @@ void TrayApp::handleTimer() {
           disconnect_action_->setVisible(false);
         }
       } else {
+        // resume the session time counter after reconnection
+        if (session_time_paused_) {
+          session_time_clock_.start();
+          session_time_paused_ = false;
+        }
         // Re-arm the check: the tunnel is healthy again, so the next
         // unexpected close has to be reported too.
         reconnection_in_progress = false;
@@ -714,6 +751,17 @@ void TrayApp::handleTimer() {
           speed_widget_->UpdateSpeed(
               vpn_client_->GetReceiveRate(), vpn_client_->GetSendRate());
         }
+      }
+
+      // refresh the session time counter label
+      if (connection_time_action_ && connection_time_action_->isVisible()) {
+        const qint64 total_ms = session_time_elapsed_ms_ +
+            (session_time_paused_ ? 0 : session_time_clock_.elapsed());
+        QString session_text = FormatSessionTime(total_ms);
+        if (session_time_paused_) {
+          session_text += QObject::tr(" (paused)");
+        }
+        connection_time_action_->setText(session_text);
       }
     }
   }
