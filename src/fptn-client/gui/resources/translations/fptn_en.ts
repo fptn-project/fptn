@@ -309,6 +309,14 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>Connection strategy</translation>
         </message>
         <message>
+            <source>Reconnection attempts</source>
+            <translation>Reconnection attempts</translation>
+        </message>
+        <message>
+            <source>Infinite</source>
+            <translation>Infinite</translation>
+        </message>
+        <message>
             <source>Persistent tunnel</source>
             <translation>Persistent tunnel</translation>
         </message>

@@ -310,6 +310,14 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>Стратегия подключения</translation>
         </message>
         <message>
+            <source>Reconnection attempts</source>
+            <translation>Попытки переподключения</translation>
+        </message>
+        <message>
+            <source>Infinite</source>
+            <translation>Бесконечно</translation>
+        </message>
+        <message>
             <source>Persistent tunnel</source>
             <translation>Постоянный туннель</translation>
         </message>

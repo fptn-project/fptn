@@ -309,6 +309,14 @@ This may cause network connectivity issues or prevent proper operation of FPTN.<
             <translation>راهبرد اتصال</translation>
         </message>
         <message>
+            <source>Reconnection attempts</source>
+            <translation>تعداد تلاش برای اتصال مجدد</translation>
+        </message>
+        <message>
+            <source>Infinite</source>
+            <translation>بی‌نهایت</translation>
+        </message>
+        <message>
             <source>Persistent tunnel</source>
             <translation>تونل دائمی</translation>
         </message>
